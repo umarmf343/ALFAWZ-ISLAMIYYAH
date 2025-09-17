@@ -1,17 +1,12 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-"use client";
+'use client';
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,8 +34,8 @@ import {
   AlertCircle,
   Calendar,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import { apiClient } from '@/lib/api';
+import { useTranslations } from 'next-intl';
+import { api } from '@/lib/api';
 
 interface MemorizationProgress {
   id: number;
@@ -73,8 +68,15 @@ interface StudentMemorizationStats {
  */
 const fetchMemorizationProgress = async (classId?: string): Promise<MemorizationProgress[]> => {
   const params = classId ? `?class_id=${classId}` : '';
-  const response = await apiClient.get(`/teacher/memorization-progress${params}`);
-  return response.data;
+  const response = await api.get(`/teacher/memorization-progress${params}`);
+  const payload = (response?.data ?? response) as unknown;
+  if (Array.isArray(payload)) {
+    return payload as MemorizationProgress[];
+  }
+  if (Array.isArray((payload as { data?: MemorizationProgress[] }).data)) {
+    return (payload as { data: MemorizationProgress[] }).data;
+  }
+  return [];
 };
 
 /**
@@ -84,8 +86,15 @@ const fetchMemorizationProgress = async (classId?: string): Promise<Memorization
  */
 const fetchStudentStats = async (classId?: string): Promise<StudentMemorizationStats[]> => {
   const params = classId ? `?class_id=${classId}` : '';
-  const response = await apiClient.get(`/teacher/memorization-stats${params}`);
-  return response.data;
+  const response = await api.get(`/teacher/memorization-stats${params}`);
+  const payload = (response?.data ?? response) as unknown;
+  if (Array.isArray(payload)) {
+    return payload as StudentMemorizationStats[];
+  }
+  if (Array.isArray((payload as { data?: StudentMemorizationStats[] }).data)) {
+    return (payload as { data: StudentMemorizationStats[] }).data;
+  }
+  return [];
 };
 
 /**
@@ -93,7 +102,7 @@ const fetchStudentStats = async (classId?: string): Promise<StudentMemorizationS
  * Displays student memorization progress, due reviews, and performance metrics
  */
 export default function MemorizationOversightSection() {
-  const { t } = useTranslation();
+  const t = useTranslations('teacher.memorization');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'progress' | 'stats'>('progress');
 
@@ -132,10 +141,12 @@ export default function MemorizationOversightSection() {
     const now = new Date();
     const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     
-    if (diffHours < 1) return t('memorization.justNow', { defaultValue: 'Just now' });
-    if (diffHours < 24) return t('memorization.hoursAgo', { defaultValue: '{{hours}}h ago', hours: diffHours });
+    if (diffHours < 1) return t('justNow', { defaultValue: 'Just now' });
+    if (diffHours < 24) {
+      return t('hoursAgo', { defaultValue: '{{hours}}h ago', hours: diffHours });
+    }
     const diffDays = Math.floor(diffHours / 24);
-    return t('memorization.daysAgo', { defaultValue: '{{days}}d ago', days: diffDays });
+    return t('daysAgo', { defaultValue: '{{days}}d ago', days: diffDays });
   };
 
   if (progressLoading || statsLoading) {

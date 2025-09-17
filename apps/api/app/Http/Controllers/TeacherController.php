@@ -242,4 +242,42 @@ class TeacherController extends Controller
 
         return response()->json(['message' => 'Analytics updated successfully']);
     }
+
+    /**
+     * Grade a submission that belongs to the authenticated teacher.
+     * Updates the submission score, rubric data and teacher feedback notes.
+     */
+    public function gradeSubmission(Request $request, Submission $submission): JsonResponse
+    {
+        $teacher = Auth::user();
+
+        if (!$submission->assignment || $submission->assignment->teacher_id !== $teacher->id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'score' => ['required', 'integer', 'min:0', 'max:100'],
+            'feedback' => ['nullable', 'string', 'max:2000'],
+            'rubric' => ['nullable', 'array'],
+            'rubric.tajweed' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'rubric.fluency' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'rubric.memorization' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'rubric.pronunciation' => ['nullable', 'integer', 'min:0', 'max:100'],
+        ]);
+
+        $submission->update([
+            'status' => Submission::STATUS_GRADED,
+            'score' => $validated['score'],
+            'rubric_json' => $validated['rubric'] ?? $submission->rubric_json,
+            'teacher_notes' => $validated['feedback'] ?? $submission->teacher_notes,
+            'reviewed_at' => now(),
+        ]);
+
+        $submission->refresh(['assignment', 'student']);
+
+        return response()->json([
+            'message' => 'Submission graded successfully',
+            'submission' => $submission,
+        ]);
+    }
 }
