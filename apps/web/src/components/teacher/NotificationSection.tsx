@@ -1,6 +1,3 @@
-/* AlFawz Qur'an Institute — generated with TRAE */
-/* Author: Auto-scaffold (review required) */
-
 'use client';
 
 import React, { useState } from 'react';
@@ -12,103 +9,111 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  Bell, 
-  Check, 
-  X, 
-  AlertCircle, 
-  Info, 
-  CheckCircle, 
+import {
+  Bell,
+  AlertCircle,
+  CheckCircle,
+  Info,
+  X,
   Clock,
-  MoreHorizontal,
+  Eye,
   Trash2,
-  Eye
+  Check,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { api } from '@/lib/api';
 
-// Types for notification data
-interface Notification {
+export type NotificationType = 'info' | 'success' | 'warning' | 'error';
+
+interface NotificationMetadata {
+  studentName?: string;
+  className?: string;
+  submissionId?: string;
+  assignmentTitle?: string;
+}
+
+interface NotificationItemData {
   id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: NotificationType;
   title: string;
   message: string;
   isRead: boolean;
   createdAt: string;
   actionUrl?: string;
-  metadata?: {
-    studentName?: string;
-    className?: string;
-    submissionId?: string;
-    assignmentTitle?: string;
-  };
+  metadata?: NotificationMetadata;
 }
 
 interface NotificationsResponse {
-  notifications: Notification[];
+  notifications: NotificationItemData[];
   unreadCount: number;
 }
 
-/**
- * Fetch notifications from API
- * @returns Promise with notifications data
- */
+const formatTitle = (raw: string): string => {
+  return raw
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/(^|\s)([a-z])/g, (match) => match.toUpperCase());
+};
+
+const resolveType = (rawType: string): NotificationType => {
+  const type = rawType.toLowerCase();
+  if (type.includes('error') || type.includes('overdue') || type.includes('failed')) {
+    return 'error';
+  }
+  if (type.includes('success') || type.includes('graded') || type.includes('completed')) {
+    return 'success';
+  }
+  if (type.includes('warning') || type.includes('due')) {
+    return 'warning';
+  }
+  return 'info';
+};
+
+const normalizeNotification = (notification: any): NotificationItemData => {
+  const data = notification.data ?? {};
+  const resolvedType = resolveType(data.type ?? notification.type ?? 'info');
+
+  return {
+    id: String(notification.id),
+    type: resolvedType,
+    title: data.title ?? notification.title ?? formatTitle(data.type ?? notification.type ?? 'Notification'),
+    message: data.message ?? notification.message ?? '',
+    isRead: Boolean(notification.read_at),
+    createdAt: notification.created_at ?? new Date().toISOString(),
+    actionUrl: data.action_url ?? notification.action_url ?? undefined,
+    metadata: {
+      studentName: data.student_name ?? data.studentName,
+      className: data.class_name ?? data.className,
+      submissionId: data.submission_id ? String(data.submission_id) : data.submissionId,
+      assignmentTitle: data.assignment_title ?? data.assignmentTitle,
+    },
+  };
+};
+
 const fetchNotifications = async (): Promise<NotificationsResponse> => {
-  const response = await fetch('/api/teacher/notifications', {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch notifications');
-  }
-  
-  return response.json();
+  const response = await api.get('/notifications?per_page=20');
+  const payload = (response as any)?.data ?? {};
+  const notifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+
+  return {
+    notifications: notifications.map(normalizeNotification),
+    unreadCount: Number(payload.unread_count ?? 0),
+  };
 };
 
-/**
- * Mark notification as read
- * @param notificationId - ID of notification to mark as read
- */
-const markAsRead = async (notificationId: string): Promise<void> => {
-  const response = await fetch(`/api/teacher/notifications/${notificationId}/read`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to mark notification as read');
-  }
+const markAsRead = async (notificationId: string) => {
+  await api.post('/notifications/mark-read', { notification_ids: [notificationId] });
 };
 
-/**
- * Delete notification
- * @param notificationId - ID of notification to delete
- */
-const deleteNotification = async (notificationId: string): Promise<void> => {
-  const response = await fetch(`/api/teacher/notifications/${notificationId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to delete notification');
-  }
+const markAllAsRead = async () => {
+  await api.post('/notifications/mark-all-read');
 };
 
-/**
- * Get notification icon based on type
- * @param type - Notification type
- * @returns Icon component
- */
-function getNotificationIcon(type: Notification['type']) {
+const deleteNotification = async (notificationId: string) => {
+  await api.delete(`/notifications/${notificationId}`);
+};
+
+const getNotificationIcon = (type: NotificationType) => {
   switch (type) {
     case 'success':
       return CheckCircle;
@@ -119,14 +124,9 @@ function getNotificationIcon(type: Notification['type']) {
     default:
       return Info;
   }
-}
+};
 
-/**
- * Get notification color classes based on type
- * @param type - Notification type
- * @returns CSS classes for styling
- */
-function getNotificationColors(type: Notification['type']) {
+const getNotificationColors = (type: NotificationType) => {
   switch (type) {
     case 'success':
       return {
@@ -157,16 +157,10 @@ function getNotificationColors(type: Notification['type']) {
         badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       };
   }
-}
+};
 
-/**
- * Individual notification item component
- * @param notification - Notification data
- * @param onMarkAsRead - Callback for marking as read
- * @param onDelete - Callback for deletion
- */
 interface NotificationItemProps {
-  notification: Notification;
+  notification: NotificationItemData;
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
 }
@@ -181,42 +175,37 @@ function NotificationItem({ notification, onMarkAsRead, onDelete }: Notification
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -100 }}
+      exit={{ opacity: 0, x: -80 }}
       whileHover={{ scale: 1.01 }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
       className={`p-4 rounded-lg border transition-all duration-200 ${
-        notification.isRead 
-          ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700' 
+        notification.isRead
+          ? 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
           : `${colors.bg} ${colors.border}`
       }`}
     >
       <div className="flex items-start space-x-3">
-        {/* Icon */}
         <div className={`p-1 rounded-full ${colors.icon}`}>
           <Icon className="h-4 w-4" />
         </div>
-        
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <h4 className={`text-sm font-medium ${
-                notification.isRead 
-                  ? 'text-gray-600 dark:text-gray-400' 
-                  : 'text-gray-900 dark:text-white'
-              }`}>
+              <h4
+                className={`text-sm font-medium ${
+                  notification.isRead ? 'text-gray-600 dark:text-gray-400' : 'text-gray-900 dark:text-white'
+                }`}
+              >
                 {notification.title}
               </h4>
-              <p className={`text-xs mt-1 ${
-                notification.isRead 
-                  ? 'text-gray-500 dark:text-gray-500' 
-                  : 'text-gray-700 dark:text-gray-300'
-              }`}>
+              <p
+                className={`text-xs mt-1 ${
+                  notification.isRead ? 'text-gray-500 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'
+                }`}
+              >
                 {notification.message}
               </p>
-              
-              {/* Metadata */}
               {notification.metadata && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {notification.metadata.studentName && (
@@ -229,32 +218,27 @@ function NotificationItem({ notification, onMarkAsRead, onDelete }: Notification
                       {notification.metadata.className}
                     </Badge>
                   )}
+                  {notification.metadata.assignmentTitle && (
+                    <Badge variant="outline" className="text-xs">
+                      {notification.metadata.assignmentTitle}
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>
-            
-            {/* Unread indicator */}
-            {!notification.isRead && (
-              <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1" />
-            )}
+            {!notification.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1" />}
           </div>
-          
-          {/* Footer */}
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
               <Clock className="h-3 w-3" />
-              <span>
-                {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-              </span>
+              <span>{new Date(notification.createdAt).toLocaleString()}</span>
             </div>
-            
-            {/* Actions */}
             <AnimatePresence>
               {isHovered && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
                   className="flex items-center space-x-1"
                 >
                   {!notification.isRead && (
@@ -267,7 +251,6 @@ function NotificationItem({ notification, onMarkAsRead, onDelete }: Notification
                       <Eye className="h-3 w-3" />
                     </Button>
                   )}
-                  
                   <Button
                     variant="ghost"
                     size="sm"
@@ -286,9 +269,6 @@ function NotificationItem({ notification, onMarkAsRead, onDelete }: Notification
   );
 }
 
-/**
- * Loading skeleton for notifications
- */
 function NotificationsLoading() {
   return (
     <div className="space-y-4">
@@ -308,12 +288,8 @@ function NotificationsLoading() {
   );
 }
 
-/**
- * Empty state component
- */
 function EmptyNotifications() {
   const t = useTranslations('teacher.notifications');
-  
   return (
     <div className="text-center py-8">
       <div className="text-gray-400 dark:text-gray-600 mb-4">
@@ -323,41 +299,36 @@ function EmptyNotifications() {
         {t('empty.title', { defaultValue: 'No Notifications' })}
       </h3>
       <p className="text-gray-600 dark:text-gray-400 text-sm">
-        {t('empty.message', { defaultValue: 'You\'re all caught up! New notifications will appear here.' })}
+        {t('empty.message', { defaultValue: "You're all caught up! New notifications will appear here." })}
       </p>
     </div>
   );
 }
 
-/**
- * Main Notification Section Component
- * Displays and manages teacher notifications with real-time updates
- */
 export default function NotificationSection() {
   const t = useTranslations('teacher.notifications');
   const queryClient = useQueryClient();
-  
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['teacher-notifications'],
     queryFn: fetchNotifications,
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds
-    staleTime: 10 * 1000, // Consider data stale after 10 seconds
+    refetchInterval: 30 * 1000,
+    staleTime: 10 * 1000,
   });
 
-  // Mark as read mutation
   const markAsReadMutation = useMutation({
     mutationFn: markAsRead,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teacher-notifications'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teacher-notifications'] }),
   });
 
-  // Delete notification mutation
   const deleteMutation = useMutation({
     mutationFn: deleteNotification,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teacher-notifications'] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teacher-notifications'] }),
+  });
+
+  const markAllMutation = useMutation({
+    mutationFn: markAllAsRead,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teacher-notifications'] }),
   });
 
   const handleMarkAsRead = (notificationId: string) => {
@@ -366,15 +337,6 @@ export default function NotificationSection() {
 
   const handleDelete = (notificationId: string) => {
     deleteMutation.mutate(notificationId);
-  };
-
-  const handleMarkAllAsRead = () => {
-    if (data?.notifications) {
-      const unreadNotifications = data.notifications.filter(n => !n.isRead);
-      unreadNotifications.forEach(notification => {
-        markAsReadMutation.mutate(notification.id);
-      });
-    }
   };
 
   if (isLoading) {
@@ -391,16 +353,14 @@ export default function NotificationSection() {
           <h3 className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
             {t('error.title', { defaultValue: 'Failed to Load Notifications' })}
           </h3>
-          <p className="text-red-600 dark:text-red-400 text-sm">
-            {(error as Error).message}
-          </p>
+          <p className="text-red-600 dark:text-red-400 text-sm">{(error as Error).message}</p>
         </CardContent>
       </Card>
     );
   }
 
-  const notifications = data?.notifications || [];
-  const unreadCount = data?.unreadCount || 0;
+  const notifications = data?.notifications ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
 
   if (notifications.length === 0) {
     return <EmptyNotifications />;
@@ -408,7 +368,6 @@ export default function NotificationSection() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white">
@@ -420,14 +379,13 @@ export default function NotificationSection() {
             </Badge>
           )}
         </div>
-        
         {unreadCount > 0 && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleMarkAllAsRead}
+            onClick={() => markAllMutation.mutate()}
             className="text-xs"
-            disabled={markAsReadMutation.isPending}
+            disabled={markAllMutation.isPending}
           >
             <Check className="h-3 w-3 mr-1" />
             {t('markAllRead', { defaultValue: 'Mark all read' })}
@@ -435,7 +393,6 @@ export default function NotificationSection() {
         )}
       </div>
 
-      {/* Notifications List */}
       <ScrollArea className="h-96">
         <AnimatePresence>
           <div className="space-y-3">
