@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -51,6 +51,7 @@ import {
   RotateCcw,
   Sparkles
 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 // Types for submission data
 interface Submission {
@@ -99,6 +100,77 @@ interface SubmissionFilters {
   searchQuery: string;
 }
 
+const mapStatus = (status: string | undefined): 'pending' | 'graded' | 'reviewed' => {
+  switch ((status ?? '').toLowerCase()) {
+    case 'graded':
+      return 'graded';
+    case 'reviewed':
+      return 'reviewed';
+    default:
+      return 'pending';
+  }
+};
+
+const mapRubric = (rubric: any): RubricScores | undefined => {
+  if (!rubric || typeof rubric !== 'object') {
+    return undefined;
+  }
+
+  return {
+    tajweed: Number(rubric.tajweed ?? rubric.tajweedScore ?? 0),
+    fluency: Number(rubric.fluency ?? rubric.fluencyScore ?? 0),
+    memorization: Number(rubric.memorization ?? rubric.memorizationScore ?? 0),
+    pronunciation: Number(rubric.pronunciation ?? rubric.pronunciationScore ?? 0),
+  };
+};
+
+const mapAnalysis = (analysis: any): AIAnalysis | undefined => {
+  if (!analysis || typeof analysis !== 'object') {
+    return undefined;
+  }
+
+  const detectedErrorsRaw = analysis.detected_errors ?? analysis.detectedErrors ?? [];
+  const detectedErrors: ErrorDetection[] = Array.isArray(detectedErrorsRaw)
+    ? detectedErrorsRaw.map((error: any) => ({
+        timestamp: Number(error.timestamp ?? error.time ?? 0),
+        type: (error.type ?? 'tajweed') as 'tajweed' | 'pronunciation' | 'fluency',
+        description: error.description ?? '',
+        severity: (error.severity ?? 'low') as 'low' | 'medium' | 'high',
+      }))
+    : [];
+
+  return {
+    overallScore: Number(analysis.overall_score ?? analysis.overallScore ?? 0),
+    tajweedScore: Number(analysis.tajweed_score ?? analysis.tajweedScore ?? 0),
+    fluencyScore: Number(analysis.fluency_score ?? analysis.fluencyScore ?? 0),
+    pronunciationScore: Number(analysis.pronunciation_score ?? analysis.pronunciationScore ?? 0),
+    suggestions: Array.isArray(analysis.suggestions) ? analysis.suggestions : [],
+    detectedErrors,
+    confidence: Number(analysis.confidence ?? analysis.confidence_score ?? 0),
+  };
+};
+
+const transformSubmission = (submission: any): Submission => {
+  const student = submission.student ?? {};
+  const assignment = submission.assignment ?? {};
+  const feedback = Array.isArray(submission.feedback) && submission.feedback.length > 0 ? submission.feedback[0] : undefined;
+
+  return {
+    id: String(submission.id),
+    studentName: student.name ?? 'Student',
+    studentEmail: student.email ?? '',
+    assignmentTitle: assignment.title ?? 'Assignment',
+    assignmentId: String(submission.assignment_id ?? assignment.id ?? ''),
+    audioUrl: submission.audio_url ?? submission.audio_s3_url ?? '',
+    submittedAt: submission.created_at ?? submission.submitted_at ?? new Date().toISOString(),
+    status: mapStatus(submission.status),
+    score: submission.score ?? submission.overall_score ?? undefined,
+    feedback: submission.teacher_notes ?? feedback?.feedback_text ?? feedback?.note ?? undefined,
+    aiAnalysis: mapAnalysis(submission.ai_analysis ?? feedback?.ai_analysis),
+    rubric: mapRubric(submission.rubric_json ?? feedback?.scores),
+  };
+};
+
 /**
  * Fetch submissions from API with filters
  * @param filters - Filter criteria
@@ -106,25 +178,24 @@ interface SubmissionFilters {
  */
 const fetchSubmissions = async (filters: SubmissionFilters): Promise<Submission[]> => {
   const params = new URLSearchParams();
-  
+
   if (filters.status && filters.status !== 'all') params.append('status', filters.status);
   if (filters.assignment && filters.assignment !== 'all') params.append('assignment_id', filters.assignment);
   if (filters.dateRange && filters.dateRange !== 'all') params.append('date_range', filters.dateRange);
   if (filters.searchQuery) params.append('search', filters.searchQuery);
-  
-  const response = await fetch(`/api/teacher/submissions?${params.toString()}`, {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  if (!response.ok) {
-    throw new Error('Failed to fetch submissions');
-  }
-  
-  const data = await response.json();
-  return data.submissions;
+
+  const query = params.toString();
+  const response = await api.get(`/submissions${query ? `?${query}` : ''}`);
+  const payload = response as any;
+  const rawSubmissions = Array.isArray(payload.data)
+    ? payload.data
+    : Array.isArray(payload?.data?.data)
+    ? payload.data.data
+    : Array.isArray(payload?.submissions)
+    ? payload.submissions
+    : [];
+
+  return rawSubmissions.map(transformSubmission);
 };
 
 /**
@@ -137,20 +208,14 @@ const gradeSubmission = async (submissionId: string, gradeData: {
   feedback: string;
   rubric: RubricScores;
 }): Promise<Submission> => {
-  const response = await fetch(`/api/teacher/submissions/${submissionId}/grade`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(gradeData),
+  const response = await api.post(`/teacher/submissions/${submissionId}/grade`, {
+    score: gradeData.score,
+    feedback: gradeData.feedback,
+    rubric: gradeData.rubric,
   });
-  
-  if (!response.ok) {
-    throw new Error('Failed to grade submission');
-  }
-  
-  return response.json();
+
+  const payload = (response as any)?.submission ?? response;
+  return transformSubmission(payload);
 };
 
 /**
