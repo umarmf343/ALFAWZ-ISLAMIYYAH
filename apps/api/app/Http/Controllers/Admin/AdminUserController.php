@@ -28,7 +28,22 @@ class AdminUserController extends Controller
     {
         $query = User::query()
             ->with(['roles:id,name'])
-            ->select(['id', 'name', 'email', 'email_verified_at', 'last_login_at', 'created_at']);
+            ->withCount([
+                'memberClasses as classes_count',
+                'submissions'
+            ])
+            ->select([
+                'id',
+                'name',
+                'email',
+                'role',
+                'status',
+                'email_verified_at',
+                'last_login_at',
+                'suspended_at',
+                'created_at',
+                'hasanat_total'
+            ]);
         
         // Search functionality
         if ($search = $request->get('search')) {
@@ -47,13 +62,15 @@ class AdminUserController extends Controller
         
         // Status filter (active/inactive based on last login)
         if ($status = $request->get('status')) {
-            if ($status === 'active') {
-                $query->where('last_login_at', '>=', now()->subDays(30));
+            if (in_array($status, ['suspended', 'pending', 'active'])) {
+                $query->where('status', $status);
             } elseif ($status === 'inactive') {
                 $query->where(function ($q) {
                     $q->whereNull('last_login_at')
-                      ->orWhere('last_login_at', '<', now()->subDays(30));
+                        ->orWhere('last_login_at', '<', now()->subDays(30));
                 });
+            } elseif ($status === 'new') {
+                $query->whereNull('last_login_at');
             }
         }
         
@@ -72,13 +89,19 @@ class AdminUserController extends Controller
                 'email' => $user->email,
                 'email_verified' => $user->email_verified_at !== null,
                 'roles' => $user->roles->pluck('name')->toArray(),
-                'primary_role' => $user->roles->first()?->name ?? 'student',
+                'role' => $user->role ?? $user->roles->first()?->name ?? 'student',
+                'primary_role' => $user->roles->first()?->name ?? $user->role ?? 'student',
                 'last_login_at' => $user->last_login_at?->toISOString(),
                 'created_at' => $user->created_at->toISOString(),
                 'status' => $this->getUserStatus($user),
+                'classes_count' => $user->classes_count ?? 0,
+                'submissions_count' => $user->submissions_count ?? 0,
+                'level' => $user->hasanat_total !== null
+                    ? max(1, (int) floor(($user->hasanat_total ?? 0) / 1000) + 1)
+                    : null,
             ];
         });
-        
+
         return response()->json($users);
     }
     
@@ -111,6 +134,9 @@ class AdminUserController extends Controller
         
         // Update the role
         $user->syncRoles([$newRole]);
+        $user->role = $newRole;
+        $user->status = $user->status === 'suspended' ? 'suspended' : ($user->email_verified_at ? 'active' : 'pending');
+        $user->save();
         
         // Log the audit trail
         $this->logAudit('user.role.update', [
@@ -165,6 +191,11 @@ class AdminUserController extends Controller
                     
                     // Remove all existing roles and assign the new one
                     $user->syncRoles([$data['role']]);
+                    $user->role = $data['role'];
+                    if ($user->status !== 'suspended') {
+                        $user->status = $user->email_verified_at ? 'active' : 'pending';
+                    }
+                    $user->save();
                     $updatedCount++;
                     
                     // Log individual user role change
@@ -202,6 +233,51 @@ class AdminUserController extends Controller
             'total_requested' => count($data['ids']),
             'errors' => $errors,
             'success_rate' => count($data['ids']) > 0 ? round(($updatedCount / count($data['ids'])) * 100, 2) : 0
+        ]);
+    }
+
+    /**
+     * Suspend or reinstate a user account.
+     *
+     * @param int $id
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function updateStatus($id, Request $request)
+    {
+        $data = $request->validate([
+            'suspend' => ['required', 'boolean'],
+        ]);
+
+        $user = User::findOrFail($id);
+        $currentUser = auth()->user();
+
+        if ($user->id === $currentUser->id && $data['suspend']) {
+            return response()->json([
+                'error' => 'You cannot suspend your own account.',
+            ], 403);
+        }
+
+        $status = $data['suspend'] ? 'suspended' : ($user->email_verified_at ? 'active' : 'pending');
+
+        $user->update([
+            'status' => $status,
+            'suspended_at' => $data['suspend'] ? now() : null,
+        ]);
+
+        $this->logAudit('user.status.update', [
+            'user_id' => $user->id,
+            'user_name' => $user->name,
+            'new_status' => $status,
+            'suspended' => $data['suspend'],
+            'admin_id' => $currentUser->id,
+            'admin_name' => $currentUser->name,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'status' => $status,
+            'suspended_at' => $user->suspended_at?->toISOString(),
         ]);
     }
     
@@ -255,14 +331,30 @@ class AdminUserController extends Controller
      */
     private function getUserStatus(User $user): string
     {
+        if ($user->status === 'suspended') {
+            return 'suspended';
+        }
+
+        if ($user->status === 'pending') {
+            return 'pending';
+        }
+
+        if ($user->status === 'active') {
+            if ($user->last_login_at && $user->last_login_at < now()->subDays(30)) {
+                return 'inactive';
+            }
+
+            return 'active';
+        }
+
         if (!$user->last_login_at) {
             return 'new';
         }
-        
+
         if ($user->last_login_at >= now()->subDays(30)) {
             return 'active';
         }
-        
+
         return 'inactive';
     }
     

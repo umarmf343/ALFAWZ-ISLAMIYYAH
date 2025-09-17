@@ -1,7 +1,7 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { 
@@ -20,6 +20,25 @@ import {
 interface AdminLayoutProps {
   children: React.ReactNode;
   title?: string;
+}
+
+interface ApiPermission {
+  name?: string;
+}
+
+interface RawUser {
+  id: number;
+  name: string;
+  email: string;
+  role?: string;
+  status?: string;
+  permissions?: Array<string | ApiPermission>;
+  all_permissions?: Array<string | ApiPermission>;
+  roles?: Array<string | ApiPermission>;
+}
+
+interface MeResponse {
+  user?: RawUser;
 }
 
 interface User {
@@ -91,19 +110,88 @@ export default function AdminLayout({ children, title = 'Admin Dashboard' }: Adm
    * @param requiredPermissions Array of required permissions
    * @returns boolean indicating if user has access
    */
-  const hasPermission = (requiredPermissions: string[]): boolean => {
-    if (!user || !user.permissions) return false;
-    return requiredPermissions.some(permission => 
-      user.permissions.includes(permission) || user.role === 'admin'
-    );
-  };
+  const hasPermission = useCallback((requiredPermissions: string[]): boolean => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (!requiredPermissions.length) return true;
+
+    return requiredPermissions.some(permission => user.permissions.includes(permission));
+  }, [user]);
+
+  const normalizeUser = useCallback((payload: RawUser): User => {
+    const roleCandidates: string[] = [];
+
+    if (payload.role) {
+      roleCandidates.push(payload.role);
+    }
+
+    if (Array.isArray(payload.roles)) {
+      payload.roles.forEach((roleItem) => {
+        if (typeof roleItem === 'string') {
+          roleCandidates.push(roleItem);
+        } else if (roleItem?.name) {
+          roleCandidates.push(roleItem.name);
+        }
+      });
+    }
+
+    const resolvedRole = (roleCandidates.find(Boolean) || 'student').toLowerCase();
+
+    const permissionSet = new Set<string>();
+
+    const pushPermissions = (perms?: Array<string | ApiPermission>) => {
+      if (!Array.isArray(perms)) return;
+      perms.forEach((perm) => {
+        if (typeof perm === 'string') {
+          permissionSet.add(perm);
+        } else if (perm?.name) {
+          permissionSet.add(perm.name);
+        }
+      });
+    };
+
+    pushPermissions(payload.permissions);
+    pushPermissions(payload.all_permissions);
+
+    const adminDefaults = [
+      'admin.dashboard.view',
+      'admin.users.view',
+      'admin.analytics.view',
+      'admin.classes.view',
+      'admin.content.moderate',
+      'admin.payments.view',
+      'admin.settings.manage'
+    ];
+
+    const teacherDefaults = [
+      'admin.dashboard.view',
+      'admin.analytics.view',
+      'admin.classes.view'
+    ];
+
+    if (resolvedRole === 'admin') {
+      adminDefaults.forEach((perm) => permissionSet.add(perm));
+    } else if (resolvedRole === 'teacher') {
+      teacherDefaults.forEach((perm) => permissionSet.add(perm));
+    }
+
+    return {
+      id: payload.id,
+      name: payload.name,
+      email: payload.email,
+      role: resolvedRole,
+      permissions: Array.from(permissionSet)
+    };
+  }, []);
 
   /**
    * Fetch current user data and verify admin access.
    */
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
+      if (typeof window === 'undefined') return;
+
+      const token = window.localStorage.getItem('auth_token');
       if (!token) {
         router.push('/auth/login');
         return;
@@ -120,49 +208,59 @@ export default function AdminLayout({ children, title = 'Admin Dashboard' }: Adm
         throw new Error('Failed to fetch user data');
       }
 
-      const userData = await response.json();
-      
-      // Check if user has admin or teacher role
-      if (!['admin', 'teacher'].includes(userData.role)) {
+      const raw: MeResponse | RawUser = await response.json();
+      const payload = 'user' in raw && raw.user ? raw.user : (raw as RawUser);
+
+      if (!payload) {
+        throw new Error('Invalid user payload received');
+      }
+
+      const normalizedUser = normalizeUser(payload);
+
+      if (!['admin', 'teacher'].includes(normalizedUser.role)) {
         router.push('/dashboard');
         return;
       }
 
-      setUser(userData);
+      setUser(normalizedUser);
     } catch (error) {
       console.error('Error fetching user data:', error);
       router.push('/auth/login');
     } finally {
       setLoading(false);
     }
-  };
+  }, [normalizeUser, router]);
 
   /**
    * Handle user logout.
    */
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+      if (typeof window !== 'undefined') {
+        const token = window.localStorage.getItem('auth_token');
+        if (token) {
+          await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+        }
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      localStorage.removeItem('auth_token');
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('auth_token');
+      }
       router.push('/auth/login');
     }
   };
 
   useEffect(() => {
     fetchUserData();
-  }, []);
+  }, [fetchUserData]);
 
   // Show loading spinner while checking authentication
   if (loading) {
