@@ -121,29 +121,34 @@ interface SimpleBarChartProps {
 }
 
 function SimpleBarChart({ data, title, color }: SimpleBarChartProps) {
-  const maxValue = Math.max(...Object.values(data));
-  
+  const entries = Object.entries(data);
+  const maxValue = entries.length > 0 ? Math.max(...entries.map(([, value]) => value)) : 0;
+
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
-      <div className="space-y-3">
-        {Object.entries(data).map(([key, value]) => (
-          <div key={key} className="flex items-center">
-            <div className="w-20 text-sm text-gray-600 capitalize">{key}</div>
-            <div className="flex-1 mx-4">
-              <div className="bg-gray-200 rounded-full h-4">
-                <div 
-                  className={`h-4 rounded-full ${color}`}
-                  style={{ width: `${(value / maxValue) * 100}%` }}
-                ></div>
+      {entries.length === 0 ? (
+        <p className="text-sm text-gray-500">No data available for this period.</p>
+      ) : (
+        <div className="space-y-3">
+          {entries.map(([key, value]) => (
+            <div key={key} className="flex items-center">
+              <div className="w-24 text-sm text-gray-600 capitalize">{key}</div>
+              <div className="flex-1 mx-4">
+                <div className="bg-gray-200 rounded-full h-4">
+                  <div
+                    className={`h-4 rounded-full ${color}`}
+                    style={{ width: `${maxValue > 0 ? (value / maxValue) * 100 : 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="w-12 text-sm font-medium text-gray-900 text-right">
+                {value.toLocaleString()}
               </div>
             </div>
-            <div className="w-12 text-sm font-medium text-gray-900 text-right">
-              {value.toLocaleString()}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

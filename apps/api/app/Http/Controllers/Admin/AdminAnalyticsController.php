@@ -16,6 +16,144 @@ use Illuminate\Support\Carbon;
 class AdminAnalyticsController extends Controller
 {
     /**
+     * Provide consolidated analytics data for the admin dashboard.
+     * Matches the structure expected by the web admin interface.
+     */
+    public function dashboard(Request $request)
+    {
+        $period = $request->get('period', 'daily');
+        $scope = $request->get('scope', 'global');
+
+        $periodDays = match ($period) {
+            'weekly' => 7,
+            'monthly' => 30,
+            default => 1,
+        };
+
+        $endDate = now();
+        $startDate = (clone $endDate)->subDays($periodDays - 1)->startOfDay();
+
+        $totalUsers = DB::table('users')->count();
+        $activeUsers = DB::table('users')->where('status', 'active')->count();
+        $newUsers = DB::table('users')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->count();
+
+        $totalClasses = DB::table('classes')->count();
+        $totalAssignments = DB::table('assignments')->count();
+        $totalSubmissions = DB::table('submissions')->count();
+
+        $usersByRole = DB::table('users')
+            ->select('role', DB::raw('COUNT(*) as count'))
+            ->groupBy('role')
+            ->pluck('count', 'role')
+            ->toArray();
+
+        $usersByLevel = [
+            'beginner' => DB::table('users')->where('hasanat_total', '<', 1000)->count(),
+            'intermediate' => DB::table('users')->whereBetween('hasanat_total', [1000, 4999])->count(),
+            'advanced' => DB::table('users')->where('hasanat_total', '>=', 5000)->count(),
+        ];
+
+        $activeInPeriod = DB::table('users')
+            ->whereNotNull('last_login_at')
+            ->where('last_login_at', '>=', $startDate)
+            ->count();
+
+        $classesByLevel = DB::table('classes')
+            ->select(
+                DB::raw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(settings, '$.level')), 'general') as level"),
+                DB::raw('COUNT(*) as count')
+            )
+            ->groupBy('level')
+            ->pluck('count', 'level')
+            ->toArray();
+
+        if (empty($classesByLevel) && $totalClasses > 0) {
+            $classesByLevel = ['general' => $totalClasses];
+        }
+
+        $publishedAssignments = DB::table('assignments')->where('status', 'published')->count();
+        $draftAssignments = DB::table('assignments')->where('status', 'draft')->count();
+        $newAssignments = DB::table('assignments')
+            ->where('created_at', '>=', $startDate)
+            ->count();
+
+        $pendingSubmissions = DB::table('submissions')->where('status', 'pending')->count();
+        $gradedSubmissions = DB::table('submissions')->where('status', 'graded')->count();
+        $newSubmissions = DB::table('submissions')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->count();
+        $averageScore = DB::table('submissions')->whereNotNull('score')->avg('score') ?? 0;
+        $submissionsInPeriod = $newSubmissions;
+
+        $classMembers = DB::table('class_members')->count();
+
+        $totalProgressRecords = DB::table('quran_progress')->count();
+        $totalHasanat = DB::table('quran_progress')->sum('hasanat');
+        $averageMemorization = DB::table('quran_progress')->avg('memorized_confidence') ?? 0;
+        $activeReaders = DB::table('quran_progress')
+            ->whereNotNull('last_seen_at')
+            ->where('last_seen_at', '>=', $startDate)
+            ->distinct('user_id')
+            ->count('user_id');
+
+        $engagement = [
+            'daily_active_users' => $activeInPeriod,
+            'submission_rate' => $totalAssignments > 0
+                ? round(($submissionsInPeriod / $totalAssignments) * 100, 2)
+                : 0,
+            'class_participation' => $totalUsers > 0
+                ? round(min(100, ($classMembers / $totalUsers) * 100), 2)
+                : 0,
+        ];
+
+        return response()->json([
+            'overview' => [
+                'total_users' => $totalUsers,
+                'active_users' => max($activeUsers, $activeInPeriod),
+                'new_users' => $newUsers,
+                'total_classes' => $totalClasses,
+                'total_assignments' => $totalAssignments,
+                'total_submissions' => $totalSubmissions,
+            ],
+            'users' => [
+                'by_role' => $usersByRole,
+                'by_level' => $usersByLevel,
+                'active_in_period' => $activeInPeriod,
+            ],
+            'classes' => [
+                'total_classes' => $totalClasses,
+                'classes_by_level' => $classesByLevel,
+                'new_classes' => DB::table('classes')->where('created_at', '>=', $startDate)->count(),
+            ],
+            'assignments' => [
+                'total_assignments' => $totalAssignments,
+                'published_assignments' => $publishedAssignments,
+                'draft_assignments' => $draftAssignments,
+                'new_assignments' => $newAssignments,
+            ],
+            'submissions' => [
+                'total_submissions' => $totalSubmissions,
+                'pending_submissions' => $pendingSubmissions,
+                'graded_submissions' => $gradedSubmissions,
+                'new_submissions' => $newSubmissions,
+                'average_score' => (float) $averageScore,
+            ],
+            'quran_progress' => [
+                'total_progress_records' => $totalProgressRecords,
+                'total_hasanat' => $totalHasanat,
+                'average_memorization_confidence' => min(1, max(0, (float) $averageMemorization)),
+                'active_readers' => $activeReaders,
+            ],
+            'engagement' => $engagement,
+            'generated_at' => now()->toISOString(),
+            'period' => $period,
+            'scope' => $scope,
+        ]);
+    }
+
+    /**
      * Get comprehensive platform analytics overview.
      * Provides high-level metrics and trends across all system areas.
      *

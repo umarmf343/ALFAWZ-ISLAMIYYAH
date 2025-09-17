@@ -1,7 +1,7 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { 
   SearchIcon, 
@@ -18,22 +18,20 @@ interface User {
   name: string;
   email: string;
   role: 'student' | 'teacher' | 'admin';
-  level: number;
-  status: 'active' | 'suspended' | 'pending';
+  primary_role?: string;
+  level?: number | null;
+  status: 'active' | 'inactive' | 'pending' | 'suspended' | 'new';
   last_login_at: string | null;
   created_at: string;
   classes_count?: number;
   submissions_count?: number;
 }
 
-interface UsersResponse {
-  data: User[];
-  meta: {
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-  };
+interface PaginationMeta {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
 }
 
 /**
@@ -48,18 +46,16 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
 
   /**
    * Fetch users from the API with filters and pagination.
    */
-  const fetchUsers = async (page: number = 1) => {
+  const fetchUsers = useCallback(async (page: number = 1) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
-      
+
       const params = new URLSearchParams({
         page: page.toString(),
         search: searchTerm,
@@ -78,16 +74,28 @@ export default function AdminUsersPage() {
         throw new Error('Failed to fetch users');
       }
 
-      const data: UsersResponse = await response.json();
-      setUsers(data.data);
-      setCurrentPage(data.meta.current_page);
-      setTotalPages(data.meta.last_page);
+      const data = await response.json() as any;
+      const usersData: User[] = Array.isArray(data.data) ? data.data : [];
+      const meta: PaginationMeta = data.meta ?? {
+        current_page: data.current_page ?? 1,
+        last_page: data.last_page ?? 1,
+        per_page: data.per_page ?? usersData.length ?? 0,
+        total: data.total ?? usersData.length ?? 0,
+      };
+
+      setUsers(usersData.map((item) => ({
+        ...item,
+        role: item.role ?? item.primary_role ?? 'student',
+        status: item.status ?? 'inactive',
+      })));
+      setCurrentPage(meta.current_page);
+      setTotalPages(meta.last_page);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [roleFilter, searchTerm, statusFilter]);
 
   /**
    * Update user role.
@@ -184,6 +192,10 @@ export default function AdminUsersPage() {
         return 'bg-red-100 text-red-800';
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
+      case 'inactive':
+        return 'bg-gray-200 text-gray-700';
+      case 'new':
+        return 'bg-blue-100 text-blue-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -210,7 +222,7 @@ export default function AdminUsersPage() {
   // Fetch users on component mount and when filters change
   useEffect(() => {
     fetchUsers(1);
-  }, [searchTerm, roleFilter, statusFilter]);
+  }, [fetchUsers]);
 
   return (
     <AdminLayout title="User Management">
@@ -250,8 +262,10 @@ export default function AdminUsersPage() {
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
                 <option value="suspended">Suspended</option>
                 <option value="pending">Pending</option>
+                <option value="new">New</option>
               </select>
             </div>
           </div>
@@ -339,7 +353,7 @@ export default function AdminUsersPage() {
                             {/* Role change dropdown */}
                             <select
                               className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-maroon-500 focus:border-maroon-500"
-                              value={user.role}
+                              value={user.role ?? 'student'}
                               onChange={(e) => updateUserRole(user.id, e.target.value)}
                               disabled={actionLoading === user.id}
                             >

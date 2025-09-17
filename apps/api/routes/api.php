@@ -96,9 +96,11 @@ Route::middleware(['auth:sanctum', 'can:admin'])
     
     // Users & Roles management
     Route::get('/users', [AdminUserController::class, 'index']);
-    Route::post('/users/{id}/role', [AdminUserController::class, 'updateRole']);
+    Route::match(['post', 'put'], '/users/{id}/role', [AdminUserController::class, 'updateRole']);
     Route::post('/users/bulk-role', [AdminUserController::class, 'bulkRole']);
     Route::post('/users/{id}/impersonate', [AdminUserController::class, 'impersonate']);
+    Route::put('/users/{id}/suspend', [AdminUserController::class, 'updateStatus']);
+    Route::put('/users/{id}/status', [AdminUserController::class, 'updateStatus']);
     
     // Teachers & Classes management
     Route::get('/classes', [AdminClassController::class, 'index']);
@@ -128,8 +130,7 @@ Route::middleware(['auth:sanctum', 'can:admin'])
     Route::post('/invoices/bulk-refund', [AdminBillingController::class, 'bulkRefund']);
     
     // Analytics dashboard
-    Route::get('/analytics/engagement', [AdminAnalyticsController::class, 'engagement']);
-    Route::get('/analytics/retention', [AdminAnalyticsController::class, 'retention']);
+    Route::get('/analytics', [AdminAnalyticsController::class, 'dashboard']);
     
     // Organization Settings
     Route::get('/org', [AdminOrgController::class, 'show']);

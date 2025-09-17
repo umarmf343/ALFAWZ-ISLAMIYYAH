@@ -46,6 +46,9 @@ class User extends Authenticatable
         'is_active',
         'email_verified_at',
         'hasanat_total',
+        'role',
+        'status',
+        'suspended_at',
         // Notification preferences
         'email_notifications',
         'daily_summary',
@@ -72,7 +75,16 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'last_activity_at' => 'datetime',
+        'suspended_at' => 'datetime',
+        'is_active' => 'boolean',
         'password' => 'hashed',
+        'email_notifications' => 'boolean',
+        'daily_summary' => 'boolean',
+        'review_completed_notifications' => 'boolean',
+        'student_progress_notifications' => 'boolean',
+        'system_notifications' => 'boolean',
+        'leaderboard_preferences' => 'array',
     ];
 
     /**
@@ -161,17 +173,7 @@ class User extends Authenticatable
         array $metadata = []
     ): Hasanat {
         return Hasanat::award($this->id, $activityType, $points, $description, $metadata);
-    }  'last_activity_at' => 'datetime',
-        'is_active' => 'boolean',
-        'password' => 'hashed',
-        // Notification preferences
-        'email_notifications' => 'boolean',
-        'daily_summary' => 'boolean',
-        'review_completed_notifications' => 'boolean',
-        'student_progress_notifications' => 'boolean',
-        'system_notifications' => 'boolean',
-        'leaderboard_preferences' => 'array',
-    ];
+    }
 
     /**
      * Get classes where this user is a teacher.
