@@ -444,6 +444,7 @@ Route::middleware('auth:sanctum')->group(function () {
          Route::get('/student-progress', [MainTeacherController::class, 'getStudentProgress']);
          Route::get('/game-analytics', [MainTeacherController::class, 'getGameAnalytics']);
          Route::post('/analytics/update', [MainTeacherController::class, 'updateAnalytics']);
+        Route::post('/submissions/{submission}/grade', [MainTeacherController::class, 'gradeSubmission']);
      });
 });
 
