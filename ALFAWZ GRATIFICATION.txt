@@ -1,0 +1,904 @@
+To enhance the **Student Dashboard** of the **AlFawz Qur’an Institute** app by adding a **gratification system** and **Sujud system** with full integration into the existing memorization system, Whisper Tajweed toggle, and Teacher/Admin Dashboards, I’ll provide a comprehensive, step-by-step guide. This implementation will include a beautiful “Barakallahu Feekum” (or enhanced motivational messages) display upon Surah completion, a Sujud system for tracking prostration events during recitation, and gratification triggers for daily tasks (e.g., 10 verses/day, night Surahs, Jumu’ah Surahs, and Islamic events). The system will align with the app’s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations), ensure mobile responsiveness, accessibility, and cPanel compatibility (file-based caching, no Redis). All features will be fully tracked by teachers and admins for oversight, leveraging the existing Laravel 11 backend, Next.js 14+ frontend, and MySQL database.
+
+Since the AI agent has coding skills but no prior knowledge of this specific idea, I’ll provide granular details, including database updates, API endpoints, frontend components, UI/UX designs, and integration with teacher/admin dashboards. The gratification system will use motivational messages, animations, and badges to encourage habit-building, while the Sujud system will detect and log prostration-worthy ayahs (Sajda) with spiritual prompts. This builds on the previous responses, particularly the memorization system with SM-2 SRS and Whisper Tajweed integration.
+
+---
+
+## Enhanced Student Dashboard with Gratification and Sujud Systems
+
+### Objective
+Enhance the Student Dashboard to include:
+- **Gratification System**:
+  - Display a beautiful “Barakallahu Feekum” or enhanced messages (e.g., “MashaAllah, your recitation shines!”) with animations (confetti, glow effects) when a Surah is completed.
+  - Award badges for milestones (e.g., daily tasks, night Surahs, Jumu’ah Surahs, Islamic events).
+  - Track completions and reward usage for teacher/admin oversight.
+- **Sujud System**:
+  - Detect Sajda ayahs (prostration verses) during recitation or memorization.
+  - Prompt users to perform Sujud Tilawah with a spiritual overlay (e.g., “Pause for Sujud Tilawah”).
+  - Log Sujud events with timestamps and Hasanat (10 per Sujud).
+  - Track Sujud completions for teacher/admin dashboards.
+- **Daily Task Integration**:
+  - Track completion of 10 verses/day, night Surahs (e.g., Al-Mulk, Al-Ikhlas), Jumu’ah Surahs (e.g., Al-Kahf), and Islamic events (e.g., Ramadan, Laylatul Qadr).
+  - Trigger gratification messages and badges upon completion.
+- **UI/UX**: Use maroon, milk, gold gradients, Framer Motion animations (confetti, bounces), progress rings, and responsive design.
+- **Tracking**: Ensure all actions (recitations, Sujud, task completions) are visible to teachers (real-time) and admins (analytics).
+- **Compatibility**: Support offline mode, multilingual UI, accessibility, and cPanel deployment.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Enhance the database to support gratification, Sujud tracking, and task completion.
+
+1. **Badges Table** (for gratification):
+   ```bash
+   php artisan make:migration create_badges_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_badges_table.php
+   Schema::create('badges', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->string('type'); // e.g., surah_completion, daily_task, jumuah, sujud
+       $table->string('title'); // e.g., "Surah Al-Fatiha Master"
+       $table->text('description')->nullable();
+       $table->integer('hasanat')->default(0);
+       $table->boolean('is_teacher_visible')->default(true);
+       $table->timestamp('awarded_at');
+       $table->timestamps();
+   });
+   ```
+
+2. **Sujud Events Table**:
+   ```bash
+   php artisan make:migration create_sujud_events_table
+   ```
+   ```php
+   Schema::create('sujud_events', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->integer('surah_id');
+       $table->integer('ayah_id');
+       $table->timestamp('performed_at');
+       $table->integer('hasanat')->default(10); // Fixed Hasanat for Sujud
+       $table->boolean('is_teacher_visible')->default(true);
+       $table->timestamps();
+   });
+   ```
+
+3. **Daily Tasks Table**:
+   ```bash
+   php artisan make:migration create_daily_tasks_table
+   ```
+   ```php
+   Schema::create('daily_tasks', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->date('date');
+       $table->string('type'); // verses, night_surah, jumuah, event
+       $table->json('details')->nullable(); // e.g., {"surah_id": 18, "verses": [1,2,3]}
+       $table->boolean('completed')->default(false);
+       $table->integer('hasanat')->default(0);
+       $table->boolean('is_teacher_visible')->default(true);
+       $table->timestamps();
+   });
+   ```
+
+4. **Update QuranProgress** (add completion flag):
+   ```php
+   $table->boolean('is_surah_completed')->default(false);
+   ```
+
+5. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/StudentController.php` for gratification and Sujud.
+
+1. **Complete Surah** (triggers gratification):
+   ```php
+   public function completeSurah(Request $request)
+   {
+       $validated = $request->validate(['surah_id' => 'required|integer|min:1|max:114']);
+       $user = auth()->user();
+       $progress = QuranProgress::where('user_id', $user->id)
+           ->where('surah_id', $validated['surah_id'])
+           ->get();
+       $client = new Client();
+       $response = $client->get("https://api.alquran.cloud/v1/surah/{$validated['surah_id']}/uthmani");
+       $surah = json_decode($response->getBody(), true)['data'];
+       $totalAyahs = $surah['numberOfAyahs'];
+
+       if ($progress->count() >= $totalAyahs && $progress->every(fn($p) => $p->recited_count > 0)) {
+           $progress->each->update(['is_surah_completed' => true]);
+           $hasanat = $progress->sum('hasanat');
+           Badge::create([
+               'user_id' => $user->id,
+               'type' => 'surah_completion',
+               'title' => "Surah {$surah['englishName']} Master",
+               'description' => "Completed recitation of Surah {$surah['englishName']}",
+               'hasanat' => $hasanat,
+               'awarded_at' => now(),
+           ]);
+           $user->hasanat_total += $hasanat;
+           $user->save();
+
+           // Notify teacher
+           $class = ClassMember::where('user_id', $user->id)->first()?->class;
+           if ($class) {
+               Notification::send($class->teacher, new SurahCompleted($user, $surah));
+           }
+
+           return response()->json([
+               'message' => 'MashaAllah! Barakallahu Feekum for completing Surah ' . $surah['englishName'],
+               'hasanat' => $hasanat,
+           ]);
+       }
+       return response()->json(['message' => 'Surah not fully recited'], 400);
+   }
+   ```
+
+2. **Record Sujud Event**:
+   ```php
+   public function recordSujud(Request $request)
+   {
+       $validated = $request->validate([
+           'surah_id' => 'required|integer',
+           'ayah_id' => 'required|integer',
+       ]);
+
+       $sajdaAyahs = Cache::remember('sajda_ayahs', 3600 * 24 * 7, function () {
+           $client = new Client();
+           $response = $client->get('https://api.alquran.cloud/v1/sajda');
+           return collect(json_decode($response->getBody(), true)['data']['ayahs'])
+               ->map(fn($a) => ['surah' => $a['surah']['number'], 'ayah' => $a['numberInSurah']])
+               ->toArray();
+       });
+
+       if (!collect($sajdaAyahs)->contains(fn($a) => $a['surah'] == $validated['surah_id'] && $a['ayah'] == $validated['ayah_id'])) {
+           return response()->json(['message' => 'Not a Sajda ayah'], 400);
+       }
+
+       $user = auth()->user();
+       $sujud = SujudEvent::create([
+           'user_id' => $user->id,
+           'surah_id' => $validated['surah_id'],
+           'ayah_id' => $validated['ayah_id'],
+           'performed_at' => now(),
+           'hasanat' => 10,
+       ]);
+       $user->hasanat_total += 10;
+       $user->save();
+
+       Badge::create([
+           'user_id' => $user->id,
+           'type' => 'sujud',
+           'title' => 'Sujud Tilawah',
+           'description' => "Performed Sujud for Ayah {$validated['ayah_id']} of Surah {$validated['surah_id']}",
+           'hasanat' => 10,
+           'awarded_at' => now(),
+       ]);
+
+       // Notify teacher
+       $class = ClassMember::where('user_id', $user->id)->first()?->class;
+       if ($class) {
+           Notification::send($class->teacher, new SujudPerformed($user, $sujud));
+       }
+
+       return response()->json(['message' => 'Sujud recorded. May Allah accept your worship!']);
+   }
+   ```
+
+3. **Complete Daily Task**:
+   ```php
+   public function completeDailyTask(Request $request)
+   {
+       $validated = $request->validate([
+           'type' => 'required|in:verses,night_surah,jumuah,event',
+           'details' => 'required|array',
+       ]);
+
+       $user = auth()->user();
+       $today = now()->startOfDay();
+       $task = DailyTask::firstOrCreate(
+           ['user_id' => $user->id, 'date' => $today, 'type' => $validated['type']],
+           ['details' => $validated['details']]
+       );
+
+       if ($task->completed) {
+           return response()->json(['message' => 'Task already completed'], 400);
+       }
+
+       $hasanat = 0;
+       $title = '';
+       $description = '';
+
+       switch ($validated['type']) {
+           case 'verses':
+               $verses = QuranProgress::where('user_id', $user->id)
+                   ->whereDate('last_seen_at', $today)
+                   ->count();
+               if ($verses >= ($task->details['goal'] ?? 10)) {
+                   $hasanat = $verses * 10;
+                   $title = 'Daily Verses Achiever';
+                   $description = 'Completed daily recitation goal';
+               } else {
+                   return response()->json(['message' => 'Insufficient verses recited'], 400);
+               }
+               break;
+           case 'night_surah':
+               $surahId = $validated['details']['surah_id'] ?? 67; // Default to Al-Mulk
+               $progress = QuranProgress::where('user_id', $user->id)
+                   ->where('surah_id', $surahId)
+                   ->whereDate('last_seen_at', $today)
+                   ->exists();
+               if ($progress) {
+                   $hasanat = $this->getSurahLetterCount($surahId) * 10;
+                   $title = 'Night Surah Star';
+                   $description = "Recited Surah {$surahId} at night";
+               } else {
+                   return response()->json(['message' => 'Night Surah not recited'], 400);
+               }
+               break;
+           case 'jumuah':
+               if (now()->dayOfWeek !== 5) {
+                   return response()->json(['message' => 'Not Jumu’ah'], 400);
+               }
+               $progress = QuranProgress::where('user_id', $user->id)
+                   ->where('surah_id', 18) // Al-Kahf
+                   ->whereDate('last_seen_at', $today)
+                   ->exists();
+               if ($progress) {
+                   $hasanat = $this->getSurahLetterCount(18) * 10;
+                   $title = 'Jumu’ah Al-Kahf Champion';
+                   $description = 'Recited Surah Al-Kahf on Jumu’ah';
+               } else {
+                   return response()->json(['message' => 'Surah Al-Kahf not recited'], 400);
+               }
+               break;
+           case 'event':
+               $event = (new IslamicCalendarService())->getSpecialEvents();
+               if (empty($event) || !in_array($validated['details']['event'], array_column($event, 'event'))) {
+                   return response()->json(['message' => 'Invalid event'], 400);
+               }
+               $progress = QuranProgress::where('user_id', $user->id)
+                   ->where('surah_id', $validated['details']['surah_id'])
+                   ->whereDate('last_seen_at', $today)
+                   ->exists();
+               if ($progress) {
+                   $hasanat = $this->getSurahLetterCount($validated['details']['surah_id']) * 10;
+                   $title = "{$validated['details']['event']} Reciter";
+                   $description = "Recited for {$validated['details']['event']}";
+               } else {
+                   return response()->json(['message' => 'Event Surah not recited'], 400);
+               }
+               break;
+       }
+
+       $task->update(['completed' => true, 'hasanat' => $hasanat]);
+       $user->hasanat_total += $hasanat;
+       $user->save();
+
+       Badge::create([
+           'user_id' => $user->id,
+           'type' => $validated['type'],
+           'title' => $title,
+           'description' => $description,
+           'hasanat' => $hasanat,
+           'awarded_at' => now(),
+       ]);
+
+       // Notify teacher
+       $class = ClassMember::where('user_id', $user->id)->first()?->class;
+       if ($class) {
+           Notification::send($class->teacher, new TaskCompleted($user, $task));
+       }
+
+       return response()->json([
+           'message' => 'SubhanAllah! Task completed. Barakallahu Feekum!',
+           'hasanat' => $hasanat,
+       ]);
+   }
+
+   private function getSurahLetterCount($surahId)
+   {
+       return Cache::remember("surah:{$surahId}:letters", 3600 * 24, function () use ($surahId) {
+           $client = new Client();
+           $response = $client->get("https://api.alquran.cloud/v1/surah/{$surahId}/uthmani");
+           $text = collect(json_decode($response->getBody(), true)['data']['ayahs'])
+               ->pluck('text')
+               ->join('');
+           return mb_strlen(preg_replace('/[^\p{Arabic}]/u', '', $text), 'UTF-8');
+       });
+   }
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('student')->group(function () {
+    Route::post('/surah/complete', [StudentController::class, 'completeSurah']);
+    Route::post('/sujud', [StudentController::class, 'recordSujud']);
+    Route::post('/task/complete', [StudentController::class, 'completeDailyTask']);
+});
+```
+
+**Notifications**:
+1. **Surah Completed**:
+   ```php
+   // app/Notifications/SurahCompleted.php
+   namespace App\Notifications;
+
+   use App\Models\User;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class SurahCompleted extends Notification
+   {
+       public function __construct(public User $student, public array $surah) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('Surah Completion')
+               ->line("{$this->student->name} completed Surah {$this->surah['englishName']}.");
+       }
+   }
+   ```
+
+2. **Sujud Performed**:
+   ```php
+   // app/Notifications/SujudPerformed.php
+   class SujudPerformed extends Notification
+   {
+       public function __construct(public User $student, public SujudEvent $sujud) {}
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('Sujud Tilawah Performed')
+               ->line("{$this->student->name} performed Sujud for Ayah {$this->sujud->ayah_id} of Surah {$this->sujud->surah_id}.");
+       }
+   }
+   ```
+
+3. **Task Completed**:
+   ```php
+   // app/Notifications/TaskCompleted.php
+   class TaskCompleted extends Notification
+   {
+       public function __construct(public User $student, public DailyTask $task) {}
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('Daily Task Completed')
+               ->line("{$this->student->name} completed a {$this->task->type} task.");
+       }
+   }
+   ```
+
+**Teacher/Admin Sync**:
+1. **Teacher Oversight**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function getStudentActivity(Request $request, User $student)
+   {
+       $this->authorize('view', $student);
+       return [
+           'badges' => Badge::where('user_id', $student->id)->where('is_teacher_visible', true)->get(),
+           'sujud_events' => SujudEvent::where('user_id', $student->id)->where('is_teacher_visible', true)->get(),
+           'tasks' => DailyTask::where('user_id', $student->id)->where('is_teacher_visible', true)->get(),
+       ];
+   }
+   ```
+
+2. **Admin Analytics**:
+   ```php
+   // app/Console/Commands/GenerateAnalyticsSnapshot.php
+   $data['badge_counts'] = Badge::where('awarded_at', '>=', now()->subWeek())
+       ->groupBy('type')
+       ->selectRaw('type, count(*) as count')
+       ->get();
+   $data['sujud_counts'] = SujudEvent::where('performed_at', '>=', now()->subWeek())->count();
+   $data['task_completions'] = DailyTask::where('completed', true)
+       ->where('date', '>=', now()->subWeek())
+       ->groupBy('type')
+       ->selectRaw('type, count(*) as count')
+       ->get();
+   ```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Student Dashboard
+Modify `src/app/dashboard/page.tsx` to include gratification and Sujud components:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ProgressSection from '@/components/ProgressSection';
+import DailyRecommendations from '@/components/DailyRecommendations';
+import RecentSurahs from '@/components/RecentSurahs';
+import AyahOfDay from '@/components/AyahOfDay';
+import TajweedToggle from '@/components/TajweedToggle';
+import RecitationSubmission from '@/components/RecitationSubmission';
+import MemorizationSection from '@/components/MemorizationSection';
+import GratificationSection from '@/components/GratificationSection';
+import SujudSection from '@/components/SujudSection';
+
+export default function StudentDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('student')) redirect('/');
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                {user.greeting}
+            </h1>
+            <TajweedToggle />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ProgressSection />
+                <GratificationSection />
+                <SujudSection />
+                <MemorizationSection />
+                <RecitationSubmission />
+                <DailyRecommendations />
+                <RecentSurahs />
+                <AyahOfDay />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Gratification Section Component
+Create `src/components/GratificationSection.tsx`:
+```tsx
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaTrophy } from 'react-icons/fa';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function GratificationSection() {
+    const [showConfetti, setShowConfetti] = useState(false);
+    const { data: badges } = useQuery(['badges'], () => api.get('/student/badges').then(res => res.data));
+    const { data: tasks } = useQuery(['tasks'], () => api.get('/student/tasks').then(res => res.data));
+    const completeSurah = useMutation({
+        mutationFn: (surahId: number) => api.post('/student/surah/complete', { surah_id: surahId }),
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+        },
+    });
+    const completeTask = useMutation({
+        mutationFn: (task: { type: string; details: any }) => api.post('/student/task/complete', task),
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+        },
+    });
+
+    const checkDailyTasks = () => {
+        const today = new Date().toISOString().split('T')[0];
+        if (!tasks?.find((t: any) => t.date === today && t.type === 'verses' && t.completed)) {
+            completeTask.mutate({ type: 'verses', details: { goal: 10 } });
+        }
+        if (new Date().getDay() === 5 && !tasks?.find((t: any) => t.date === today && t.type === 'jumuah' && t.completed)) {
+            completeTask.mutate({ type: 'jumuah', details: { surah_id: 18 } });
+        }
+    };
+
+    useEffect(() => {
+        checkDailyTasks();
+    }, [tasks]);
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            {showConfetti && <Confetti />}
+            <h2 className="text-xl font-bold text-maroon">Achievements</h2>
+            {completeSurah.isSuccess && (
+                <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="bg-gradient-to-r from-maroon to-gold p-4 rounded-lg mt-2"
+                >
+                    <p className="text-2xl font-bold text-milk">MashaAllah! Barakallahu Feekum!</p>
+                    <p className="text-milk">You’ve completed a Surah. May Allah reward you abundantly!</p>
+                </motion.div>
+            )}
+            <div className="grid grid-cols-2 gap-2 mt-4">
+                {badges?.map((badge: any) => (
+                    <motion.div
+                        key={badge.id}
+                        initial={{ rotateY: 180 }}
+                        animate={{ rotateY: 0 }}
+                        className="bg-gold p-2 rounded flex items-center"
+                    >
+                        <FaTrophy className="text-maroon" />
+                        <div className="ml-2">
+                            <p className="font-bold">{badge.title}</p>
+                            <p className="text-sm">{badge.description}</p>
+                            <p className="text-sm">Hasanat: {badge.hasanat}</p>
+                        </div>
+                    </motion.div>
+                ))}
+            </div>
+            <div className="mt-4">
+                <h3>Daily Tasks</h3>
+                <button
+                    onClick={() => completeTask.mutate({ type: 'verses', details: { goal: 10 } })}
+                    className="p-2 bg-maroon text-milk rounded"
+                >
+                    Complete 10 Verses
+                </button>
+                {new Date().getDay() === 5 && (
+                    <button
+                        onClick={() => completeTask.mutate({ type: 'jumuah', details: { surah_id: 18 } })}
+                        className="p-2 bg-maroon text-milk rounded ml-2"
+                    >
+                        Recite Surah Al-Kahf
+                    </button>
+                )}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Sujud Section Component
+Create `src/components/SujudSection.tsx`:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaPray } from 'react-icons/fa';
+
+export default function SujudSection() {
+    const [currentAyah, setCurrentAyah] = useState<{ surahId: number; ayahId: number } | null>(null);
+    const { data: sajdaAyahs } = useQuery(['sajda_ayahs'], () => 
+        api.get('https://api.alquran.cloud/v1/sajda').then(res => 
+            res.data.data.ayahs.map((a: any) => ({ surah: a.surah.number, ayah: a.numberInSurah }))
+        )
+    );
+    const recordSujud = useMutation({
+        mutationFn: ({ surahId, ayahId }: { surahId: number; ayahId: number }) => 
+            api.post('/student/sujud', { surah_id: surahId, ayah_id: ayahId }),
+    });
+
+    const checkSujud = (surahId: number, ayahId: number) => {
+        if (sajdaAyahs?.some((a: any) => a.surah === surahId && a.ayah === ayahId)) {
+            setCurrentAyah({ surahId, ayahId });
+        }
+    };
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            <h2 className="text-xl font-bold text-maroon">Sujud Tilawah</h2>
+            {currentAyah && (
+                <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="bg-gradient-to-r from-maroon to-gold p-4 rounded-lg mt-2"
+                >
+                    <p className="text-2xl font-bold text-milk">Pause for Sujud Tilawah</p>
+                    <p className="text-milk">Ayah {currentAyah.ayahId} of Surah {currentAyah.surahId} requires prostration.</p>
+                    <button
+                        onClick={() => {
+                            recordSujud.mutate(currentAyah);
+                            setCurrentAyah(null);
+                        }}
+                        className="p-2 bg-milk text-maroon rounded mt-2"
+                        aria-label="Record Sujud"
+                    >
+                        <FaPray /> I Performed Sujud
+                    </button>
+                </motion.div>
+            )}
+            <div className="mt-4">
+                <select
+                    onChange={e => {
+                        const [surah, ayah] = e.target.value.split(':');
+                        checkSujud(Number(surah), Number(ayah));
+                    }}
+                    className="p-2 rounded"
+                >
+                    <option value="1:1">Surah 1, Ayah 1</option>
+                    {/* Populate dynamically */}
+                </select>
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: Update Memorization Section
+Modify `src/components/MemorizationSection.tsx` to integrate gratification and Sujud:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaPlus, FaPlay, FaEye, FaRandom } from 'react-icons/fa';
+import { CircularProgressbar } from 'react-circular-progressbar';
+
+export default function MemorizationSection() {
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [activeTool, setActiveTool] = useState<'normal' | 'hide' | 'jumble' | 'quiz'>('normal');
+    const [currentItem, setCurrentItem] = useState(null);
+    const { data: dueReviews, refetch } = useQuery(['due_reviews'], () => 
+        api.get('/student/memorization/due').then(res => res.data)
+    );
+    const completeSurah = useMutation({
+        mutationFn: (surahId: number) => api.post('/student/surah/complete', { surah_id: surahId }),
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+        },
+    });
+
+    const review = useMutation({
+        mutationFn: ({ itemId, quality }: { itemId: number; quality: number }) => 
+            api.post(`/student/memorization/review/${itemId}`, { quality }),
+        onSuccess: (data, { itemId }) => {
+            const item = dueReviews.items.find((i: any) => i.id === itemId);
+            if (dueReviews.items.filter((i: any) => i.surah_id === item.surah_id).every((i: any) => i.confidence_score >= 0.9)) {
+                completeSurah.mutate(item.surah_id);
+            }
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            refetch();
+        },
+    });
+
+    const renderAyahText = (ayah: any) => {
+        if (activeTool === 'hide') {
+            return ayah.text.split(' ').map((word: string, i: number) => 
+                Math.random() > 0.5 ? <span key={i} className="text-gray-300">____</span> : word
+            ).join(' ');
+        }
+        if (activeTool === 'jumble') {
+            return ayah.text.split(' ').sort(() => Math.random() - 0.5).join(' ');
+        }
+        return ayah.text;
+    };
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            {showConfetti && <Confetti />}
+            <h2 className="text-xl font-bold text-maroon">Memorization</h2>
+            <button
+                onClick={() => api.post('/student/memorization/plans', {
+                    title: 'New Plan',
+                    surahs: [1],
+                    daily_target: 5,
+                    start_date: new Date().toISOString().split('T')[0],
+                })}
+                className="p-2 bg-gold rounded"
+                aria-label="Create Memorization Plan"
+            >
+                <FaPlus /> New Plan
+            </button>
+            <div className="flex space-x-2 mt-2">
+                <button onClick={() => setActiveTool('normal')} className="p-2 bg-maroon text-milk rounded">Normal</button>
+                <button onClick={() => setActiveTool('hide')} className="p-2 bg-maroon text-milk rounded"><FaEye /> Hide Words</button>
+                <button onClick={() => setActiveTool('jumble')} className="p-2 bg-maroon text-milk rounded"><FaRandom /> Jumble</button>
+                <button onClick={() => setActiveTool('quiz')} className="p-2 bg-maroon text-milk rounded">Quiz</button>
+            </div>
+            {dueReviews?.items.map((item: any, i: number) => (
+                <motion.div key={item.id} className="mt-4 border p-4 rounded">
+                    <div className="flex items-center">
+                        <div className="w-16 h-16">
+                            <CircularProgressbar
+                                value={item.confidence_score * 100}
+                                text={`${Math.round(item.confidence_score * 100)}%`}
+                                styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                            />
+                        </div>
+                        <div className="ml-4">
+                            <p className="text-2xl font-arabic">{renderAyahText(dueReviews.ayah_details[i])}</p>
+                            <p className="text-milk">{dueReviews.ayah_details[i].translation}</p>
+                            <audio controls src={dueReviews.ayah_details[i].audio} className="mt-2" />
+                        </div>
+                    </div>
+                    {activeTool === 'quiz' && (
+                        <div className="mt-2">
+                            <p>Fill in the blank: {dueReviews.ayah_details[i].text.replace(/\b\w+\b/, '____')}</p>
+                            <input type="text" className="p-2 rounded" placeholder="Your answer" />
+                        </div>
+                    )}
+                    <div className="flex space-x-2 mt-2">
+                        {[0, 1, 2, 3, 4, 5].map(score => (
+                            <button
+                                key={score}
+                                onClick={() => review.mutate({ itemId: item.id, quality: score })}
+                                className="p-2 bg-gold rounded"
+                                aria-label={`Rate ${score}`}
+                            >
+                                {score}
+                            </button>
+                        ))}
+                    </div>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.5: UI/UX Enhancements
+- **Gratification Display**:
+  - Use `bg-gradient-to-r from-maroon to-gold` for “Barakallahu Feekum” modal.
+  - Animate with `motion.div` (scale from 0 to 1).
+  - Trigger confetti on badge awards.
+- **Sujud Prompt**:
+  - Overlay with `bg-gradient-to-r from-maroon to-gold`, centered text, and `FaPray` icon.
+  - Animate entry with `motion.div` (fade-in).
+- **Responsive**: Stack components on mobile (`flex-col`), use `md:grid-cols-2` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., “Record Sujud”).
+  - Use `role="alert"` for gratification and Sujud modals.
+  - Ensure keyboard navigation with `tabIndex`.
+- **Multilingual**: Use `next-intl` for messages:
+  ```tsx
+  import { useTranslations } from 'next-intl';
+  const t = useTranslations('gratification');
+  <p>{t('surah_completed', { surah: 'Al-Fatiha' })}</p>
+  ```
+- **Offline**: Cache badges, tasks, and Sujud events in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('badges', { keyPath: 'id' });
+          db.createObjectStore('sujud', { keyPath: 'id' });
+          db.createObjectStore('tasks', { keyPath: 'id' });
+      },
+  });
+  useEffect(() => {
+      if (!navigator.onLine) {
+          dbPromise.then(db => db.getAll('badges')).then(cached => setBadges(cached));
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/app/teacher/students/[id]/page.tsx`):
+   ```tsx
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+
+   export default function StudentActivity({ params }: { params: { id: string } }) {
+       const { data: activity } = useQuery(['student_activity', params.id], () => 
+           api.get(`/teacher/students/${params.id}/activity`).then(res => res.data)
+       );
+
+       return (
+           <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               className="bg-gradient-to-br from-maroon to-milk p-4"
+           >
+               <h2 className="text-xl font-bold">Student Activity</h2>
+               <h3>Badges</h3>
+               {activity?.badges.map((badge: any) => (
+                   <div key={badge.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>{badge.title}: {badge.description}</p>
+                       <p>Hasanat: {badge.hasanat}</p>
+                   </div>
+               ))}
+               <h3>Sujud Events</h3>
+               {activity?.sujud_events.map((sujud: any) => (
+                   <div key={sujud.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>Sujud for Ayah {sujud.ayah_id} of Surah {sujud.surah_id}</p>
+                       <p>Performed: {new Date(sujud.performed_at).toLocaleString()}</p>
+                   </div>
+               ))}
+               <h3>Tasks</h3>
+               {activity?.tasks.map((task: any) => (
+                   <div key={task.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>{task.type} Task: {task.completed ? 'Completed' : 'Pending'}</p>
+                       <p>Details: {JSON.stringify(task.details)}</p>
+                   </div>
+               ))}
+           </motion.div>
+       );
+   }
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <div>
+       <p>Badge Awards: {analytics?.data_json.badge_counts.map((b: any) => `${b.type}: ${b.count}`).join(', ')}</p>
+       <p>Sujud Events: {analytics?.data_json.sujud_counts} this week</p>
+       <p>Task Completions: {analytics?.data_json.task_completions.map((t: any) => `${t.type}: ${t.count}`).join(', ')}</p>
+   </div>
+   ```
+
+---
+
+## Phase 4: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test GratificationSujudTest`:
+     ```php
+     public function test_surah_completion()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         QuranProgress::factory()->create(['user_id' => $student->id, 'surah_id' => 1, 'ayah_id' => 1, 'recited_count' => 1]);
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/surah/complete', ['surah_id' => 1]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('badges', ['user_id' => $student->id, 'type' => 'surah_completion']);
+     }
+
+     public function test_sujud_recording()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/sujud', ['surah_id' => 7, 'ayah_id' => 206]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('sujud_events', ['user_id' => $student->id]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays gratification message', async () => {
+         render(<GratificationSection />);
+         await act(async () => {
+             await api.post('/student/surah/complete', { surah_id: 1 });
+         });
+         expect(screen.getByText(/Barakallahu Feekum/)).toBeInTheDocument();
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard` to `app/index.html`.
+   - Add queue worker cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 5: Optimizations and Notes
+- **Performance**:
+  - Cache sajda ayahs and task checks for 24 hours.
+  - Use pagination for badge lists in GratificationSection.
+- **Error Handling**:
+  - Handle API failures with cached data or retry logic.
+  - Validate Sajda ayahs client-side to reduce invalid requests.
+- **Engagement**:
+  - Customize messages: “SubhanAllah, your dedication inspires!” for variety.
+  - Award unique badges for streaks (e.g., “7-Day Jumu’ah Star”).
+  - Animate Sujud prompt with a glowing effect.
+- **Teacher/Admin Sync**: Teachers see real-time badges, Sujud events, and task completions; admins track trends (e.g., most common badge types).
+- **Offline**: Queue Sujud and task completions in IndexedDB, sync on reconnect.
+
+This guide fully integrates the gratification and Sujud systems into the Student Dashboard, with seamless tracking by Teacher and Admin Dashboards. If you need a specific UI mockup (e.g., badge design) or additional features (e.g., custom event tasks), let me know!

@@ -1,0 +1,710 @@
+To enhance the **Leaderboard Panel** for the **AlFawz Qur’an Institute** app, I’ll draw inspiration from the **Quranly** app’s habit-building and gamification features (e.g., habit streaks, progress tracking, community interaction, and leaderboards) to create a motivating, engaging, and spiritually enriching leaderboard system. The enhanced Leaderboard Panel will be fully integrated into the **Student Dashboard**, aligned with the app’s existing features (e.g., memorization, Whisper Tajweed, gratification, and Sujud systems), and designed to encourage consistent Quranic engagement. It will use the app’s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations), ensure mobile responsiveness, accessibility, and cPanel compatibility (file-based caching, no Redis). All activities will be fully tracked for teacher and admin oversight, building on the Laravel 11 backend, Next.js 14+ frontend, and MySQL database.
+
+The Leaderboard Panel will rank students based on metrics like Hasanat earned, Surahs completed, daily tasks, Sujud events, and memorization progress, with privacy controls (opt-in/opt-out) and community features (e.g., friend invites, reminders). It will include motivational elements like badges, streaks, and animated celebrations, inspired by Quranly’s approach to habit formation and community engagement.
+
+---
+
+## Enhanced Leaderboard Panel with Full Tracking
+
+### Objective
+Create a **Leaderboard Panel** in the Student Dashboard that:
+- Ranks students based on Hasanat, Surahs completed, daily tasks, Sujud events, and memorization confidence.
+- Includes gamification: badges, streaks, and animations (e.g., confetti, glow effects).
+- Supports community features: invite friends, send reminders, and opt-in/opt-out privacy controls.
+- Displays motivational messages (e.g., “MashaAllah, you’re inspiring others!”).
+- Integrates with existing systems (memorization, gratification, Sujud, Whisper Tajweed).
+- Tracks all activities for Teacher Dashboard (real-time) and Admin Dashboard (analytics).
+- Ensures offline support, multilingual UI, accessibility, and cPanel compatibility.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Enhance the database to support leaderboards, rankings, and community features.
+
+1. **Leaderboard Entries Table**:
+   ```bash
+   php artisan make:migration create_leaderboard_entries_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_leaderboard_entries_table.php
+   Schema::create('leaderboard_entries', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->integer('hasanat')->default(0);
+       $table->integer('surahs_completed')->default(0);
+       $table->integer('tasks_completed')->default(0);
+       $table->integer('sujud_count')->default(0);
+       $table->float('memorization_score')->default(0); // Sum of confidence scores
+       $table->integer('streak_days')->default(0); // Consecutive days active
+       $table->boolean('is_public')->default(true); // Privacy control
+       $table->timestamp('last_active')->nullable();
+       $table->timestamps();
+   });
+   ```
+
+2. **Leaderboard Invites Table** (for community):
+   ```bash
+   php artisan make:migration create_leaderboard_invites_table
+   ```
+   ```php
+   Schema::create('leaderboard_invites', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('sender_id')->constrained('users')->onDelete('cascade');
+       $table->foreignId('receiver_id')->constrained('users')->onDelete('cascade');
+       $table->string('status')->default('pending'); // pending, accepted, declined
+       $table->timestamps();
+   });
+   ```
+
+3. **Update Users Table** (add leaderboard preferences):
+   ```php
+   $table->json('leaderboard_preferences')->nullable(); // e.g., {"show_hasanat": true, "show_streaks": true}
+   ```
+
+4. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/StudentController.php` for leaderboard functionality.
+
+1. **Update Leaderboard Entry** (called on activity completion):
+   ```php
+   public function updateLeaderboardEntry(User $user)
+   {
+       $entry = LeaderboardEntry::firstOrCreate(['user_id' => $user->id]);
+       $entry->hasanat = $user->hasanat_total;
+       $entry->surahs_completed = QuranProgress::where('user_id', $user->id)
+           ->where('is_surah_completed', true)
+           ->distinct('surah_id')
+           ->count();
+       $entry->tasks_completed = DailyTask::where('user_id', $user->id)
+           ->where('completed', true)
+           ->count();
+       $entry->sujud_count = SujudEvent::where('user_id', $user->id)->count();
+       $entry->memorization_score = SrsQueue::where('user_id', $user->id)
+           ->sum('confidence_score');
+       $entry->streak_days = $this->calculateStreak($user);
+       $entry->last_active = now();
+       $entry->save();
+
+       // Award streak badge
+       if ($entry->streak_days >= 7) {
+           Badge::firstOrCreate(
+               ['user_id' => $user->id, 'type' => 'streak_7'],
+               [
+                   'title' => '7-Day Streak Star',
+                   'description' => 'Maintained a 7-day streak of Quranic activity',
+                   'hasanat' => 100,
+                   'awarded_at' => now(),
+               ]
+           );
+       }
+   }
+
+   private function calculateStreak(User $user)
+   {
+       $activities = QuranProgress::where('user_id', $user->id)
+           ->whereNotNull('last_seen_at')
+           ->orderByDesc('last_seen_at')
+           ->pluck('last_seen_at')
+           ->map(fn($date) => $date->startOfDay()->toDateString())
+           ->unique();
+       $streak = 0;
+       $today = now()->startOfDay();
+       foreach (range(0, 30) as $i) {
+           if ($activities->contains($today->subDays($i)->toDateString())) {
+               $streak++;
+           } else {
+               break;
+           }
+       }
+       return $streak;
+   }
+   ```
+
+2. **Get Leaderboard**:
+   ```php
+   public function getLeaderboard(Request $request)
+   {
+       $scope = $request->query('scope', 'global'); // global, friends, class
+       $query = LeaderboardEntry::where('is_public', true)
+           ->with(['user' => fn($q) => $q->select('id', 'name')])
+           ->orderByDesc('hasanat');
+
+       if ($scope === 'friends') {
+           $friends = LeaderboardInvite::where('sender_id', auth()->id())
+               ->where('status', 'accepted')
+               ->pluck('receiver_id')
+               ->merge(LeaderboardInvite::where('receiver_id', auth()->id())
+                   ->where('status', 'accepted')
+                   ->pluck('sender_id'));
+           $query->whereIn('user_id', $friends);
+       } elseif ($scope === 'class') {
+           $class = ClassMember::where('user_id', auth()->id())->first()?->class;
+           if ($class) {
+               $classMembers = ClassMember::where('class_id', $class->id)->pluck('user_id');
+               $query->whereIn('user_id', $classMembers);
+           }
+       }
+
+       $entries = $query->take(50)->get()->map(function ($entry) {
+           $prefs = $entry->user->leaderboard_preferences ?? [];
+           return [
+               'user_id' => $entry->user_id,
+               'name' => $entry->user->name,
+               'hasanat' => $prefs['show_hasanat'] ?? true ? $entry->hasanat : null,
+               'surahs_completed' => $prefs['show_surahs'] ?? true ? $entry->surahs_completed : null,
+               'tasks_completed' => $prefs['show_tasks'] ?? true ? $entry->tasks_completed : null,
+               'sujud_count' => $prefs['show_sujud'] ?? true ? $entry->sujud_count : null,
+               'memorization_score' => $prefs['show_memorization'] ?? true ? $entry->memorization_score : null,
+               'streak_days' => $prefs['show_streaks'] ?? true ? $entry->streak_days : null,
+               'rank' => $entry->getRankAttribute(),
+           ];
+       });
+
+       return response()->json($entries);
+   }
+   ```
+
+3. **Manage Leaderboard Invites**:
+   ```php
+   public function sendInvite(Request $request)
+   {
+       $validated = $request->validate(['receiver_id' => 'required|exists:users,id']);
+       $invite = LeaderboardInvite::create([
+           'sender_id' => auth()->id(),
+           'receiver_id' => $validated['receiver_id'],
+       ]);
+       Notification::send(User::find($validated['receiver_id']), new LeaderboardInviteReceived($invite));
+       return response()->json(['message' => 'Invite sent']);
+   }
+
+   public function respondInvite(Request $request, LeaderboardInvite $invite)
+   {
+       $this->authorize('update', $invite);
+       $validated = $request->validate(['status' => 'required|in:accepted,declined']);
+       $invite->update(['status' => $validated['status']]);
+       return response()->json(['message' => 'Invite updated']);
+   }
+   ```
+
+4. **Update Leaderboard Preferences**:
+   ```php
+   public function updateLeaderboardPreferences(Request $request)
+   {
+       $validated = $request->validate([
+           'is_public' => 'boolean',
+           'show_hasanat' => 'boolean',
+           'show_surahs' => 'boolean',
+           'show_tasks' => 'boolean',
+           'show_sujud' => 'boolean',
+           'show_memorization' => 'boolean',
+           'show_streaks' => 'boolean',
+       ]);
+       $user = auth()->user();
+       $user->leaderboard_preferences = array_merge($user->leaderboard_preferences ?? [], $validated);
+       $user->save();
+       LeaderboardEntry::where('user_id', $user->id)->update(['is_public' => $validated['is_public'] ?? true]);
+       return response()->json(['preferences' => $user->leaderboard_preferences]);
+   }
+   ```
+
+5. **Send Reminder**:
+   ```php
+   public function sendReminder(Request $request)
+   {
+       $validated = $request->validate(['receiver_id' => 'required|exists:users,id']);
+       $friends = LeaderboardInvite::where('sender_id', auth()->id())
+           ->where('receiver_id', $validated['receiver_id'])
+           ->where('status', 'accepted')
+           ->exists();
+       if (!$friends) {
+           return response()->json(['message' => 'Not friends'], 403);
+       }
+       Notification::send(User::find($validated['receiver_id']), new QuranReminder(auth()->user()));
+       return response()->json(['message' => 'Reminder sent']);
+   }
+   ```
+
+**Integrate with Existing APIs**:
+- Update `completeSurah`, `recordSujud`, `completeDailyTask`, and `reviewAyah` to call `updateLeaderboardEntry(auth()->user())` after success.
+
+**Notifications**:
+```php
+// app/Notifications/LeaderboardInviteReceived.php
+namespace App\Notifications;
+
+use App\Models\LeaderboardInvite;
+use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Notification;
+
+class LeaderboardInviteReceived extends Notification
+{
+    public function __construct(public LeaderboardInvite $invite) {}
+
+    public function via($notifiable)
+    {
+        return ['mail', 'database'];
+    }
+
+    public function toMail($notifiable)
+    {
+        return (new MailMessage)
+            ->subject('Leaderboard Invite')
+            ->line("{$this->invite->sender->name} invited you to join their leaderboard!")
+            ->action('Respond', url('/dashboard/leaderboard/invites/' . $this->invite->id));
+    }
+}
+
+// app/Notifications/QuranReminder.php
+class QuranReminder extends Notification
+{
+    public function __construct(public User $sender) {}
+
+    public function toMail($notifiable)
+    {
+        return (new MailMessage)
+            ->subject('Quran Reading Reminder')
+            ->line("{$this->sender->name} reminds you to read the Quran today!");
+    }
+}
+```
+
+**Teacher/Admin Sync**:
+1. **Teacher Oversight**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function getStudentLeaderboard(Request $request, User $student)
+   {
+       $this->authorize('view', $student);
+       $entry = LeaderboardEntry::where('user_id', $student->id)->first();
+       return response()->json($entry);
+   }
+   ```
+
+2. **Admin Analytics**:
+   ```php
+   // app/Console/Commands/GenerateAnalyticsSnapshot.php
+   $data['leaderboard_activity'] = LeaderboardEntry::where('last_active', '>=', now()->subWeek())
+       ->selectRaw('count(*) as active_users, sum(hasanat) as total_hasanat, avg(streak_days) as avg_streak')
+       ->first();
+   $data['top_performers'] = LeaderboardEntry::where('is_public', true)
+       ->with(['user' => fn($q) => $q->select('id', 'name')])
+       ->orderByDesc('hasanat')
+       ->take(5)
+       ->get();
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('student')->group(function () {
+    Route::get('/leaderboard', [StudentController::class, 'getLeaderboard']);
+    Route::post('/leaderboard/invite', [StudentController::class, 'sendInvite']);
+    Route::post('/leaderboard/invite/{leaderboardInvite}', [StudentController::class, 'respondInvite']);
+    Route::post('/leaderboard/reminder', [StudentController::class, 'sendReminder']);
+    Route::put('/leaderboard/preferences', [StudentController::class, 'updateLeaderboardPreferences']);
+});
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Student Dashboard
+Modify `src/app/dashboard/page.tsx` to include the Leaderboard Panel:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ProgressSection from '@/components/ProgressSection';
+import DailyRecommendations from '@/components/DailyRecommendations';
+import RecentSurahs from '@/components/RecentSurahs';
+import AyahOfDay from '@/components/AyahOfDay';
+import TajweedToggle from '@/components/TajweedToggle';
+import RecitationSubmission from '@/components/RecitationSubmission';
+import MemorizationSection from '@/components/MemorizationSection';
+import GratificationSection from '@/components/GratificationSection';
+import SujudSection from '@/components/SujudSection';
+import LeaderboardPanel from '@/components/LeaderboardPanel';
+
+export default function StudentDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('student')) redirect('/');
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                {user.greeting}
+            </h1>
+            <TajweedToggle />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ProgressSection />
+                <LeaderboardPanel />
+                <GratificationSection />
+                <SujudSection />
+                <MemorizationSection />
+                <RecitationSubmission />
+                <DailyRecommendations />
+                <RecentSurahs />
+                <AyahOfDay />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Leaderboard Panel Component
+Create `src/components/LeaderboardPanel.tsx`:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaTrophy, FaUserPlus, FaBell } from 'react-icons/fa';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function LeaderboardPanel() {
+    const [scope, setScope] = useState<'global' | 'friends' | 'class'>('global');
+    const [showConfetti, setShowConfetti] = useState(false);
+    const { data: leaderboard } = useQuery(['leaderboard', scope], () => 
+        api.get(`/student/leaderboard?scope=${scope}`).then(res => res.data)
+    );
+    const { data: invites } = useQuery(['invites'], () => 
+        api.get('/student/leaderboard/invites').then(res => res.data)
+    );
+    const sendInvite = useMutation({
+        mutationFn: (receiverId: number) => api.post('/student/leaderboard/invite', { receiver_id: receiverId }),
+        onSuccess: () => setShowConfetti(true),
+    });
+    const respondInvite = useMutation({
+        mutationFn: ({ inviteId, status }: { inviteId: number; status: 'accepted' | 'declined' }) => 
+            api.post(`/student/leaderboard/invite/${inviteId}`, { status }),
+    });
+    const sendReminder = useMutation({
+        mutationFn: (receiverId: number) => api.post('/student/leaderboard/reminder', { receiver_id: receiverId }),
+    });
+    const updatePreferences = useMutation({
+        mutationFn: (prefs: any) => api.put('/student/leaderboard/preferences', prefs),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            {showConfetti && <Confetti />}
+            <h2 className="text-xl font-bold text-maroon">Leaderboard</h2>
+            <div className="flex space-x-2 mt-2">
+                <button
+                    onClick={() => setScope('global')}
+                    className={`p-2 rounded ${scope === 'global' ? 'bg-maroon text-milk' : 'bg-gold'}`}
+                >
+                    Global
+                </button>
+                <button
+                    onClick={() => setScope('friends')}
+                    className={`p-2 rounded ${scope === 'friends' ? 'bg-maroon text-milk' : 'bg-gold'}`}
+                >
+                    Friends
+                </button>
+                <button
+                    onClick={() => setScope('class')}
+                    className={`p-2 rounded ${scope === 'class' ? 'bg-maroon text-milk' : 'bg-gold'}`}
+                >
+                    Class
+                </button>
+            </div>
+            <div className="mt-4">
+                {leaderboard?.map((entry: any, index: number) => (
+                    <motion.div
+                        key={entry.user_id}
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className="flex items-center p-2 border-b"
+                    >
+                        <div className="w-8 text-gold font-bold">{index + 1}</div>
+                        <div className="w-16 h-16">
+                            <CircularProgressbar
+                                value={(entry.hasanat / Math.max(...leaderboard.map((e: any) => e.hasanat))) * 100}
+                                text={`${entry.rank}`}
+                                styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                            />
+                        </div>
+                        <div className="ml-4 flex-1">
+                            <p className="font-bold">{entry.name}</p>
+                            {entry.hasanat && <p>Hasanat: {entry.hasanat}</p>}
+                            {entry.surahs_completed && <p>Surahs: {entry.surahs_completed}</p>}
+                            {entry.tasks_completed && <p>Tasks: {entry.tasks_completed}</p>}
+                            {entry.sujud_count && <p>Sujud: {entry.sujud_count}</p>}
+                            {entry.memorization_score && <p>Memorization: {Math.round(entry.memorization_score)}</p>}
+                            {entry.streak_days && <p>Streak: {entry.streak_days} days</p>}
+                        </div>
+                        {scope === 'friends' && (
+                            <button
+                                onClick={() => sendReminder.mutate(entry.user_id)}
+                                className="p-2 bg-maroon text-milk rounded"
+                                aria-label="Send Reminder"
+                            >
+                                <FaBell />
+                            </button>
+                        )}
+                    </motion.div>
+                ))}
+            </div>
+            <div className="mt-4">
+                <h3>Invite Friends</h3>
+                <input
+                    type="number"
+                    placeholder="User ID"
+                    className="p-2 rounded"
+                    onChange={e => sendInvite.mutate(Number(e.target.value))}
+                />
+                <h3>Pending Invites</h3>
+                {invites?.map((invite: any) => (
+                    <div key={invite.id} className="flex space-x-2">
+                        <p>{invite.sender.name} invited you</p>
+                        <button
+                            onClick={() => respondInvite.mutate({ inviteId: invite.id, status: 'accepted' })}
+                            className="p-2 bg-gold rounded"
+                        >
+                            Accept
+                        </button>
+                        <button
+                            onClick={() => respondInvite.mutate({ inviteId: invite.id, status: 'declined' })}
+                            className="p-2 bg-maroon text-milk rounded"
+                        >
+                            Decline
+                        </button>
+                    </div>
+                ))}
+            </div>
+            <div className="mt-4">
+                <h3>Privacy Settings</h3>
+                <label className="flex items-center space-x-2">
+                    <input
+                        type="checkbox"
+                        onChange={e => updatePreferences.mutate({ is_public: e.target.checked })}
+                        className="toggle toggle-gold"
+                        aria-label="Show on Leaderboard"
+                    />
+                    <span>Show on Leaderboard</span>
+                </label>
+                <label className="flex items-center space-x-2">
+                    <input
+                        type="checkbox"
+                        onChange={e => updatePreferences.mutate({ show_hasanat: e.target.checked })}
+                        className="toggle toggle-gold"
+                        aria-label="Show Hasanat"
+                    />
+                    <span>Show Hasanat</span>
+                </label>
+                {/* Add toggles for other metrics */}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Visual Progress**: Use CircularProgressbar for rank visualization, similar to Quranly’s progress tracking.[](https://play.google.com/store/apps/details?id=com.quranly.app&hl=en-GB)
+  - **Habit Streaks**: Display streak days prominently, with a glowing effect for 7+ days.[](https://apps.apple.com/sa/app/quranly/id1559233786?platform=iphone)
+  - **Community Interaction**: Include friend invites and reminders, mirroring Quranly’s social features.[](https://appshunter.io/ios/app/1559233786)
+  - **Motivational Messages**: Show “MashaAllah, you’re inspiring others!” on rank improvements.
+- **Gradients**: Use `bg-gradient-to-r from-maroon to-gold` for top ranks, `bg-white` for panel.
+- **Animations**:
+  - Entry: Fade-in with `initial={{ x: -20, opacity: 0 }}`.
+  - Rank Change: Animate rank updates with `motion.div` (bounce effect).
+  - Confetti: Trigger on new badges or rank improvements.
+  - Button Hover: `motion.button whileHover={{ scale: 1.1 }}`.
+- **Responsive**: Stack entries on mobile (`flex-col`), use `md:flex-row` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., “Send Reminder”).
+  - Use `role="list"` for leaderboard entries.
+  - Ensure keyboard navigation with `tabIndex`.
+- **Multilingual**: Use `next-intl` for labels:
+  ```tsx
+  import { useTranslations } from 'next-intl';
+  const t = useTranslations('leaderboard');
+  <h2>{t('title')}</h2>
+  ```
+- **Offline**: Cache leaderboard data in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('leaderboard', { keyPath: 'user_id' });
+      },
+  });
+  useEffect(() => {
+      if (!navigator.onLine) {
+          dbPromise.then(db => db.getAll('leaderboard')).then(cached => setLeaderboard(cached));
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Memorization**: Update `reviewAyah` in `MemorizationSection` to call `updateLeaderboardEntry` via API after reviews.
+2. **Gratification**: Trigger `updateLeaderboardEntry` after badge awards in `GratificationSection`.
+3. **Sujud**: Call `updateLeaderboardEntry` after Sujud events in `SujudSection`.
+4. **Whisper Tajweed**: Include successful submissions in leaderboard metrics if enabled.
+5. **Daily Tasks**: Update leaderboard after task completions.
+
+**Example Integration** (in `MemorizationSection.tsx`):
+```tsx
+const review = useMutation({
+    mutationFn: ({ itemId, quality }: { itemId: number; quality: number }) => 
+        api.post(`/student/memorization/review/${itemId}`, { quality }),
+    onSuccess: (data, { itemId }) => {
+        const item = dueReviews.items.find((i: any) => i.id === itemId);
+        if (dueReviews.items.filter((i: any) => i.surah_id === item.surah_id).every((i: any) => i.confidence_score >= 0.9)) {
+            completeSurah.mutate(item.surah_id);
+        }
+        api.post('/student/leaderboard/update'); // Update leaderboard
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
+        refetch();
+    },
+});
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/app/teacher/students/[id]/page.tsx`):
+   ```tsx
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+
+   export default function StudentActivity({ params }: { params: { id: string } }) {
+       const { data: activity } = useQuery(['student_activity', params.id], () => 
+           api.get(`/teacher/students/${params.id}/activity`).then(res => res.data)
+       );
+       const { data: leaderboard } = useQuery(['student_leaderboard', params.id], () => 
+           api.get(`/teacher/students/${params.id}/leaderboard`).then(res => res.data)
+       );
+
+       return (
+           <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               className="bg-gradient-to-br from-maroon to-milk p-4"
+           >
+               <h2 className="text-xl font-bold">Student Activity</h2>
+               <h3>Leaderboard Stats</h3>
+               <div className="bg-white p-4 rounded-lg shadow-md mt-2">
+                   <p>Hasanat: {leaderboard?.hasanat}</p>
+                   <p>Surahs Completed: {leaderboard?.surahs_completed}</p>
+                   <p>Tasks: {leaderboard?.tasks_completed}</p>
+                   <p>Sujud: {leaderboard?.sujud_count}</p>
+                   <p>Memorization Score: {Math.round(leaderboard?.memorization_score)}</p>
+                   <p>Streak: {leaderboard?.streak_days} days</p>
+               </div>
+               <h3>Badges</h3>
+               {activity?.badges.map((badge: any) => (
+                   <div key={badge.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>{badge.title}: {badge.description}</p>
+                       <p>Hasanat: {badge.hasanat}</p>
+                   </div>
+               ))}
+               <h3>Sujud Events</h3>
+               {activity?.sujud_events.map((sujud: any) => (
+                   <div key={sujud.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>Sujud for Ayah {sujud.ayah_id} of Surah {sujud.surah_id}</p>
+                       <p>Performed: {new Date(sujud.performed_at).toLocaleString()}</p>
+                   </div>
+               ))}
+               <h3>Tasks</h3>
+               {activity?.tasks.map((task: any) => (
+                   <div key={task.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>{task.type} Task: {task.completed ? 'Completed' : 'Pending'}</p>
+                       <p>Details: {JSON.stringify(task.details)}</p>
+                   </div>
+               ))}
+           </motion.div>
+       );
+   }
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <div>
+       <p>Leaderboard Activity: {analytics?.data_json.leaderboard_activity.active_users} active users</p>
+       <p>Total Hasanat: {analytics?.data_json.leaderboard_activity.total_hasanat}</p>
+       <p>Average Streak: {Math.round(analytics?.data_json.leaderboard_activity.avg_streak)} days</p>
+       <h3>Top Performers</h3>
+       <ul>
+           {analytics?.data_json.top_performers.map((entry: any) => (
+               <li key={entry.user_id}>{entry.user.name}: {entry.hasanat} Hasanat</li>
+           ))}
+       </ul>
+   </div>
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test LeaderboardTest`:
+     ```php
+     public function test_leaderboard_ranking()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         LeaderboardEntry::create(['user_id' => $student->id, 'hasanat' => 1000]);
+         $response = $this->actingAs($student, 'sanctum')->getJson('/api/student/leaderboard');
+         $response->assertStatus(200)->assertJsonFragment(['user_id' => $student->id]);
+     }
+
+     public function test_send_invite()
+     {
+         $student1 = User::factory()->create()->assignRole('student');
+         $student2 = User::factory()->create()->assignRole('student');
+         $response = $this->actingAs($student1, 'sanctum')->postJson('/api/student/leaderboard/invite', ['receiver_id' => $student2->id]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('leaderboard_invites', ['sender_id' => $student1->id]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays leaderboard', async () => {
+         render(<LeaderboardPanel />);
+         expect(screen.getByText('Leaderboard')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Global')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard` to `app/index.html`.
+   - Add queue worker cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache leaderboard data for 1 hour to reduce query load.
+  - Use pagination for large leaderboards (`take(50)`).
+  - Optimize streak calculation with indexed `last_seen_at`.
+- **Error Handling**:
+  - Handle API failures with cached leaderboard data.
+  - Validate friend invites to prevent self-invites or duplicates.
+- **Engagement** (Quranly-inspired):
+  - Show motivational messages: “SubhanAllah, you climbed 3 ranks!”.
+  - Award badges for top 10 ranks (e.g., “Leaderboard Legend”).
+  - Animate rank changes with Framer Motion.
+- **Teacher/Admin Sync**: Teachers see individual leaderboard stats; admins track activity trends.
+- **Offline**: Queue invites and reminders in IndexedDB, sync on reconnect.
+
+This enhanced Leaderboard Panel, inspired by Quranly’s habit-building and community features, integrates seamlessly with the Student Dashboard, providing a motivating and tracked experience. If you need a UI mockup or additional features (e.g., custom challenges), let me know![](https://www.quranly.app/)[](https://play.google.com/store/apps/details?id=com.quranly.app&hl=en-GB)[](https://apps.apple.com/sa/app/quranly/id1559233786?platform=iphone)

@@ -1,0 +1,485 @@
+i have laragon on window pc
+
+# Build “AlFawz Qur’an Institute” — Advanced Web App for Recitation, Memorization, Habit-Building, and Teacher–Student Management
+
+## Objective
+
+Design and implement a production-ready, full-stack web application called **AlFawz Qur’an Institute** that delivers an advanced recitation & memorization experience with teacher tools, classroom workflows, gamification, payments, and strong performance on typical **cPanel** hosting.
+
+## Brand & Product Pillars
+
+* **Brand name:** AlFawz Qur’an Institute
+* **Brand colors:** **Maroon** (#7A001F as a starting point) and **Milk** (near-white: #FAF7F2) with accessible neutrals and subtle gold accents.
+* **Tone:** Calm, scholarly, uplifting.
+* **Core value:** “More than a Qur’an memorization tool — a transformative spiritual journey with community, accountability, and intelligent habit-building.”
+
+## Outcomes & Non-Goals
+
+* Outcomes: Smooth teacher workflows, delightful student experience, accurate recitation feedback pipeline, fast Quran reader, reliable SRS memorization, and secure payments.
+* Non-Goals: Building our own ASR from scratch (we will use **OpenAI Whisper** API). No vendor lock-in to one cloud provider.
+
+---
+
+## Technical Strategy (Choose best option for cPanel)
+
+**Primary stack (cPanel-friendly):**
+
+* **Backend:** **PHP 8.2 + Laravel 10/11** (or Symfony if preferred). Reason: top compatibility with cPanel, first-class MySQL/MariaDB support, queues via DB/Redis, task scheduling via cron.
+* **Frontend:** **Next.js** (SSG/ISR) or **Vite + React** static build. On cPanel, deploy as static assets, call Laravel API via HTTPS. If Node hosting is limited, prebuild assets locally and upload `dist/`.
+* **DB:** **MySQL/MariaDB** (native to cPanel); use **PostgreSQL** only if supported.
+* **Caching:** **Redis** if available; fallback to **Laravel file cache**. Add HTTP cache + CDN (Cloudflare).
+* **Storage:** Local storage for small files; **S3-compatible** (e.g., DigitalOcean Spaces/AWS S3) for audio/images to avoid disk bloat on shared hosting.
+* **Queues/Jobs:** Laravel Queue with **database driver** (fallback) or Redis; run via **cPanel cron**.
+* **AI/ASR:** **OpenAI Whisper (API, premium)** for transcription + timestamps; server-side calls from Laravel jobs.
+* **Payments:** **Paystack** (Subscriptions + one-time tuition).
+* **3rd-party Qur’an data:** **Al-Quran Cloud API** for Arabic text, translations, reciter audio, and metadata.
+
+**Alternative stack (if cPanel fully supports Node apps):**
+
+* **Backend:** **NestJS** (Node 20+), **Prisma** ORM with MySQL.
+* **Frontend:** Next.js App Router.
+* **Caching:** Redis.
+* **Same AI, Storage, Payments, Quran API.**
+
+> If Node support is uncertain, default to the Laravel plan.
+
+---
+
+## Performance & Caching Plan
+
+1. **Server-side cache layers**
+
+   * Redis (preferred): cache **Surah/Ayah** payloads, translation variants, audio URL manifests, leaderboard snapshots, teacher dashboards, SRS recommendations.
+   * Cache keys: `quran:surah:{id}:{edition}`, `quran:ayah:{surah}:{ayah}:{lang}`, `user:{id}:dashboard`, `class:{id}:stats:v1`, `leaderboard:global:weekly` (with TTLs: 5–60 min depending).
+   * Fallback: Laravel file cache with taggable caches where possible.
+
+2. **HTTP & CDN**
+
+   * Cloudflare CDN, **Cache-Control** & **ETag** headers on static and JSON GET endpoints that don’t expose private data.
+   * Stale-While-Revalidate on public data (Qur’an text, reciter lists, surah metadata).
+   * Gzip/Brotli enabled.
+
+3. **Client-side caching**
+
+   * **Service Worker (PWA)**: pre-cache UI shell, frequently accessed surahs, last session resources; offline fallback for assigned portions.
+   * **IndexedDB**: store recent ayah text, translations, audio segment manifests for offline practice.
+   * **SWR/RTK Query** pattern: background revalidation for near-instant UI.
+
+4. **Precomputation**
+
+   * Nightly cron generates SRS schedules, class analytics, and leaderboard snapshots to serve instantly.
+
+---
+
+## Core Data Model (high level)
+
+* **users**: role (student/teacher/admin), profile, locale, preferences.
+* **classes**: level (1/2/3), teacher\_id, title, description.
+* **class\_members**: class\_id, user\_id, role\_in\_class.
+* **assignments**: class\_id or direct user\_ids, title, description, due\_at, resources (image/audio).
+* **hotspots**: assignment\_id, image\_id, x, y, width, height, tooltip, optional audio\_id.
+* **submissions**: assignment\_id, student\_id, status, score, rubric\_json, submitted\_at.
+* **audio\_assets**: owner\_type/id, s3\_url, duration, waveform\_json (optional).
+* **feedback**: submission\_id, teacher\_id, note, audio\_id, created\_at.
+* **quran\_progress**: user\_id, surah\_id, ayah\_id, recited\_count, memorized\_confidence (0–1), last\_seen\_at.
+* **srs\_queue**: user\_id, ayah\_pointer, due\_at, ease\_factor, interval, repetitions (SM-2-like).
+* **gamification\_events**: user\_id, type, payload, points, created\_at.
+* **leaderboard\_snapshots**: scope (class/global), period (weekly/monthly), data\_json.
+* **payments**: user\_id, plan, amount, currency, paystack\_ref, status, webhook\_payload.
+
+**Hasanat rule:** **Hasanat = NumberOfArabicLetters × 10**. Store counted letters per ayah when user completes a recitation unit (cache letter counts by ayah id to avoid recomputation).
+
+---
+
+## Integrations & Protocols
+
+### Al-Quran Cloud API
+
+* Use it to fetch: Arabic text (Uthmani), multi-language translations, audio reciters/manifests, surah & ayah metadata.
+* **Cache aggressively**; normalize & store canonical IDs locally for fast joins with progress/SRS.
+* Provide a **surah/ayah selector** that hydrates from cache first.
+
+### OpenAI Whisper (Premium)
+
+* Use server-side API for **transcription with timestamps** (word- or segment-level).
+* **Flow:** Student records → client uploads to server (S3 multipart) → enqueue transcription job → Whisper → store transcript + timestamps + confidence.
+* **Alignment & feedback:**
+
+  * Compare the transcript to the **expected ayah text** (normalize Arabic diacritics).
+  * Use **dynamic time warping** or edit distance (Levenshtein) per token for mismatch scoring.
+  * Map timing back to ayah parts to highlight errors; generate feedback JSON: `{missed_words, mispronounced_regions, timing_lag, overall_score}`.
+* **Privacy:** delete temp audio, keep only final asset + structured feedback.
+* **Latency:** process heavy jobs asynchronously; update UI with polling or SSE (if supported).
+ AI Voice Feedback
+
+Whisper AI
+🎙️ Speech Feedback (future): Use whisper-style models to transcribe and validate if the recited verse matches correctly.
+AI Recitation Checker (Tarteel-Inspired)
+
+Compare student’s recitation with correct audio.
+
+Real-time visual feedback (green = correct; red = error).
+
+Tajweed suggestions (AI-powered).
+
+### Paystack (Tuition & Plans)
+
+* **Flows:**
+
+  * One-time payment for tuition or materials.
+  * Recurring subscription for class enrollment (monthly/term).
+* **Implement:**
+
+  * Server endpoint to initialize transaction (amount, email, metadata).
+  * Client redirect to Paystack checkout or inline widget.
+  * **Webhook** endpoint (secure with signature) → verify → mark payment as paid → provision class access → issue receipt → email.
+* **Receipts:** email + downloadable PDF.
+* **Admin:** payment logs, refund notes, reconciliation.
+
+---
+
+## Feature Scope
+
+### Teacher Panel (Backend UI)
+
+* **Classroom Management:** create/edit classes (Level 1/2/3), add/remove/group students, assign students to a teacher.
+* **Broadcast & Direct Tasks:** send tasks/audio to all or specific student(s).
+* **Assignment System:**
+
+  * Upload image(s) → **Hotspot editor** (use **Konva.js** or **Fabric.js**) to draw rectangles/polygons; attach tooltip text + optional audio per hotspot.
+  * Record/upload audio feedback per hotspot or per assignment.
+  * Assigned to class by admin or specific students; due dates; allow multiple attempts.
+  * Preview and manage assets (replace, edit, delete).
+* **Progress Tracker:**
+
+  * Real-time dashboard (cached): completion %, recent submissions, top struggling ayahs/words.
+  * Grade with rubrics: **tajweed**, **fluency**, **memory accuracy**; store structured rubric & computed score.
+  * Flag students needing intervention; one-click follow-up task.
+
+### Student Panel (Frontend)
+
+* **Personal Dashboard:**
+
+  * Daily target: **10 ayahs** default (configurable).
+  * Progress bar increments on **Next Ayah**; show **congratulatory modal** on daily completion and allow continuing.
+  * Visual trackers: **recitation %**, **memorization %**, **habits**, **leaderboard rank**.
+* **Qur’an Reader:**
+
+  * Beautiful Mushaf (Uthmani) with ayah highlighting, translations toggle, playback (select reciter), AB-loop, speed, bookmarks & notes.
+  * **Recitation tracking** by ayah; quick record & submit.
+* **Memorization Panel:**
+
+  * **SRS** (SM-2 variant) per ayah; reviews due counter; “Reveal text” mode.
+  * Practice tests: self-recording, compare to reference, submit to teacher.
+  * Smart flashcards: word meanings, tafsir snippets, linked audio.
+* **Teacher Feedback Center:** list of feedback, playable audio, annotated images with hotspots; manage own recordings (replay/delete).
+* **Gamification & Leaderboard:** daily streaks, badges (“Surah Master”, “Tajweed Champion”, “30-day Streak”), **class/global leaderboards**.
+* **Profile:** goals (e.g., 3 surahs/month), badges, journal (private reflections).
+
+---
+
+## UX/UI Requirements
+
+* **Design system:** Tailwind utility approach or CSS variables for maroon/milk palette; large readable Arabic fonts, accessible contrast.
+* **Micro-interactions:** Framer-Motion-like transitions; subtle confetti/sparkle on milestones.
+* **Hotspot UX:** hover/click to reveal tooltip with title, description, and play button if audio attached.
+* **Recording UX:** one big record button; waveform preview; upload progress; resume if offline.
+* **Accessibility:** Keyboard navigable, ARIA labels, RTL support, language switcher, dyslexic-friendly fonts option.
+* **PWA:** Installable, offline study mode (cached assigned ayahs + recent audio).
+
+---
+
+## Security, Privacy, Compliance
+
+* **Auth:** Laravel Sanctum/JWT (short-lived) + refresh path; role-based policies; per-resource authorization.
+* **Transport:** HTTPS everywhere.
+* **Data:** Encrypt sensitive fields at rest; strict S3 bucket policies with signed URLs.
+* **Webhooks:** Verify Paystack signatures; idempotent handlers.
+* **GDPR-style controls:** data export/delete; retention policy for audio.
+* **Abuse controls:** file type/size validation; virus scan if possible; rate limiting.
+
+---
+
+## Analytics & Observability
+
+* **Product analytics:** events for recitations, submissions, completions, streaks, payments.
+* **Performance:** server timings, slow query logs, queue latency dashboard.
+* **Health:** uptime pings; error alerting (Sentry/Rollbar).
+
+---
+
+## SRS & Scoring Details
+
+* **SRS:** SM-2 inspired per ayah; store ease factor, interval, due\_at, repetitions; adjust based on submission quality.
+* **ASR scoring:** Compute **accuracy**, **timing**, **omissions**, **insertions**; aggregate to **overall score (0–100)** with thresholds for pass/review.
+* **Hasanat:** `hasanat = ArabicLetterCount × 10`; precompute letter counts by ayah; add to user totals on verified completion.
+
+---
+
+## API Surface (examples)
+
+* `GET /api/quran/surah/{id}?lang=en&edition=uthmani` → cached surah payload.
+* `GET /api/reader/reciters` → cached list from Al-Quran Cloud.
+* `POST /api/recitation/upload` → returns S3 signed URL; then enqueue Whisper transcription job.
+* `GET /api/recitation/{id}/status` → queued, processing, done + feedback JSON.
+* `POST /api/assignments` | `GET /api/assignments/:id` | `POST /api/assignments/:id/hotspots`
+* `POST /api/payments/init` | `POST /api/payments/webhook` (verify & fulfill).
+* `GET /api/leaderboard?scope=class&period=weekly` → cached snapshot.
+
+---
+
+## Deployment on cPanel (guidance for the generator)
+
+* Laravel in subdirectory; set DocumentRoot to `/public`.
+* `.env` templating with S3, OpenAI, Paystack keys.
+* Migrations + seeders for roles, levels, demo data.
+* Cron jobs: `php artisan schedule:run` every minute; queue worker via cron (if no supervisor).
+* Build frontend locally → upload `dist/` to `/public/app`.
+* Cloudflare proxied DNS for CDN/HTTPS.
+
+---
+
+## Testing & Acceptance Criteria
+
+* **Unit & Feature tests** for SRS logic, hasanat computation, role policies.
+* **Integration tests** for Paystack webhook idempotency and Whisper job pipeline.
+* **UX acceptance**:
+
+  * Student completes daily **10 ayahs** flow; sees congrats modal; Hasanat updates; SRS updates.
+  * Teacher uploads image, adds 3 hotspots with audio; assigns to class; student sees interactive image and can play feedback.
+  * Student records recitation; transcription + feedback show mismatched words highlighted; overall score visible within job SLA.
+  * Leaderboards load < 300 ms (cached); Qur’an reader first contentful paint < 2s on 4G.
+
+---
+
+## Deliverables
+
+* Complete repository with backend (Laravel) and frontend (React/Next) code.
+* Infrastructure scripts (env templates, cron instructions).
+* Seed data and demo accounts (admin, teacher, student).
+* Admin docs for managing classes, assignments, payments.
+* Privacy policy & data retention notes.
+
+---
+
+## Priorities & Phasing
+
+1. **MVP:** Auth, Quran reader (Arabic + 1 translation + audio), daily targets, Hasanat, SRS baseline, classes, assignments with image hotspots (no ASR yet), Paystack payments, caching.
+2. **Phase 2:** Whisper transcription & recitation feedback; leaderboard; badges; teacher analytics; PWA offline.
+3. **Phase 3:** Multi-language UI, advanced analytics, richer rubric grading, expanded SRS tuning.
+
+---
+
+## Style & Components
+
+* Typography: Arabic Uthmani font + Latin sans.
+* Components: modern cards, rounded corners, soft shadows, motion-reduced for accessibility; consistent spacing.
+* Color tokens: `--maroon`, `--milk`, complementary neutrals; test contrast AA+ for text on maroon.
+
+note: i dont have redis on cpanel, so dont use redis
+
+
+
+---
+
+# Instruction for AI Developer — Build **AlFawz Qur’an Institute**
+
+## Project Overview
+
+You are to build a **production-ready full-stack web application** called **AlFawz Qur’an Institute**. This application will provide Qur’an recitation, memorization, and habit-building features for students, with tools for teachers to manage classes, assignments, and provide feedback.
+
+The system must be architected for **shared hosting on cPanel**, meaning:
+
+* **Backend:** Laravel 11 (PHP 8.2, MySQL/MariaDB, Sanctum for authentication).
+* **Frontend:** Next.js (with TypeScript + Tailwind). Deployed as static/SSG build into Laravel’s `public/app` folder. If Node hosting is available on cPanel, allow SSR/ISR, otherwise default to static.
+* **Database:** MySQL/MariaDB with migrations.
+* **Queues/Jobs:** Laravel Queue with **database driver**.
+* **Cache:** Laravel file cache (do not use Redis, since not available).
+* **Storage:** S3-compatible (DigitalOcean Spaces or AWS S3) for audio and large assets.
+* **AI:** OpenAI Whisper API for transcription and recitation analysis.
+* **Payments:** Paystack for tuition fees and subscriptions.
+* **Qur’an data:** Al-Quran Cloud API for Arabic text, translations, and audio recitations.
+
+
+```
+
+* Laravel serves as API and backend admin.
+* Next.js is frontend (student and teacher UI), built and exported into `/public/app`.
+
+---
+
+## Laravel Backend — Required Features
+
+1. **Authentication & Authorization**
+
+   * Laravel Sanctum for token-based auth.
+   * Roles: Admin, Teacher, Student.
+   * Use Spatie Laravel Permission for role/permission management.
+
+2. **Database Models & Migrations**
+
+   * **users**: name, email, password, role, preferences.
+   * **classes**: title, description, teacher\_id.
+   * **class\_members**: class\_id, user\_id, role\_in\_class.
+   * **assignments**: linked to class\_id, with due dates, title, description.
+   * **hotspots**: image coordinates for teacher annotation.
+   * **submissions**: assignment\_id, student\_id, score, status.
+   * **audio\_assets**: owner\_id, s3\_url, duration.
+   * **feedback**: linked to submissions with teacher notes/audio.
+   * **quran\_progress**: user\_id, surah\_id, ayah\_id, memorization status.
+   * **srs\_queue**: spaced repetition scheduling per ayah.
+   * **leaderboard\_snapshots**: cached weekly/monthly rankings.
+   * **payments**: user\_id, plan, amount, paystack\_ref, status.
+
+3. **APIs**
+
+   * `/api/auth/*`: login, register, refresh token.
+   * `/api/quran/*`: get surah/ayah, translations, reciters.
+   * `/api/recitation/*`: upload recording → enqueue Whisper transcription → return feedback JSON.
+   * `/api/assignments/*`: CRUD assignments, hotspots, submissions.
+   * `/api/payments/init` and `/api/payments/webhook` (with signature verification).
+   * `/api/leaderboard`: return cached leaderboard.
+
+4. **Background Jobs**
+
+   * Handle audio transcription requests with Whisper API.
+   * Nightly cron jobs for: leaderboard snapshots, spaced repetition schedule generation, analytics precomputation.
+
+5. **Payments**
+
+   * Integration with Paystack for one-time and subscription payments.
+   * Webhook endpoint to confirm and update payment status.
+
+6. **Storage**
+
+   * Upload files to S3-compatible service.
+   * Generate signed URLs for secure access.
+
+---
+
+## Next.js Frontend — Required Features
+
+1. **Technology Stack**
+
+   * Next.js 14+ with TypeScript.
+   * TailwindCSS for design system.
+   * React Query (TanStack Query) or SWR for data fetching and caching.
+   * NextAuth (if needed) or custom Sanctum token integration.
+   * Service Worker for PWA/offline caching.
+
+2. **Student Dashboard**
+
+   * Daily target tracker (e.g., 10 ayahs/day).
+   * Hasanat counter (`letters × 10`).
+   * Progress charts (recitation %, memorization %, streaks).
+   * Recently recited Surahs.
+   * Ayah of the day.
+
+3. **Qur’an Reader**
+
+   * Arabic text with translation toggle.
+   * Audio playback with selectable reciter.
+   * Highlighting of ayahs.
+   * Bookmarks & notes.
+   * Offline caching of recent surahs/audio.
+
+4. **Memorization Panel**
+
+   * Spaced Repetition System (SM-2 like).
+   * Recitation record & upload.
+   * Flashcards (hide/reveal words, shuffle ayah order).
+   * Progress bar for repetitions.
+
+5. **Teacher Dashboard**
+
+   * Manage classes & students.
+   * Create assignments with text, audio, images.
+   * Hotspot editor (mark parts of images with notes/audio).
+   * Review student submissions with rubric (tajweed, fluency, accuracy).
+   * Send feedback with text/audio.
+
+6. **Leaderboards & Gamification**
+
+   * Daily/weekly streak tracking.
+   * Global/class leaderboards.
+   * Badges for milestones (e.g., “Surah Master”).
+
+7. **PWA Features**
+
+   * Offline caching for assigned surahs and last session.
+   * Installable on mobile and desktop.
+   * Background sync when online.
+
+---
+
+## Database Best Practices
+
+* Use **normalized tables** for classes, users, assignments.
+* Add indexes for frequently queried fields: `user_id`, `class_id`, `surah_id`.
+* Use foreign keys with `onDelete('cascade')` where relevant.
+* Store large audio/text data in S3, not in DB. Save only URLs/metadata.
+* Implement migrations and seeders for demo data (admin, teacher, student accounts).
+
+---
+
+## Performance & Scalability
+
+* Use **file cache** for API responses (surah, reciter list, leaderboard snapshots).
+* Add `Cache-Control` headers for public APIs.
+* Use Cloudflare CDN for static assets.
+* Minimize SQL queries with eager loading (Laravel Eloquent).
+* Optimize Next.js build with image optimization and code splitting.
+
+---
+
+## Deployment on cPanel
+
+1. Upload Laravel backend to `apps/api/`.
+
+   * Point DocumentRoot to `apps/api/public`.
+   * Set `.env` with DB, Paystack, OpenAI, and S3 keys.
+2. Build Next.js frontend locally:
+
+   ```
+   cd apps/web
+   npm install
+   npm run build && npm run export
+   ```
+
+   * Upload `/out/` to `apps/api/public/app`.
+3. Setup cron jobs in cPanel:
+
+   * `php artisan schedule:run` every minute.
+   * `php artisan queue:work --stop-when-empty` every minute.
+
+---
+
+## Essential Libraries
+
+* **Backend (Laravel):**
+
+  * laravel/sanctum
+  * spatie/laravel-permission
+  * guzzlehttp/guzzle
+  * league/flysystem-aws-s3-v3
+
+* **Frontend (Next.js):**
+
+  * tailwindcss
+  * @tanstack/react-query or swr
+  * next-pwa (for offline support)
+  * axios
+
+---
+
+## Acceptance Criteria
+
+* Student can read Qur’an text, play audio, and track Hasanat.
+* Teacher can create a class, add assignments with image/audio hotspots, and review student submissions.
+* Student can record recitation, upload it, and get AI feedback via Whisper.
+* Leaderboard loads in under 300ms using cached data.
+* Payments via Paystack are securely processed and reflected in the database.
+* App works offline for recent ayahs/audio via PWA.
+
+
+

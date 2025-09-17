@@ -1,0 +1,764 @@
+To further enhance the **AlFawz Qur¡¯an Institute** app by adding the **Quranic Quest** game to the **Game Center**, I¡¯ll implement a narrative-driven game where students complete ¡°missions¡± (e.g., memorize ayahs, answer tafsir questions) to progress through a spiritual journey, earning badges and triggering Sujud prompts for relevant ayahs. This game will build on the existing **Game Center**, **Tajweed Treasure Hunt**, and **Hasanat Hoard** infrastructure, ensuring only students who complete their daily tasks can access it. The UI will be visually stunning, aligning with the app¡¯s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations) and drawing inspiration from **Quranly**¡¯s engaging, habit-forming design. The implementation will be fully functional, mobile-responsive, accessible, multilingual, and compatible with cPanel deployment (file-based caching, no Redis). All interactions will be tracked for teacher oversight and admin analytics, seamlessly integrating with existing systems (Assignment, Schedule, Submit, Leaderboard, Gratification, Sujud, Whisper Tajweed, Teacher Dashboard).
+
+---
+
+## Implementation: Quranic Quest Game
+
+### Objective
+- Add **Quranic Quest** to the Game Center, accessible via the **"Play Game" button** on the Student Dashboard for students who complete daily tasks.
+- Implement **Quranic Quest**:
+  - Students complete missions (e.g., memorize ayahs, answer tafsir questions) to progress through a spiritual journey visualized as a ¡°path¡± with milestones (e.g., chapters like ¡°The Seeker¡¯s Path¡±).
+  - Missions include memorization tasks (with audio submissions), tafsir quizzes, and reflection prompts.
+  - Rewards include badges (e.g., ¡°Seeker of Knowledge¡±) and Sujud prompts for Sajda ayahs.
+  - Progress is tracked with a journey map, showing completed missions and upcoming challenges.
+- Create a **beautiful UI/UX**:
+  - Journey map with gold-accented paths, Amiri font for Arabic, Lora for English.
+  - Framer Motion animations for mission transitions, badge unlocks, and confetti effects.
+  - Mobile responsiveness, accessibility, and multilingual support.
+- Ensure **full tracking** of mission completions, badge awards, and Sujud prompts for teacher/admin analytics.
+- Integrate with existing systems for a cohesive experience.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Leverage existing tables (`games`, `game_sessions`) and add new ones to support **Quranic Quest**.
+
+1. **Missions Table** (store mission details):
+   ```bash
+   php artisan make:migration create_missions_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_missions_table.php
+   Schema::create('missions', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('game_id')->constrained()->onDelete('cascade');
+       $table->string('title'); // e.g., Memorize Al-Fatiha
+       $table->text('description');
+       $table->string('type'); // e.g., memorization, tafsir_quiz, reflection
+       $table->integer('surah_id')->nullable();
+       $table->json('ayah_ids')->nullable(); // e.g., [1, 2, 3]
+       $table->json('questions')->nullable(); // e.g., [{"question": "What is the theme?", "options": [...], "correct": "Mercy"}]
+       $table->integer('hasanat_reward');
+       $table->integer('order'); // Mission sequence in journey
+       $table->foreignId('assignment_id')->nullable()->constrained()->onDelete('set null');
+       $table->timestamps();
+   });
+   ```
+
+2. **User Missions Table** (track student mission progress):
+   ```bash
+   php artisan make:migration create_user_missions_table
+   ```
+   ```php
+   Schema::create('user_missions', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->foreignId('game_session_id')->constrained('game_sessions')->onDelete('cascade');
+       $table->foreignId('mission_id')->constrained()->onDelete('cascade');
+       $table->string('status')->default('pending'); // pending, completed
+       $table->json('answers')->nullable(); // e.g., [{"question_id": 1, "answer": "Mercy"}]
+       $table->string('recitation_url')->nullable(); // S3 URL for memorization submissions
+       $table->json('whisper_feedback')->nullable(); // e.g., {"accuracy": 85, "notes": "Improve Madd"}
+       $table->integer('hasanat_earned')->default(0);
+       $table->timestamp('completed_at')->nullable();
+       $table->timestamps();
+   });
+   ```
+
+3. **Run Migrations**: `php artisan migrate`.
+
+4. **Seed Quranic Quest Game and Missions**:
+   ```php
+   // database/seeders/GameSeeder.php
+   namespace Database\Seeders;
+
+   use App\Models\Game;
+   use App\Models\Mission;
+   use App\Models\Badge;
+
+   class GameSeeder extends Seeder
+   {
+       public function run()
+       {
+           $game = Game::create([
+               'name' => 'quranic_quest',
+               'title' => 'Quranic Quest',
+               'description' => 'Embark on a spiritual journey by completing Quranic missions!',
+               'icon' => 'https://example.com/icons/quest.png',
+               'hasanat_per_win' => 150,
+               'difficulty' => 'beginner',
+           ]);
+
+           $badge = Badge::create([
+               'type' => 'game_completion',
+               'title' => 'Seeker of Knowledge',
+               'description' => 'Completed a chapter in Quranic Quest!',
+               'hasanat' => 100,
+           ]);
+
+           Mission::create([
+               'game_id' => $game->id,
+               'title' => 'Memorize Al-Fatiha',
+               'description' => 'Memorize the first 3 ayahs of Surah Al-Fatiha.',
+               'type' => 'memorization',
+               'surah_id' => 1,
+               'ayah_ids' => [1, 2, 3],
+               'hasanat_reward' => 50,
+               'order' => 1,
+               'assignment_id' => Assignment::first()->id,
+           ]);
+           Mission::create([
+               'game_id' => $game->id,
+               'title' => 'Tafsir of Al-Fatiha',
+               'description' => 'Answer questions about the themes of Surah Al-Fatiha.',
+               'type' => 'tafsir_quiz',
+               'surah_id' => 1,
+               'questions' => [
+                   [
+                       'question' => 'What is the main theme of Surah Al-Fatiha?',
+                       'options' => ['Mercy', 'Judgment', 'Creation', 'Prophethood'],
+                       'correct' => 'Mercy',
+                   ],
+               ],
+               'hasanat_reward' => 30,
+               'order' => 2,
+           ]);
+           Mission::create([
+               'game_id' => $game->id,
+               'title' => 'Reflect on Guidance',
+               'description' => 'Write a short reflection on seeking guidance.',
+               'type' => 'reflection',
+               'hasanat_reward' => 20,
+               'order' => 3,
+           ]);
+       }
+   }
+   ```
+   Run: `php artisan db:seed --class=GameSeeder`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/GameController.php`.
+
+1. **Start Quranic Quest Session**:
+   ```php
+   // app/Http/Controllers/Api/GameController.php
+   public function startQuranicQuestSession(Request $request)
+   {
+       $user = auth()->user();
+       $game = Game::where('name', 'quranic_quest')->firstOrFail();
+       $session = GameSession::create([
+           'user_id' => $user->id,
+           'game_id' => $game->id,
+           'score' => 0,
+           'hasanat_earned' => 0,
+           'hints_used' => 0,
+           'time_spent' => 0,
+       ]);
+
+       $missions = Mission::where('game_id', $game->id)
+           ->whereHas('assignment', fn($q) => $q->whereHas('class.members', fn($q2) => $q2->where('user_id', $user->id)))
+           ->orderBy('order')
+           ->get();
+       $userMissions = UserMission::where('user_id', $user->id)
+           ->where('game_session_id', $session->id)
+           ->pluck('mission_id');
+       return response()->json([
+           'session_id' => $session->id,
+           'missions' => $missions,
+           'completed_missions' => $userMissions,
+       ]);
+   }
+   ```
+
+2. **Complete Mission**:
+   ```php
+   public function completeMission(Request $request, GameSession $session, Mission $mission)
+   {
+       $this->authorize('update', $session);
+       $validated = $request->validate([
+           'answers' => 'nullable|array',
+           'recitation' => 'nullable|file|mimes:mp3,wav',
+           'reflection' => 'nullable|string|max:1000',
+           'time_spent' => 'integer',
+       ]);
+
+       $whisperFeedback = null;
+       $recitationUrl = null;
+       $hasanatEarned = $mission->hasanat_reward;
+       $isCorrect = true;
+
+       if ($mission->type === 'tafsir_quiz' && $validated['answers']) {
+           $isCorrect = collect($validated['answers'])->every(function ($answer, $index) use ($mission) {
+               return $mission->questions[$index]['correct'] === $answer;
+           });
+           $hasanatEarned = $isCorrect ? $mission->hasanat_reward : 0;
+       } elseif ($mission->type === 'memorization' && $request->hasFile('recitation')) {
+           $recitationUrl = $request->file('recitation')->store('recitations', 's3');
+           $whisperFeedback = $this->processWhisperTajweed($recitationUrl); // Assume existing Whisper integration
+           $hasanatEarned += $whisperFeedback['accuracy'] >= 80 ? 10 : 0;
+       }
+
+       $userMission = UserMission::create([
+           'user_id' => auth()->id(),
+           'game_session_id' => $session->id,
+           'mission_id' => $mission->id,
+           'status' => 'completed',
+           'answers' => $validated['answers'],
+           'recitation_url' => $recitationUrl,
+           'whisper_feedback' => $whisperFeedback,
+           'hasanat_earned' => $hasanatEarned,
+           'completed_at' => now(),
+       ]);
+
+       $session->update([
+           'score' => $session->score + $hasanatEarned,
+           'hasanat_earned' => $session->hasanat_earned + $hasanatEarned,
+           'time_spent' => $session->time_spent + ($validated['time_spent'] ?? 0),
+       ]);
+
+       $user = auth()->user();
+       $user->hasanat_total += $hasanatEarned;
+       $user->save();
+
+       // Award badge for completing all missions in a session
+       if (UserMission::where('game_session_id', $session->id)->count() >= Mission::where('game_id', $session->game_id)->count()) {
+           Badge::create([
+               'user_id' => $user->id,
+               'type' => 'game_completion',
+               'title' => 'Seeker of Knowledge',
+               'description' => 'Completed a chapter in Quranic Quest!',
+               'hasanat' => $session->game->hasanat_per_win,
+               'awarded_at' => now(),
+           ]);
+           Notification::send($user->classes()->first()->teacher, new HighScoreAchieved($session));
+       }
+
+       // Check for Sajda ayahs
+       if ($mission->surah_id && $mission->ayah_ids) {
+           foreach ($mission->ayah_ids as $ayahId) {
+               if (SajdaAyah::where('surah_id', $mission->surah_id)->where('ayah_id', $ayahId)->exists()) {
+                   SujudEvent::create([
+                       'user_id' => $user->id,
+                       'surah_id' => $mission->surah_id,
+                       'ayah_id' => $ayahId,
+                       'context' => 'game',
+                   ]);
+               }
+           }
+       }
+
+       $this->updateLeaderboardEntry($user);
+       return response()->json(['hasanat_earned' => $hasanatEarned, 'mission_completed' => $userMission->id]);
+   }
+   ```
+
+3. **Get Quranic Quest Analytics**:
+   ```php
+   public function getQuranicQuestAnalytics(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return [
+           'total_missions_completed' => UserMission::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+               ->where('status', 'completed')->count(),
+           'average_hasanat' => UserMission::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+               ->avg('hasanat_earned'),
+           'mission_types' => [
+               'memorization' => UserMission::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+                   ->whereHas('mission', fn($q) => $q->where('type', 'memorization'))->count(),
+               'tafsir_quiz' => UserMission::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+                   ->whereHas('mission', fn($q) => $q->where('type', 'tafsir_quiz'))->count(),
+               'reflection' => UserMission::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+                   ->whereHas('mission', fn($q) => $q->where('type', 'reflection'))->count(),
+           ],
+           'recitation_submissions' => UserMission::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+               ->whereNotNull('recitation_url')->count(),
+       ];
+   }
+   ```
+
+**Routes** (update `routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('student')->group(function () {
+    Route::post('/games/quranic_quest/start', [GameController::class, 'startQuranicQuestSession']);
+    Route::post('/games/quranic_quest/sessions/{gameSession}/missions/{mission}', [GameController::class, 'completeMission']);
+});
+Route::middleware('auth:sanctum')->prefix('teacher')->group(function () {
+    Route::get('/classes/{class}/quranic-quest-analytics', [GameController::class, 'getQuranicQuestAnalytics']);
+});
+```
+
+**Notifications** (reuse `HighScoreAchieved` from previous games and add mission-specific notification):
+   ```php
+   // app/Notifications/MissionCompleted.php
+   namespace App\Notifications;
+
+   use App\Models\UserMission;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class MissionCompleted extends Notification
+   {
+       public function __construct(public UserMission $userMission) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('Mission Completed!')
+               ->line("You completed {$this->userMission->mission->title} in Quranic Quest!")
+               ->action('View Progress', url('/dashboard'));
+       }
+
+       public function toArray($notifiable)
+       {
+           return [
+               'mission_id' => $this->userMission->mission_id,
+               'title' => $this->userMission->mission->title,
+               'hasanat_earned' => $this->userMission->hasanat_earned,
+           ];
+       }
+   }
+   ```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Game Center
+Update `src/app/dashboard/games/page.tsx` to include Quranic Quest:
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaGamepad } from 'react-icons/fa';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+
+export default function GameCenter() {
+    const t = useTranslations('games');
+    const { data: games } = useQuery(['games'], () => api.get('/student/games').then(res => res.data));
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8 relative"
+            style={{ backgroundImage: 'url(/images/quran-bg.png)', backgroundSize: 'cover' }}
+            role="region"
+            aria-label={t('game_center')}
+        >
+            <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-maroon/50 to-milk/50"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+            />
+            <h1 className="text-4xl font-bold text-gold font-amiri mb-6 relative z-10">{t('game_center')}</h1>
+            <p className="text-milk font-lora mb-4 relative z-10">{t('welcome_message')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                {games?.map((game: any) => (
+                    <Link key={game.id} href={`/dashboard/games/${game.name}`}>
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(255, 215, 0, 0.5)' }}
+                            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+                        >
+                            <img src={game.icon} alt={game.title} className="w-full h-40 object-cover rounded mb-4" />
+                            <h2 className="text-2xl font-bold text-maroon font-amiri">{game.title}</h2>
+                            <p className="text-milk font-lora">{game.description}</p>
+                            <p className="text-gold mt-2">{t('hasanat')}: {game.hasanat_per_win}</p>
+                            <p className="text-maroon mt-1">{t('difficulty')}: {game.difficulty}</p>
+                        </motion.div>
+                    </Link>
+                ))}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Quranic Quest Game
+Create `src/app/dashboard/games/quranic_quest/page.tsx`:
+```tsx
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaMap, FaMicrophone, FaCheck } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function QuranicQuest() {
+    const t = useTranslations('games.quranic_quest');
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [currentMissionIndex, setCurrentMissionIndex] = useState(0);
+    const [hasanatTotal, setHasanatTotal] = useState(0);
+    const [recitation, setRecitation] = useState<File | null>(null);
+    const [answers, setAnswers] = useState<string[]>([]);
+    const [reflection, setReflection] = useState('');
+    const [timeSpent, setTimeSpent] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => setTimeSpent(prev => prev + 1), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const { data: sessionData, refetch } = useQuery(['quranic_quest_session'], () => 
+        api.post('/student/games/quranic_quest/start').then(res => res.data)
+    );
+    const completeMission = useMutation({
+        mutationFn: (missionId: number) => {
+            const formData = new FormData();
+            formData.append('answers', JSON.stringify(answers));
+            if (recitation) formData.append('recitation', recitation);
+            if (reflection) formData.append('reflection', reflection);
+            formData.append('time_spent', timeSpent.toString());
+            return api.post(`/student/games/quranic_quest/sessions/${sessionData.session_id}/missions/${missionId}`, formData);
+        },
+        onSuccess: (data) => {
+            setHasanatTotal(prev => prev + data.data.hasanat_earned);
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 3000);
+            setAnswers([]);
+            setRecitation(null);
+            setReflection('');
+            setTimeSpent(0);
+            if (currentMissionIndex < sessionData.missions.length - 1) {
+                setCurrentMissionIndex(currentMissionIndex + 1);
+            } else {
+                refetch();
+            }
+        },
+    });
+
+    if (!sessionData) return <div>Loading...</div>;
+
+    const currentMission = sessionData.missions[currentMissionIndex];
+    const isCompleted = currentMissionIndex >= sessionData.missions.length;
+    const progress = (sessionData.completed_missions.length / sessionData.missions.length) * 100;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8 relative"
+            style={{ backgroundImage: 'url(/images/journey-bg.png)', backgroundSize: 'cover' }}
+            role="region"
+            aria-label={t('title')}
+        >
+            {showConfetti && <Confetti />}
+            <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-maroon/50 to-milk/50"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+            />
+            <h1 className="text-4xl font-bold text-gold font-amiri mb-6 relative z-10">{t('title')}</h1>
+            <div className="flex justify-between mb-4 relative z-10">
+                <p className="text-milk font-lora">{t('hasanat_total')}: {hasanatTotal}</p>
+                <div className="w-16 h-16">
+                    <CircularProgressbar
+                        value={progress}
+                        text={`${sessionData.completed_missions.length}/${sessionData.missions.length}`}
+                        styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                    />
+                </div>
+            </div>
+            <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold relative z-10"
+            >
+                <FaMap className="text-6xl text-gold mx-auto mb-4" />
+                <p className="text-2xl font-bold text-maroon font-amiri text-center">
+                    {currentMission ? currentMission.title : t('journey_complete')}
+                </p>
+                <p className="text-milk font-lora text-center">
+                    {currentMission ? currentMission.description : t('all_missions')}
+                </p>
+                {currentMission && (
+                    <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className="mt-4"
+                    >
+                        {currentMission.type === 'memorization' && (
+                            <div>
+                                <p className="text-maroon font-amiri">Ayahs: {currentMission.ayah_ids.join(', ')}</p>
+                                <input
+                                    type="file"
+                                    accept="audio/*"
+                                    onChange={(e) => setRecitation(e.target.files?.[0] || null)}
+                                    className="p-2 rounded w-full mt-2"
+                                    aria-label={t('record_recitation')}
+                                />
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    onClick={() => recitation && completeMission.mutate(currentMission.id)}
+                                    className="p-4 bg-maroon text-milk rounded-lg mt-2 w-full"
+                                    disabled={!recitation || completeMission.isLoading}
+                                >
+                                    <FaMicrophone className="inline mr-2" /> {t('submit_recitation')}
+                                </motion.button>
+                            </div>
+                        )}
+                        {currentMission.type === 'tafsir_quiz' && (
+                            <div>
+                                {currentMission.questions.map((q: any, index: number) => (
+                                    <div key={index} className="mt-4">
+                                        <p className="text-maroon font-lora">{q.question}</p>
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                            {q.options.map((option: string) => (
+                                                <motion.button
+                                                    key={option}
+                                                    whileHover={{ scale: 1.05 }}
+                                                    onClick={() => setAnswers(prev => {
+                                                        const newAnswers = [...prev];
+                                                        newAnswers[index] = option;
+                                                        return newAnswers;
+                                                    })}
+                                                    className={`p-2 rounded ${answers[index] === option ? 'bg-gold text-maroon' : 'bg-maroon text-milk'}`}
+                                                >
+                                                    {option}
+                                                </motion.button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    onClick={() => answers.length === currentMission.questions.length && completeMission.mutate(currentMission.id)}
+                                    className="p-4 bg-maroon text-milk rounded-lg mt-4 w-full"
+                                    disabled={answers.length !== currentMission.questions.length || completeMission.isLoading}
+                                >
+                                    <FaCheck className="inline mr-2" /> {t('submit_answers')}
+                                </motion.button>
+                            </div>
+                        )}
+                        {currentMission.type === 'reflection' && (
+                            <div>
+                                <textarea
+                                    value={reflection}
+                                    onChange={(e) => setReflection(e.target.value)}
+                                    placeholder={t('write_reflection')}
+                                    className="p-2 rounded w-full mt-2 font-lora"
+                                    rows={4}
+                                />
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    onClick={() => reflection && completeMission.mutate(currentMission.id)}
+                                    className="p-4 bg-maroon text-milk rounded-lg mt-2 w-full"
+                                    disabled={!reflection || completeMission.isLoading}
+                                >
+                                    <FaCheck className="inline mr-2" /> {t('submit_reflection')}
+                                </motion.button>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </motion.div>
+            <div className="mt-6 relative z-10">
+                <h2 className="text-2xl font-bold text-gold font-amiri">{t('journey_map')}</h2>
+                <div className="flex flex-col items-center">
+                    {sessionData.missions.map((mission: any, index: number) => (
+                        <motion.div
+                            key={mission.id}
+                            initial={{ x: -20, opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            className={`p-4 rounded-lg mt-2 w-full max-w-md ${sessionData.completed_missions.includes(mission.id) ? 'bg-gold text-maroon' : 'bg-white text-milk'}`}
+                        >
+                            <p className="font-bold font-amiri">{mission.title}</p>
+                            <p className="font-lora">{mission.description}</p>
+                        </motion.div>
+                    ))}
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Journey Map**: A scrollable path with gold milestones (missions), glowing when completed.
+  - **Mission Interface**: Clean, card-based design with animated transitions for mission types.
+  - **Motivational Feedback**: Pop-ups like ¡°MashaAllah, you¡¯ve advanced on your journey!¡± on mission completion.
+  - **Sound Effects**: Soft adhan chimes play on mission completion (optional, toggleable).
+- **Gradients**: Use `bg-gradient-to-br from-maroon to-milk` for the page, `bg-white` or `bg-gold` for mission cards, `text-gold` for accents.
+- **Animations**:
+  - Mission Entry: Slide-in with `initial={{ x: -20, opacity: 0 }}`.
+  - Journey Map: Path animates as missions are completed.
+  - Confetti: Trigger on mission completion and badge awards.
+- **Typography**:
+  - **Amiri**: For Arabic text and mission titles (Quranic aesthetic).
+  - **Lora**: For descriptions and English text (clean, readable).
+- **Responsive**: Stack mission cards on mobile (`flex-col`), use `max-w-md` for desktop centering.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., ¡°Submit Recitation¡±).
+  - Use `role="region"` for game sections, `role="button"` for interactive elements.
+  - Ensure keyboard navigation for mission interactions.
+- **Multilingual**: Use `next-intl` for labels:
+  ```json
+  // games/en.json
+  {
+      "quranic_quest": {
+          "title": "Quranic Quest",
+          "hasanat_total": "Total Hasanat",
+          "journey_complete": "Journey Complete!",
+          "all_missions": "All Missions Completed",
+          "record_recitation": "Record Recitation",
+          "submit_recitation": "Submit Recitation",
+          "submit_answers": "Submit Answers",
+          "write_reflection": "Write your reflection here",
+          "submit_reflection": "Submit Reflection",
+          "journey_map": "Journey Map"
+      }
+  }
+  ```
+- **Offline**: Cache session and mission data in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('user_missions', { keyPath: 'id', autoIncrement: true });
+      },
+  });
+  useEffect(() => {
+      if (navigator.onLine) {
+          dbPromise.then(db => db.getAll('user_missions')).then(missions => {
+              missions.forEach(m => completeMission.mutateAsync(m.mission_id));
+          });
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments**: Missions are linked to active assignments via `assignment_id`, ensuring relevance.
+2. **Messages**: Reading messages can trigger related reflection missions:
+   ```tsx
+   // src/components/MessagePanel.tsx
+   useEffect(() => {
+       if (markRead.isSuccess) {
+           api.post(`/student/games/quranic_quest/sessions/${sessionId}/missions/${reflectionMissionId}`, {
+               reflection: `Reflected on message: ${activeMessage.title}`,
+           });
+       }
+   }, [markRead.isSuccess]);
+   ```
+3. **Submit System**: Memorization missions use Whisper Tajweed for recitation feedback, stored in `user_missions`.
+4. **Leaderboard**: Update entries with mission Hasanat via `updateLeaderboardEntry`.
+5. **Gratification**: Award ¡°Seeker of Knowledge¡± badge for completing all missions in a session.
+6. **Sujud**: Prompt Sujud events for Sajda ayahs in memorization missions.
+
+**Example Integration**:
+```tsx
+// src/app/dashboard/games/quranic_quest/page.tsx
+useEffect(() => {
+    if (completeMission.isSuccess && currentMission?.surah_id) {
+        api.post('/student/sujud/check', {
+            surah_id: currentMission.surah_id,
+            ayah_id: currentMission.ayah_ids[0],
+        });
+    }
+}, [completeMission.isSuccess]);
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/components/teacher/AnalyticsOverview.tsx`):
+   ```tsx
+   <div>
+       <p className="text-gold">Quranic Quest Missions</p>
+       <p className="text-2xl">{analytics?.total_missions_completed}</p>
+       <p className="text-milk">Average Hasanat: {Math.round(analytics?.average_hasanat)}</p>
+       <p className="text-milk">Recitation Submissions: {analytics?.recitation_submissions}</p>
+   </div>
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <p>Quranic Quest Missions: {analytics?.data_json.total_missions_completed}</p>
+   <p>Recitation Submissions: {analytics?.data_json.recitation_submissions}</p>
+   ```
+
+3. **Admin Analytics** (`app/Console/Commands/GenerateAnalyticsSnapshot.php`):
+   ```php
+   $data['total_missions_completed'] = UserMission::where('status', 'completed')
+       ->where('created_at', '>=', now()->subWeek())->count();
+   $data['recitation_submissions'] = UserMission::whereNotNull('recitation_url')
+       ->where('created_at', '>=', now()->subWeek())->count();
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test QuranicQuestTest`:
+     ```php
+     public function test_start_quranic_quest_session()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/games/quranic_quest/start');
+         $response->assertStatus(200)->assertJsonStructure(['session_id', 'missions', 'completed_missions']);
+         $this->assertDatabaseHas('game_sessions', ['user_id' => $student->id]);
+     }
+
+     public function test_complete_mission()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $session = GameSession::factory()->create(['user_id' => $student->id]);
+         $mission = Mission::factory()->create(['type' => 'tafsir_quiz']);
+         $response = $this->actingAs($student, 'sanctum')->postJson("/api/student/games/quranic_quest/sessions/{$session->id}/missions/{$mission->id}", [
+             'answers' => [$mission->questions[0]['correct']],
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('user_missions', ['mission_id' => $mission->id, 'status' => 'completed']);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays quranic quest', async () => {
+         render(<QuranicQuest />);
+         expect(screen.getByText('Quranic Quest')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Journey Map')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard/games/*` to `app/index.html`.
+   - Add cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache mission and session data for 24 hours.
+  - Use lazy loading for journey map assets.
+  - Optimize Whisper Tajweed jobs with retry logic (`tries: 3`).
+- **Error Handling**:
+  - Handle invalid recitation uploads with user-friendly messages.
+  - Queue mission completions offline, sync on reconnect.
+- **Engagement** (Quranly-inspired):
+  - Show ¡°SubhanAllah, you¡¯re advancing on your spiritual journey!¡± on mission completion.
+  - Animate journey map with glowing paths and milestone markers.
+  - Award badges for mission streaks and full session completion.
+- **UI Perfection**:
+  - Journey map with gold-accented paths and animated mission nodes.
+  - Mission cards with elegant typography and smooth transitions.
+  - Background with subtle Quranic calligraphy enhances spiritual feel.
+- **Tracking**: Teachers see mission completions and recitation submissions; admins track engagement metrics.
+- **Offline**: Store mission progress and submissions in IndexedDB.
+
+This implementation delivers a fully functional **Quranic Quest** game with a stunning, spiritually enriching UI, integrated with the Game Center and existing systems. Only students who complete daily tasks can access it, ensuring habit-building. If you need UI mockups, additional enhancements (e.g., difficulty levels), or further games, let me know!

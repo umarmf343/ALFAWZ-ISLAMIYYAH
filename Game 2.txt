@@ -1,0 +1,695 @@
+To enhance the **AlFawz Qur¡¯an Institute** app by adding the **Hasanat Hoard** game to the **Game Center**, I¡¯ll implement a progress-tracking game where students ¡°collect¡± Hasanat by completing assignments, reading messages, or reciting ayahs, with visual treasure chests that fill up and trigger animations for milestones. This implementation will build on the existing **Tajweed Treasure Hunt** and **Game Center** infrastructure, ensuring only students who complete their daily tasks can access the Game Center. The UI will be stunning, aligning with the app¡¯s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations) and drawing inspiration from **Quranly**¡¯s habit-forming gamification. The game will be fully functional, mobile-responsive, accessible, multilingual, and compatible with cPanel deployment (file-based caching, no Redis). All interactions will be tracked for teacher oversight and admin analytics, integrating seamlessly with existing systems (Assignment, Schedule, Submit, Leaderboard, Gratification, Sujud, Whisper Tajweed, Teacher Dashboard).
+
+---
+
+## Implementation: Hasanat Hoard Game
+
+### Objective
+- Add **Hasanat Hoard** to the Game Center, accessible via the **"Play Game" button** on the Student Dashboard for students who complete daily tasks.
+- Implement **Hasanat Hoard**:
+  - Students earn Hasanat through actions (completing assignments, reading messages, reciting ayahs).
+  - Visual treasure chests fill based on Hasanat accumulation, with animations (e.g., confetti, glowing effects) for milestones (e.g., 100, 500, 1000 Hasanat).
+  - Milestones unlock badges and leaderboard boosts.
+  - Optional recitation submissions link to Whisper Tajweed for feedback.
+- Create a **beautiful UI/UX**:
+  - Treasure chest visuals with gold accents, Amiri font for Arabic, Lora for English.
+  - Framer Motion animations for chest filling, milestone celebrations, and transitions.
+  - Mobile responsiveness, accessibility, and multilingual support.
+- Ensure **full tracking** of Hasanat earnings, milestone completions, and recitation submissions for teacher/admin analytics.
+- Integrate with existing systems for a cohesive experience.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Leverage existing tables (`games`, `game_sessions`) and add new ones to support **Hasanat Hoard**.
+
+1. **Hasanat Actions Table** (track Hasanat-earning actions):
+   ```bash
+   php artisan make:migration create_hasanat_actions_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_hasanat_actions_table.php
+   Schema::create('hasanat_actions', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->foreignId('game_session_id')->constrained('game_sessions')->onDelete('cascade');
+       $table->string('action_type'); // e.g., assignment_completed, message_read, recitation
+       $table->integer('hasanat_earned');
+       $table->string('reference_id')->nullable(); // e.g., assignment_id, message_id
+       $table->json('details')->nullable(); // e.g., {"assignment_title": "Surah Al-Fatiha"}
+       $table->timestamps();
+   });
+   ```
+
+2. **Milestones Table** (track treasure chest milestones):
+   ```bash
+   php artisan make:migration create_milestones_table
+   ```
+   ```php
+   Schema::create('milestones', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('game_id')->constrained()->onDelete('cascade');
+       $table->integer('hasanat_threshold'); // e.g., 100, 500, 1000
+       $table->string('title'); // e.g., Bronze Chest
+       $table->string('description');
+       $table->integer('badge_id')->nullable(); // Link to gratification badge
+       $table->timestamps();
+   });
+   ```
+
+3. **User Milestones Table** (track student milestone completions):
+   ```bash
+   php artisan make:migration create_user_milestones_table
+   ```
+   ```php
+   Schema::create('user_milestones', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->foreignId('milestone_id')->constrained()->onDelete('cascade');
+       $table->timestamp('achieved_at');
+       $table->timestamps();
+   });
+   ```
+
+4. **Run Migrations**: `php artisan migrate`.
+
+5. **Seed Hasanat Hoard Game and Milestones**:
+   ```php
+   // database/seeders/GameSeeder.php
+   namespace Database\Seeders;
+
+   use App\Models\Game;
+   use App\Models\Milestone;
+   use App\Models\Badge;
+
+   class GameSeeder extends Seeder
+   {
+       public function run()
+       {
+           $game = Game::create([
+               'name' => 'hasanat_hoard',
+               'title' => 'Hasanat Hoard',
+               'description' => 'Collect Hasanat by completing tasks to fill treasure chests!',
+               'icon' => 'https://example.com/icons/treasure.png',
+               'hasanat_per_win' => 100,
+               'difficulty' => 'beginner',
+           ]);
+
+           $badges = [
+               Badge::create(['type' => 'game_milestone', 'title' => 'Bronze Chest', 'description' => 'Reached 100 Hasanat', 'hasanat' => 50]),
+               Badge::create(['type' => 'game_milestone', 'title' => 'Silver Chest', 'description' => 'Reached 500 Hasanat', 'hasanat' => 100]),
+               Badge::create(['type' => 'game_milestone', 'title' => 'Gold Chest', 'description' => 'Reached 1000 Hasanat', 'hasanat' => 200]),
+           ];
+
+           Milestone::create([
+               'game_id' => $game->id,
+               'hasanat_threshold' => 100,
+               'title' => 'Bronze Chest',
+               'description' => 'Unlocked the Bronze Treasure Chest!',
+               'badge_id' => $badges[0]->id,
+           ]);
+           Milestone::create([
+               'game_id' => $game->id,
+               'hasanat_threshold' => 500,
+               'title' => 'Silver Chest',
+               'description' => 'Unlocked the Silver Treasure Chest!',
+               'badge_id' => $badges[1]->id,
+           ]);
+           Milestone::create([
+               'game_id' => $game->id,
+               'hasanat_threshold' => 1000,
+               'title' => 'Gold Chest',
+               'description' => 'Unlocked the Gold Treasure Chest!',
+               'badge_id' => $badges[2]->id,
+           ]);
+       }
+   }
+   ```
+   Run: `php artisan db:seed --class=GameSeeder`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/GameController.php` and related controllers.
+
+1. **Start Hasanat Hoard Session**:
+   ```php
+   // app/Http/Controllers/Api/GameController.php
+   public function startHasanatHoardSession(Request $request)
+   {
+       $user = auth()->user();
+       $game = Game::where('name', 'hasanat_hoard')->firstOrFail();
+       $session = GameSession::create([
+           'user_id' => $user->id,
+           'game_id' => $game->id,
+           'score' => 0,
+           'hasanat_earned' => 0,
+           'hints_used' => 0,
+           'time_spent' => 0,
+       ]);
+
+       $milestones = Milestone::where('game_id', $game->id)->get();
+       $userMilestones = UserMilestone::where('user_id', $user->id)->pluck('milestone_id');
+       return response()->json([
+           'session_id' => $session->id,
+           'hasanat_total' => $user->hasanat_total,
+           'milestones' => $milestones,
+           'achieved_milestones' => $userMilestones,
+       ]);
+   }
+   ```
+
+2. **Record Hasanat Action**:
+   ```php
+   public function recordHasanatAction(Request $request, GameSession $session)
+   {
+       $this->authorize('update', $session);
+       $validated = $request->validate([
+           'action_type' => 'required|in:assignment_completed,message_read,recitation',
+           'reference_id' => 'nullable|string',
+           'hasanat' => 'required|integer',
+           'recitation' => 'nullable|file|mimes:mp3,wav',
+           'details' => 'nullable|array',
+       ]);
+
+       $whisperFeedback = null;
+       $recitationUrl = null;
+       if ($validated['action_type'] === 'recitation' && $request->hasFile('recitation')) {
+           $recitationUrl = $request->file('recitation')->store('recitations', 's3');
+           $whisperFeedback = $this->processWhisperTajweed($recitationUrl); // Assume existing Whisper integration
+           $validated['hasanat'] += $whisperFeedback['accuracy'] >= 80 ? 10 : 0;
+       }
+
+       $action = HasanatAction::create([
+           'user_id' => auth()->id(),
+           'game_session_id' => $session->id,
+           'action_type' => $validated['action_type'],
+           'hasanat_earned' => $validated['hasanat'],
+           'reference_id' => $validated['reference_id'],
+           'details' => $validated['details'],
+       ]);
+
+       $session->update([
+           'hasanat_earned' => $session->hasanat_earned + $validated['hasanat'],
+           'score' => $session->hasanat_earned + $validated['hasanat'],
+           'recitation_url' => $recitationUrl,
+           'whisper_feedback' => $whisperFeedback,
+       ]);
+
+       $user = auth()->user();
+       $user->hasanat_total += $validated['hasanat'];
+       $user->save();
+
+       // Check milestones
+       $milestones = Milestone::where('game_id', $session->game_id)
+           ->where('hasanat_threshold', '<=', $user->hasanat_total)
+           ->whereNotIn('id', UserMilestone::where('user_id', $user->id)->pluck('milestone_id'))
+           ->get();
+
+       foreach ($milestones as $milestone) {
+           UserMilestone::create([
+               'user_id' => $user->id,
+               'milestone_id' => $milestone->id,
+               'achieved_at' => now(),
+           ]);
+           if ($milestone->badge_id) {
+               Badge::create([
+                   'user_id' => $user->id,
+                   'type' => 'game_milestone',
+                   'title' => $milestone->title,
+                   'description' => $milestone->description,
+                   'hasanat' => $milestone->badge->hasanat,
+                   'awarded_at' => now(),
+               ]);
+           }
+           Notification::send($user, new MilestoneAchieved($milestone));
+           Notification::send($user->classes()->first()->teacher, new MilestoneAchieved($milestone, $user));
+       }
+
+       $this->updateLeaderboardEntry($user);
+       return response()->json(['hasanat_earned' => $session->hasanat_earned, 'milestones' => $milestones]);
+   }
+   ```
+
+3. **Get Hasanat Hoard Analytics**:
+   ```php
+   public function getHasanatHoardAnalytics(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return [
+           'total_actions' => HasanatAction::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))->count(),
+           'average_hasanat' => HasanatAction::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))->avg('hasanat_earned'),
+           'milestone_completions' => UserMilestone::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))->count(),
+           'action_breakdown' => [
+               'assignments' => HasanatAction::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+                   ->where('action_type', 'assignment_completed')->count(),
+               'messages' => HasanatAction::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+                   ->where('action_type', 'message_read')->count(),
+               'recitations' => HasanatAction::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+                   ->where('action_type', 'recitation')->count(),
+           ],
+       ];
+   }
+   ```
+
+4. **Milestone Achieved Notification**:
+   ```php
+   // app/Notifications/MilestoneAchieved.php
+   namespace App\Notifications;
+
+   use App\Models\Milestone;
+   use App\Models\User;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class MilestoneAchieved extends Notification
+   {
+       public function __construct(public Milestone $milestone, public ?User $student = null) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           $subject = $this->student ? "{$this->student->name} Achieved {$this->milestone->title}!" : "You Achieved {$this->milestone->title}!";
+           return (new MailMessage)
+               ->subject($subject)
+               ->line($this->milestone->description)
+               ->action('View Progress', url($this->student ? '/teacher/dashboard' : '/dashboard'));
+       }
+
+       public function toArray($notifiable)
+       {
+           return [
+               'milestone_id' => $this->milestone->id,
+               'title' => $this->milestone->title,
+               'student_name' => $this->student?->name,
+           ];
+       }
+   }
+   ```
+
+**Routes** (update `routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('student')->group(function () {
+    Route::post('/games/hasanat_hoard/start', [GameController::class, 'startHasanatHoardSession']);
+    Route::post('/games/hasanat_hoard/sessions/{gameSession}', [GameController::class, 'recordHasanatAction']);
+});
+Route::middleware('auth:sanctum')->prefix('teacher')->group(function () {
+    Route::get('/classes/{class}/hasanat-hoard-analytics', [GameController::class, 'getHasanatHoardAnalytics']);
+});
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Game Center
+Update `src/app/dashboard/games/page.tsx` to include Hasanat Hoard:
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaGamepad } from 'react-icons/fa';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+
+export default function GameCenter() {
+    const t = useTranslations('games');
+    const { data: games } = useQuery(['games'], () => api.get('/student/games').then(res => res.data));
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8 relative"
+            style={{ backgroundImage: 'url(/images/quran-bg.png)', backgroundSize: 'cover' }}
+            role="region"
+            aria-label={t('game_center')}
+        >
+            <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-maroon/50 to-milk/50"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+            />
+            <h1 className="text-4xl font-bold text-gold font-amiri mb-6 relative z-10">{t('game_center')}</h1>
+            <p className="text-milk font-lora mb-4 relative z-10">{t('welcome_message')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                {games?.map((game: any) => (
+                    <Link key={game.id} href={`/dashboard/games/${game.name}`}>
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            whileHover={{ scale: 1.05, boxShadow: '0 0 15px rgba(255, 215, 0, 0.5)' }}
+                            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+                        >
+                            <img src={game.icon} alt={game.title} className="w-full h-40 object-cover rounded mb-4" />
+                            <h2 className="text-2xl font-bold text-maroon font-amiri">{game.title}</h2>
+                            <p className="text-milk font-lora">{game.description}</p>
+                            <p className="text-gold mt-2">{t('hasanat')}: {game.hasanat_per_win}</p>
+                            <p className="text-maroon mt-1">{t('difficulty')}: {game.difficulty}</p>
+                        </motion.div>
+                    </Link>
+                ))}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Hasanat Hoard Game
+Create `src/app/dashboard/games/hasanat_hoard/page.tsx`:
+```tsx
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaTreasureChest, FaMicrophone } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function HasanatHoard() {
+    const t = useTranslations('games.hasanat_hoard');
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [hasanatTotal, setHasanatTotal] = useState(0);
+    const [recitation, setRecitation] = useState<File | null>(null);
+
+    const { data: sessionData, refetch } = useQuery(['hasanat_hoard_session'], () => 
+        api.post('/student/games/hasanat_hoard/start').then(res => res.data)
+    );
+    const recordAction = useMutation({
+        mutationFn: (action: any) => {
+            const formData = new FormData();
+            formData.append('action_type', action.action_type);
+            formData.append('hasanat', action.hasanat.toString());
+            if (action.reference_id) formData.append('reference_id', action.reference_id);
+            if (action.details) formData.append('details', JSON.stringify(action.details));
+            if (action.recitation) formData.append('recitation', action.recitation);
+            return api.post(`/student/games/hasanat_hoard/sessions/${sessionData.session_id}`, formData);
+        },
+        onSuccess: (data) => {
+            setHasanatTotal(data.data.hasanat_earned);
+            if (data.data.milestones.length > 0) {
+                setShowConfetti(true);
+                setTimeout(() => setShowConfetti(false), 5000);
+            }
+            refetch();
+        },
+    });
+
+    const handleAction = (type: string, referenceId?: string, details?: any) => {
+        let hasanat = 0;
+        if (type === 'assignment_completed') hasanat = 20;
+        if (type === 'message_read') hasanat = 10;
+        if (type === 'recitation') hasanat = 15;
+        recordAction.mutate({ action_type: type, hasanat, reference_id: referenceId, details, recitation });
+    };
+
+    if (!sessionData) return <div>Loading...</div>;
+
+    const nextMilestone = sessionData.milestones.find((m: any) => !sessionData.achieved_milestones.includes(m.id));
+    const progress = nextMilestone ? (hasanatTotal / nextMilestone.hasanat_threshold) * 100 : 100;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8 relative"
+            style={{ backgroundImage: 'url(/images/treasure-bg.png)', backgroundSize: 'cover' }}
+            role="region"
+            aria-label={t('title')}
+        >
+            {showConfetti && <Confetti />}
+            <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-maroon/50 to-milk/50"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+            />
+            <h1 className="text-4xl font-bold text-gold font-amiri mb-6 relative z-10">{t('title')}</h1>
+            <div className="flex justify-between mb-4 relative z-10">
+                <p className="text-milk font-lora">{t('hasanat_total')}: {hasanatTotal}</p>
+                <div className="w-16 h-16">
+                    <CircularProgressbar
+                        value={progress}
+                        text={`${Math.round(progress)}%`}
+                        styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                    />
+                </div>
+            </div>
+            <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold relative z-10"
+            >
+                <FaTreasureChest className="text-6xl text-gold mx-auto mb-4" />
+                <p className="text-2xl font-bold text-maroon font-amiri text-center">
+                    {nextMilestone ? nextMilestone.title : t('all_milestones')}
+                </p>
+                <p className="text-milk font-lora text-center">
+                    {nextMilestone ? `${t('progress_to')} ${nextMilestone.hasanat_threshold} Hasanat` : t('completed')}
+                </p>
+                <motion.div
+                    className="h-4 bg-milk rounded-full mt-4"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    style={{ background: 'linear-gradient(to right, #FFD700, #7A001F)' }}
+                />
+            </motion.div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 relative z-10">
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => handleAction('assignment_completed', '1', { assignment_title: 'Sample Assignment' })}
+                    className="p-4 bg-maroon text-milk rounded-lg"
+                    disabled={recordAction.isLoading}
+                >
+                    {t('complete_assignment')}
+                </motion.button>
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    onClick={() => handleAction('message_read', '1', { message_title: 'Sample Message' })}
+                    className="p-4 bg-maroon text-milk rounded-lg"
+                    disabled={recordAction.isLoading}
+                >
+                    {t('read_message')}
+                </motion.button>
+                <div>
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => setRecitation(e.target.files?.[0] || null)}
+                        className="p-2 rounded w-full"
+                        aria-label={t('record_recitation')}
+                    />
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        onClick={() => recitation && handleAction('recitation', null, null)}
+                        className="p-4 bg-maroon text-milk rounded-lg mt-2 w-full"
+                        disabled={!recitation || recordAction.isLoading}
+                    >
+                        <FaMicrophone className="inline mr-2" /> {t('submit_recitation')}
+                    </motion.button>
+                </div>
+            </div>
+            <div className="mt-6 relative z-10">
+                <h2 className="text-2xl font-bold text-gold font-amiri">{t('milestones')}</h2>
+                {sessionData.milestones.map((milestone: any) => (
+                    <motion.div
+                        key={milestone.id}
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className={`p-4 rounded-lg mt-2 ${sessionData.achieved_milestones.includes(milestone.id) ? 'bg-gold text-maroon' : 'bg-white text-milk'}`}
+                    >
+                        <p className="font-bold font-amiri">{milestone.title}</p>
+                        <p className="font-lora">{milestone.description}</p>
+                    </motion.div>
+                ))}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Treasure Chest Visuals**: Animated chest (Bronze, Silver, Gold) opens with confetti on milestone completion.
+  - **Progress Bar**: Gradient-filled bar (gold to maroon) shows progress to the next milestone.
+  - **Motivational Feedback**: Pop-ups like ¡°SubhanAllah, your Hasanat are piling up!¡± on action completion.
+  - **Sound Effects**: Soft adhan chimes play on milestone achievements (optional, toggleable).
+- **Gradients**: Use `bg-gradient-to-br from-maroon to-milk` for the page, `bg-white` or `bg-gold` for cards, `text-gold` for accents.
+- **Animations**:
+  - Chest Entry: Scale up with `initial={{ scale: 0.9 }}`.
+  - Progress Bar: Expand with `animate={{ width: `${progress}%` }}`.
+  - Milestone Unlock: Confetti and glow effect with `whileHover={{ boxShadow: '0 0 15px rgba(255, 215, 0, 0.5)' }}`.
+- **Typography**:
+  - **Amiri**: For titles and Arabic text (Quranic aesthetic).
+  - **Lora**: For descriptions and English text (clean, readable).
+- **Responsive**: Stack action buttons on mobile (`grid-cols-1`), use `md:grid-cols-3` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., ¡°Complete Assignment¡±).
+  - Use `role="region"` for game sections, `role="button"` for action triggers.
+  - Ensure keyboard navigation for buttons and file inputs.
+- **Multilingual**: Use `next-intl` for labels:
+  ```json
+  // games/en.json
+  {
+      "hasanat_hoard": {
+          "title": "Hasanat Hoard",
+          "hasanat_total": "Total Hasanat",
+          "progress_to": "Progress to",
+          "all_milestones": "All Milestones Unlocked!",
+          "completed": "Game Ongoing",
+          "complete_assignment": "Complete Assignment",
+          "read_message": "Read Message",
+          "submit_recitation": "Submit Recitation",
+          "record_recitation": "Record Recitation",
+          "milestones": "Milestones"
+      }
+  }
+  ```
+- **Offline**: Cache session data and actions in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('hasanat_actions', { keyPath: 'id', autoIncrement: true });
+      },
+  });
+  useEffect(() => {
+      if (navigator.onLine) {
+          dbPromise.then(db => db.getAll('hasanat_actions')).then(actions => {
+              actions.forEach(a => recordAction.mutateAsync(a));
+          });
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments**: Completing assignments triggers `handleAction('assignment_completed')`, linked to `reference_id` (assignment ID).
+2. **Messages**: Reading messages in `MessagePanel` triggers `handleAction('message_read')`:
+   ```tsx
+   // src/components/MessagePanel.tsx
+   useEffect(() => {
+       if (markRead.isSuccess) {
+           api.post(`/student/games/hasanat_hoard/sessions/${sessionId}`, {
+               action_type: 'message_read',
+               hasanat: 10,
+               reference_id: activeMessage.id,
+               details: { message_title: activeMessage.title },
+           });
+       }
+   }, [markRead.isSuccess]);
+   ```
+3. **Submit System**: Recitation submissions in Hasanat Hoard use Whisper Tajweed for feedback, stored in `game_sessions`.
+4. **Leaderboard**: Update entries with Hasanat earned and milestone completions via `updateLeaderboardEntry`.
+5. **Gratification**: Award badges for milestones (e.g., ¡°Gold Chest¡±).
+6. **Sujud**: Check for Sajda ayahs in recitation submissions and prompt via Sujud system.
+
+**Example Integration**:
+```tsx
+// src/app/dashboard/games/hasanat_hoard/page.tsx
+useEffect(() => {
+    if (recordAction.isSuccess && recitation) {
+        api.post('/student/sujud/check', {
+            surah_id: 1, // Example, dynamically set based on recitation
+            ayah_id: 1,
+        });
+    }
+}, [recordAction.isSuccess, recitation]);
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/components/teacher/AnalyticsOverview.tsx`):
+   ```tsx
+   <div>
+       <p className="text-gold">Hasanat Hoard Actions</p>
+       <p className="text-2xl">{analytics?.total_actions}</p>
+       <p className="text-milk">Average Hasanat: {Math.round(analytics?.average_hasanat)}</p>
+       <p className="text-milk">Milestone Completions: {analytics?.milestone_completions}</p>
+   </div>
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <p>Hasanat Hoard Actions: {analytics?.data_json.total_actions}</p>
+   <p>Milestone Completions: {analytics?.data_json.milestone_completions}</p>
+   ```
+
+3. **Admin Analytics** (`app/Console/Commands/GenerateAnalyticsSnapshot.php`):
+   ```php
+   $data['total_actions'] = HasanatAction::where('created_at', '>=', now()->subWeek())->count();
+   $data['milestone_completions'] = UserMilestone::where('achieved_at', '>=', now()->subWeek())->count();
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test HasanatHoardTest`:
+     ```php
+     public function test_start_hasanat_hoard_session()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/games/hasanat_hoard/start');
+         $response->assertStatus(200)->assertJsonStructure(['session_id', 'hasanat_total', 'milestones']);
+         $this->assertDatabaseHas('game_sessions', ['user_id' => $student->id]);
+     }
+
+     public function test_record_hasanat_action()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $session = GameSession::factory()->create(['user_id' => $student->id]);
+         $response = $this->actingAs($student, 'sanctum')->postJson("/api/student/games/hasanat_hoard/sessions/{$session->id}", [
+             'action_type' => 'assignment_completed',
+             'hasanat' => 20,
+             'reference_id' => '1',
+             'details' => ['assignment_title' => 'Surah Al-Fatiha'],
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('hasanat_actions', ['action_type' => 'assignment_completed', 'hasanat_earned' => 20]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays hasanat hoard', async () => {
+         render(<HasanatHoard />);
+         expect(screen.getByText('Hasanat Hoard')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Complete Assignment')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard/games/*` to `app/index.html`.
+   - Add cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache session and milestone data for 24 hours.
+  - Use lazy loading for treasure chest images.
+  - Optimize Whisper Tajweed jobs with retry logic (`tries: 3`).
+- **Error Handling**:
+  - Handle invalid file uploads with user-friendly messages.
+  - Queue actions offline, sync on reconnect.
+- **Engagement** (Quranly-inspired):
+  - Show ¡°MashaAllah, your treasure is growing!¡± on milestone unlocks.
+  - Animate chest opening with gold sparkles and confetti.
+  - Award badges for consistent play (e.g., weekly streaks).
+- **UI Perfection**:
+  - Treasure chest visuals with glowing gold effects.
+  - Progress bar animates smoothly with gradient fill.
+  - Background with subtle Quranic calligraphy enhances spiritual feel.
+- **Tracking**: Teachers see action breakdowns and milestone completions; admins track engagement metrics.
+- **Offline**: Store actions and milestone progress in IndexedDB.
+
+This implementation delivers a fully functional **Hasanat Hoard** game with a stunning, spiritually enriching UI, integrated with the Game Center and existing systems. Only students who complete daily tasks can access it, ensuring habit-building. If you need UI mockups, additional enhancements (e.g., difficulty levels), or further games, let me know!

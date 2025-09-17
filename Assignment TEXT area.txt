@@ -1,0 +1,753 @@
+To enhance the **Assignment System** within the **AlFawz Qur¡¯an Institute** app by incorporating a **Text Messaging System** for teachers, I¡¯ll build on the existing systems (Assignment, Schedule, Submit, Leaderboard, Memorization, Gratification, Sujud, and Teacher Dashboard) to allow teachers to send text messages with **Title**, **Subtitle**, **Body**, and **Sender** fields. These messages will be seamlessly integrated into the Assignment System, appearing beautifully in the Student Dashboard with a spiritually engaging UI/UX (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations). The system will ensure mobile responsiveness, accessibility, multilingual support, and cPanel compatibility (file-based caching, no Redis). Drawing inspiration from **Quranly**¡¯s intuitive design and habit-forming features, the messaging system will feature elegant typography, progress visualizations, and motivational animations to enhance student engagement. All activities will be fully tracked for teacher oversight and admin analytics, using Laravel 11, Next.js 14+, and MySQL.
+
+The updated Assignment System will meet the **Acceptance Criteria**:
+- Teachers can create classes, add assignments with image/audio hotspots, review submissions, and send text messages (Title, Subtitle, Body, Sender) related to assignments or schedules.
+- Students can receive assignment notifications and text messages on their dashboard, view assignments with Qur¡¯an text, audio, and hotspots, record recitations with Whisper Tajweed feedback, mark assignments as ¡°done¡± or ¡°later,¡± and track Hasanat.
+- Teachers can track message delivery and student interactions (e.g., read status).
+- The messaging UI will be visually stunning, with a focus on spiritual aesthetics and seamless integration.
+
+---
+
+## Enhanced Assignment System with Text Messaging
+
+### Objective
+Enhance the Assignment System to include a **Text Messaging System** that:
+- Allows **teachers** to:
+  - Send text messages with **Title**, **Subtitle**, **Body**, and **Sender** fields, linked to assignments or schedules.
+  - Target messages to entire classes, specific students, or assignment groups.
+  - Track message delivery and read status.
+- Enables **students** to:
+  - Receive text messages as notifications on the Student Dashboard, beautifully displayed alongside assignments.
+  - View messages with elegant formatting (e.g., Arabic-inspired typography, gold accents).
+  - Mark messages as read, with interactions tracked for teachers.
+- Features a **perfect UI/UX**:
+  - Maroon, milk, gold gradients with Framer Motion animations (e.g., slide-in messages, confetti on read).
+  - Elegant fonts (e.g., Amiri for Arabic, Lora for English) and progress rings.
+  - Mobile responsiveness, accessibility, and multilingual support (Arabic/English).
+- Ensures **full tracking** for teacher oversight (e.g., read receipts) and admin analytics (e.g., message engagement).
+- Integrates with existing systems (Assignment, Schedule, Submit, etc.).
+- Supports offline mode and cPanel deployment.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Enhance the database to support text messaging within the Assignment System.
+
+1. **Messages Table** (for teacher-sent messages):
+   ```bash
+   php artisan make:migration create_messages_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_messages_table.php
+   Schema::create('messages', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('sender_id')->constrained('users')->onDelete('cascade'); // Teacher
+       $table->foreignId('class_id')->constrained()->onDelete('cascade');
+       $table->foreignId('assignment_id')->nullable()->constrained()->onDelete('cascade');
+       $table->foreignId('schedule_id')->nullable()->constrained('assignment_schedules')->onDelete('cascade');
+       $table->string('title');
+       $table->string('subtitle')->nullable();
+       $table->text('body');
+       $table->json('recipient_ids')->nullable(); // e.g., [1, 2, 3] for specific students
+       $table->timestamps();
+   });
+   ```
+
+2. **Message Recipients Table** (track delivery and read status):
+   ```bash
+   php artisan make:migration create_message_recipients_table
+   ```
+   ```php
+   Schema::create('message_recipients', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('message_id')->constrained()->onDelete('cascade');
+       $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Student
+       $table->timestamp('read_at')->nullable();
+       $table->timestamps();
+   });
+   ```
+
+3. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/TeacherController.php` and `StudentController.php`.
+
+1. **Teacher: Send Message**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function sendMessage(Request $request, ClassModel $class)
+   {
+       $this->authorize('update', $class);
+       $validated = $request->validate([
+           'title' => 'required|string|max:255',
+           'subtitle' => 'nullable|string|max:255',
+           'body' => 'required|string',
+           'assignment_id' => 'nullable|exists:assignments,id',
+           'schedule_id' => 'nullable|exists:assignment_schedules,id',
+           'recipient_ids' => 'nullable|array',
+           'recipient_ids.*' => 'exists:users,id',
+       ]);
+
+       $message = Message::create([
+           'sender_id' => auth()->id(),
+           'class_id' => $class->id,
+           'title' => $validated['title'],
+           'subtitle' => $validated['subtitle'],
+           'body' => $validated['body'],
+           'assignment_id' => $validated['assignment_id'] ?? null,
+           'schedule_id' => $validated['schedule_id'] ?? null,
+           'recipient_ids' => $validated['recipient_ids'] ?? $class->members->pluck('id')->toArray(),
+       ]);
+
+       // Create recipient records
+       $recipients = $validated['recipient_ids'] ?? $class->members->pluck('id');
+       $message->recipients()->createMany(
+           collect($recipients)->map(fn($userId) => ['user_id' => $userId])
+       );
+
+       // Notify recipients
+       Notification::send(
+           User::whereIn('id', $recipients)->get(),
+           new MessageReceived($message)
+       );
+
+       return response()->json($message);
+   }
+   ```
+
+2. **Teacher: Get Messages**:
+   ```php
+   public function getMessages(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return Message::where('class_id', $class->id)
+           ->with(['recipients' => fn($q) => $q->with('user:id,name')])
+           ->get();
+   }
+   ```
+
+3. **Student: Get Messages**:
+   ```php
+   // app/Http/Controllers/Api/StudentController.php
+   public function getMessages(Request $request)
+   {
+       return MessageRecipient::where('user_id', auth()->id())
+           ->with(['message' => fn($q) => $q->with(['sender:id,name', 'assignment', 'schedule'])])
+           ->get()
+           ->map(fn($recipient) => [
+               ...$recipient->message->toArray(),
+               'read_at' => $recipient->read_at,
+               'recipient_id' => $recipient->id,
+           ]);
+   }
+   ```
+
+4. **Student: Mark Message as Read**:
+   ```php
+   public function markMessageRead(Request $request, MessageRecipient $recipient)
+   {
+       $this->authorize('update', $recipient);
+       $recipient->update(['read_at' => now()]);
+       return response()->json(['message' => 'Message marked as read']);
+   }
+   ```
+
+**Notifications**:
+1. **Message Received**:
+   ```php
+   // app/Notifications/MessageReceived.php
+   namespace App\Notifications;
+
+   use App\Models\Message;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class MessageReceived extends Notification
+   {
+       public function __construct(public Message $message) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject($this->message->title)
+               ->line($this->message->subtitle ?? 'New Message')
+               ->line($this->message->body)
+               ->line("From: {$this->message->sender->name}")
+               ->action('View Message', url('/dashboard/messages'));
+       }
+
+       public function toArray($notifiable)
+       {
+           return [
+               'message_id' => $this->message->id,
+               'title' => $this->message->title,
+               'subtitle' => $this->message->subtitle,
+               'body' => $this->message->body,
+               'sender' => $this->message->sender->name,
+           ];
+       }
+   }
+   ```
+
+**Teacher/Admin Sync**:
+1. **Teacher Oversight**:
+   ```php
+   public function getMessageAnalytics(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return [
+           'total_messages' => Message::where('class_id', $class->id)->count(),
+           'read_rate' => MessageRecipient::whereHas('message', fn($q) => $q->where('class_id', $class->id))
+               ->whereNotNull('read_at')
+               ->count() / max(1, MessageRecipient::whereHas('message', fn($q) => $q->where('class_id', $class->id))->count()) * 100,
+       ];
+   }
+   ```
+
+2. **Admin Analytics**:
+   ```php
+   // app/Console/Commands/GenerateAnalyticsSnapshot.php
+   $data['message_read_rate'] = MessageRecipient::whereNotNull('read_at')
+       ->where('created_at', '>=', now()->subWeek())
+       ->count() / max(1, MessageRecipient::where('created_at', '>=', now()->subWeek())->count()) * 100;
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('teacher')->group(function () {
+        Route::post('/classes/{class}/messages', [TeacherController::class, 'sendMessage']);
+        Route::get('/classes/{class}/messages', [TeacherController::class, 'getMessages']);
+        Route::get('/classes/{class}/message-analytics', [TeacherController::class, 'getMessageAnalytics']);
+    });
+    Route::prefix('student')->group(function () {
+        Route::get('/messages', [StudentController::class, 'getMessages']);
+        Route::post('/messages/{messageRecipient}/read', [StudentController::class, 'markMessageRead']);
+    });
+});
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Student Dashboard
+Modify `src/app/dashboard/page.tsx` to integrate messages with assignments:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ProgressSection from '@/components/ProgressSection';
+import DailyRecommendations from '@/components/DailyRecommendations';
+import RecentSurahs from '@/components/RecentSurahs';
+import AyahOfDay from '@/components/AyahOfDay';
+import TajweedToggle from '@/components/TajweedToggle';
+import RecitationSubmission from '@/components/RecitationSubmission';
+import MemorizationSection from '@/components/MemorizationSection';
+import GratificationSection from '@/components/GratificationSection';
+import SujudSection from '@/components/SujudSection';
+import LeaderboardPanel from '@/components/LeaderboardPanel';
+import AssignmentPanel from '@/components/AssignmentPanel';
+import MessagePanel from '@/components/MessagePanel';
+
+export default function StudentDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('student')) redirect('/');
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                {user.greeting}
+            </h1>
+            <TajweedToggle />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ProgressSection />
+                <MessagePanel />
+                <AssignmentPanel />
+                <GratificationSection />
+                <SujudSection />
+                <MemorizationSection />
+                <RecitationSubmission />
+                <DailyRecommendations />
+                <RecentSurahs />
+                <AyahOfDay />
+                <LeaderboardPanel />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Message Panel Component
+Create `src/components/MessagePanel.tsx` for students:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaEnvelope, FaEnvelopeOpen } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+
+export default function MessagePanel() {
+    const t = useTranslations('messages');
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [activeMessage, setActiveMessage] = useState(null);
+    const { data: messages, refetch } = useQuery(['messages'], () => 
+        api.get('/student/messages').then(res => res.data)
+    );
+    const markRead = useMutation({
+        mutationFn: (recipientId: number) => api.post(`/student/messages/${recipientId}/read`),
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            refetch();
+        },
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+            role="region"
+            aria-label={t('messages')}
+        >
+            {showConfetti && <Confetti />}
+            <h2 className="text-xl font-bold text-maroon font-lora">{t('messages')}</h2>
+            {messages?.length === 0 && <p className="text-milk">{t('no_messages')}</p>}
+            {messages?.map((message: any) => (
+                <motion.div
+                    key={message.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className={`mt-4 p-4 rounded border ${message.read_at ? 'bg-milk' : 'bg-gradient-to-r from-maroon to-gold'}`}
+                    onClick={() => setActiveMessage(message)}
+                    role="button"
+                    tabIndex={0}
+                >
+                    <div className="flex items-center">
+                        <div className="w-8 h-8">
+                            {message.read_at ? <FaEnvelopeOpen className="text-maroon" /> : <FaEnvelope className="text-white" />}
+                        </div>
+                        <div className="ml-4 flex-1">
+                            <p className={`font-bold font-amiri text-lg ${message.read_at ? 'text-maroon' : 'text-white'}`}>
+                                {message.title}
+                            </p>
+                            <p className={`font-lora ${message.read_at ? 'text-milk' : 'text-white'}`}>
+                                {message.subtitle || t('no_subtitle')}
+                            </p>
+                            <p className={`text-sm ${message.read_at ? 'text-milk' : 'text-white'}`}>
+                                From: {message.sender.name}
+                            </p>
+                        </div>
+                    </div>
+                    {activeMessage?.id === message.id && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="mt-4"
+                        >
+                            <p className="text-milk font-lora">{message.body}</p>
+                            {message.assignment && (
+                                <p className="text-gold">
+                                    Related Assignment: {message.assignment.title} (Surah {message.assignment.surah_id})
+                                </p>
+                            )}
+                            {message.schedule && (
+                                <p className="text-gold">
+                                    Related Schedule: {message.schedule.title} ({message.schedule.recurrence || 'One-time'})
+                                </p>
+                            )}
+                            {!message.read_at && (
+                                <button
+                                    onClick={() => markRead.mutate(message.recipient_id)}
+                                    className="p-2 bg-gold rounded mt-2"
+                                    aria-label={t('mark_read')}
+                                >
+                                    <FaEnvelopeOpen /> {t('mark_read')}
+                                </button>
+                            )}
+                        </motion.div>
+                    )}
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Update Teacher Dashboard
+Modify `src/app/teacher/dashboard/page.tsx` to include messaging:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ClassManagement from '@/components/teacher/ClassManagement';
+import RecentSubmissions from '@/components/teacher/RecentSubmissions';
+import Notifications from '@/components/teacher/Notifications';
+import AnalyticsOverview from '@/components/teacher/AnalyticsOverview';
+import MessageComposer from '@/components/teacher/MessageComposer';
+
+export default function TeacherDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('teacher')) redirect('/');
+
+    const { data: dashboard } = useQuery(['teacher_dashboard'], () => 
+        api.get('/teacher/dashboard').then(res => res.data)
+    );
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                Welcome, {user.name}
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AnalyticsOverview analytics={dashboard?.analytics} />
+                <Notifications notifications={dashboard?.notifications} />
+                <ClassManagement classes={dashboard?.classes} />
+                <MessageComposer classes={dashboard?.classes} />
+                <RecentSubmissions submissions={dashboard?.recent_submissions} />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: Message Composer Component
+Create `src/components/teacher/MessageComposer.tsx`:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaPaperPlane } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+
+export default function MessageComposer({ classes }: { classes: any[] }) {
+    const t = useTranslations('messages');
+    const [formData, setFormData] = useState({
+        class_id: '',
+        title: '',
+        subtitle: '',
+        body: '',
+        assignment_id: '',
+        schedule_id: '',
+        recipient_ids: [] as number[],
+    });
+    const { data: assignments } = useQuery(['assignments', formData.class_id], () => 
+        formData.class_id ? api.get(`/teacher/classes/${formData.class_id}/assignments`).then(res => res.data) : []
+    );
+    const { data: schedules } = useQuery(['schedules', formData.class_id], () => 
+        formData.class_id ? api.get(`/teacher/classes/${formData.class_id}/schedules`).then(res => res.data) : []
+    );
+    const sendMessage = useMutation({
+        mutationFn: () => api.post(`/teacher/classes/${formData.class_id}/messages`, formData),
+        onSuccess: () => setFormData({ class_id: '', title: '', subtitle: '', body: '', assignment_id: '', schedule_id: '', recipient_ids: [] }),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+            role="region"
+            aria-label={t('compose_message')}
+        >
+            <h2 className="text-xl font-bold text-maroon font-lora">{t('compose_message')}</h2>
+            <form
+                onSubmit={e => {
+                    e.preventDefault();
+                    sendMessage.mutate();
+                }}
+                className="mt-4"
+            >
+                <select
+                    value={formData.class_id}
+                    onChange={e => setFormData({ ...formData, class_id: e.target.value })}
+                    className="p-2 rounded w-full mb-2"
+                    aria-label={t('select_class')}
+                >
+                    <option value="">{t('select_class')}</option>
+                    {classes?.map((classItem: any) => (
+                        <option key={classItem.id} value={classItem.id}>{classItem.name}</option>
+                    ))}
+                </select>
+                <input
+                    type="text"
+                    placeholder={t('title')}
+                    value={formData.title}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    className="p-2 rounded w-full mb-2 font-amiri"
+                />
+                <input
+                    type="text"
+                    placeholder={t('subtitle')}
+                    value={formData.subtitle}
+                    onChange={e => setFormData({ ...formData, subtitle: e.target.value })}
+                    className="p-2 rounded w-full mb-2 font-lora"
+                />
+                <textarea
+                    placeholder={t('body')}
+                    value={formData.body}
+                    onChange={e => setFormData({ ...formData, body: e.target.value })}
+                    className="p-2 rounded w-full mb-2 font-lora"
+                />
+                <select
+                    value={formData.assignment_id}
+                    onChange={e => setFormData({ ...formData, assignment_id: e.target.value })}
+                    className="p-2 rounded w-full mb-2"
+                    aria-label={t('select_assignment')}
+                >
+                    <option value="">{t('select_assignment')}</option>
+                    {assignments?.map((assignment: any) => (
+                        <option key={assignment.id} value={assignment.id}>{assignment.title}</option>
+                    ))}
+                </select>
+                <select
+                    value={formData.schedule_id}
+                    onChange={e => setFormData({ ...formData, schedule_id: e.target.value })}
+                    className="p-2 rounded w-full mb-2"
+                    aria-label={t('select_schedule')}
+                >
+                    <option value="">{t('select_schedule')}</option>
+                    {schedules?.map((schedule: any) => (
+                        <option key={schedule.id} value={schedule.id}>{schedule.title}</option>
+                    ))}
+                </select>
+                <button
+                    type="submit"
+                    className="p-2 bg-maroon text-milk rounded flex items-center"
+                    disabled={sendMessage.isLoading}
+                    aria-label={t('send_message')}
+                >
+                    <FaPaperPlane className="mr-2" /> {t('send_message')}
+                </button>
+            </form>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.5: Update Class Detail Page
+Update `src/app/teacher/classes/[id]/page.tsx` to include messages:
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import TeacherSchedulePanel from '@/components/teacher/TeacherSchedulePanel';
+import StudentProgress from '@/components/teacher/StudentProgress';
+import MessageComposer from '@/components/teacher/MessageComposer';
+
+export default function ClassDetail({ params }: { params: { id: string } }) {
+    const { data: classData } = useQuery(['class', params.id], () => 
+        api.get(`/teacher/classes/${params.id}`).then(res => res.data)
+    );
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-gradient-to-br from-maroon to-milk p-4"
+        >
+            <h2 className="text-xl font-bold text-gold">Class: {classData?.name}</h2>
+            <MessageComposer classes={[classData]} />
+            <TeacherSchedulePanel classId={params.id} schedules={classData?.schedules} />
+            <StudentProgress classId={params.id} />
+        </motion.div>
+    );
+}
+```
+
+### Step 2.6: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Message Design**: Unread messages use a `bg-gradient-to-r from-maroon to-gold` background, read messages use `bg-milk`. Titles in Amiri (Arabic-inspired font), subtitles/body in Lora for elegance.
+  - **Progress Visualization**: CircularProgressbar for message read rates in teacher analytics.
+  - **Motivational Feedback**: Show ¡°SubhanAllah, your message was received!¡± on student read actions.
+- **Gradients**: Use `bg-gradient-to-r from-maroon to-gold` for unread messages, `bg-white` for panels, `text-gold` for accents.
+- **Animations**:
+  - Message Entry: Slide-in with `initial={{ x: -20, opacity: 0 }}`.
+  - Message Expand: Smooth height transition with `initial={{ height: 0, opacity: 0 }}`.
+  - Confetti: Trigger on marking messages as read or sending messages.
+- **Typography**:
+  - **Amiri**: For titles and Arabic text (Quranic aesthetic).
+  - **Lora**: For subtitles, body, and English text (clean, readable).
+- **Responsive**: Stack messages on mobile (`flex-col`), use `md:grid-cols-2` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., ¡°Mark as read¡±).
+  - Use `role="button"` for message cards, `role="alert"` for notifications.
+  - Ensure keyboard navigation for message interactions.
+- **Multilingual**: Use `next-intl` for labels:
+  ```tsx
+  // messages/en.json
+  {
+      "messages": "Messages",
+      "no_messages": "No new messages",
+      "no_subtitle": "No subtitle",
+      "mark_read": "Mark as Read",
+      "compose_message": "Compose Message",
+      "select_class": "Select Class",
+      "title": "Title",
+      "subtitle": "Subtitle",
+      "body": "Message Body",
+      "select_assignment": "Select Assignment",
+      "select_schedule": "Select Schedule",
+      "send_message": "Send Message"
+  }
+  ```
+- **Offline**: Queue message reads and sends in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('messages', { keyPath: 'id' });
+      },
+  });
+  useEffect(() => {
+      if (navigator.onLine) {
+          dbPromise.then(db => db.getAll('messages')).then(messages => {
+              messages.forEach(m => markRead.mutateAsync(m.recipient_id));
+          });
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments/Schedules**: Link messages to assignments/schedules via `assignment_id`/`schedule_id`.
+2. **Submit System**: Display related messages in `AssignmentPanel`:
+   ```tsx
+   // src/components/AssignmentPanel.tsx
+   {assignment.related_message && (
+       <p className="text-gold font-lora">Teacher Note: {assignment.related_message.body}</p>
+   )}
+   ```
+3. **Leaderboard**: Update student leaderboard entries on message interactions (e.g., bonus Hasanat for timely reads).
+4. **Gratification**: Award badges for message engagement (e.g., ¡°Responsive Student¡±).
+5. **Sujud**: Check for Sajda ayahs in assignment-related messages.
+
+**Example Integration**:
+```tsx
+// src/components/MessagePanel.tsx
+useEffect(() => {
+    if (markRead.isSuccess) {
+        api.post('/student/leaderboard/update');
+        api.post('/student/sujud/check', {
+            surah_id: activeMessage?.assignment?.surah_id,
+            ayah_id: activeMessage?.assignment?.ayah_ids[0],
+        });
+    }
+}, [markRead.isSuccess]);
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard Analytics**:
+   ```tsx
+   // src/components/teacher/AnalyticsOverview.tsx
+   <div>
+       <p className="text-gold">Message Read Rate</p>
+       <div className="w-16 h-16 mx-auto">
+           <CircularProgressbar
+               value={analytics?.message_read_rate || 0}
+               text={`${Math.round(analytics?.message_read_rate || 0)}%`}
+               styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+           />
+       </div>
+   </div>
+   ```
+
+2. **Admin Dashboard**:
+   ```tsx
+   // src/app/admin/analytics/page.tsx
+   <p>Message Read Rate: {analytics?.data_json.message_read_rate}%</p>
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test MessageTest`:
+     ```php
+     public function test_send_message()
+     {
+         $teacher = User::factory()->create()->assignRole('teacher');
+         $class = ClassModel::factory()->create(['teacher_id' => $teacher->id]);
+         $student = User::factory()->create();
+         $class->members()->attach($student->id);
+         $response = $this->actingAs($teacher, 'sanctum')->postJson("/api/teacher/classes/{$class->id}/messages", [
+             'title' => 'Tajweed Reminder',
+             'subtitle' => 'Practice Surah Al-Fatiha',
+             'body' => 'Focus on Madd rules this week.',
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('messages', ['title' => 'Tajweed Reminder']);
+         $this->assertDatabaseHas('message_recipients', ['user_id' => $student->id]);
+     }
+
+     public function test_mark_message_read()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $message = Message::factory()->create();
+         $recipient = MessageRecipient::factory()->create(['user_id' => $student->id, 'message_id' => $message->id]);
+         $response = $this->actingAs($student, 'sanctum')->postJson("/api/student/messages/{$recipient->id}/read");
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('message_recipients', ['id' => $recipient->id, 'read_at' => now()]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays messages', async () => {
+         render(<MessagePanel />);
+         expect(screen.getByText('Messages')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Mark as Read')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard` to `app/index.html`.
+   - Add cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache message data for 1 hour.
+  - Paginate messages for large classes.
+  - Optimize Whisper jobs with retry logic (`tries: 3`).
+- **Error Handling**:
+  - Handle invalid recipient IDs with fallbacks.
+  - Queue message sends/reads offline, sync on reconnect.
+- **Engagement** (Quranly-inspired):
+  - Show ¡°MashaAllah, your message inspired action!¡± on teacher send.
+  - Animate message cards with gold glow on hover.
+  - Award badges for timely message reads.
+- **UI Perfection**:
+  - Use Amiri for Arabic titles, Lora for body text.
+  - Gradient backgrounds for unread messages create a striking visual.
+  - Smooth animations enhance the spiritual experience.
+- **Tracking**: Teachers see message read rates and student interactions; admins track engagement metrics.
+- **Offline**: Store messages and read actions in IndexedDB.
+
+This enhanced Assignment System with a Text Messaging System delivers a beautiful, engaging experience for students and a powerful tool for teachers, seamlessly integrated with existing features. If you need UI mockups, additional message features (e.g., rich text formatting), or further optimizations, let me know!

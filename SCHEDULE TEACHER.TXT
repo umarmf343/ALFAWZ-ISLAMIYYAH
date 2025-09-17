@@ -1,0 +1,636 @@
+To create a comprehensive **Teacher Dashboard** for the **AlFawz Qur’an Institute** app, I’ll build on the existing systems (Assignment, Schedule, Submit, Leaderboard, Memorization, Gratification, Sujud, and Whisper Tajweed) to provide a robust, engaging, and fully tracked interface for teachers. The dashboard will enable teachers to manage classes, create and schedule assignments with image/audio hotspots, review student submissions with Whisper Tajweed AI feedback, monitor student progress, and track engagement metrics. It will align with the app’s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations), ensure mobile responsiveness, accessibility, and cPanel compatibility (file-based caching, no Redis). Drawing inspiration from **Quranly**’s intuitive design and gamification, the dashboard will include progress visualizations, motivational feedback, and seamless integration with existing systems. All activities will be fully tracked for teacher oversight and admin analytics, using Laravel 11, Next.js 14+, and MySQL.
+
+The Teacher Dashboard will meet the **Acceptance Criteria** from the Assignment System:
+- Teachers can create classes, add assignments with hotspots, and review student submissions.
+- Teachers can view assignment statuses (pending, done, later) and track student interactions with hotspots.
+- The dashboard will display notifications for new submissions and provide analytics on student performance.
+
+---
+
+## Comprehensive Teacher Dashboard
+
+### Objective
+Create a **Teacher Dashboard** that:
+- Allows **teachers** to:
+  - Manage classes (create, edit, add/remove students).
+  - Create and schedule assignments (one-time or recurring) with image/audio hotspots.
+  - Review student submissions, including audio recordings and Whisper Tajweed feedback.
+  - Track student progress (Hasanat, Surahs completed, memorization scores, Sujud events, streaks).
+  - View assignment statuses (pending, done, later) and hotspot interactions.
+  - Receive notifications for new submissions and schedule updates.
+- Features an engaging UI/UX:
+  - Maroon, milk, gold gradients with Framer Motion animations (e.g., slide-in notifications, progress animations).
+  - Progress rings, interactive tables, and motivational messages (e.g., “MashaAllah, your students are thriving!”).
+  - Mobile responsiveness, accessibility, and multilingual support.
+- Ensures full tracking for admin analytics (e.g., class engagement, assignment completion rates).
+- Integrates with existing systems (Assignment, Schedule, Submit, Leaderboard, etc.).
+- Supports offline mode and cPanel deployment.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Ensure the database supports all Teacher Dashboard functionalities, building on existing models (Classes, Assignments, AssignmentSchedules, Submissions, LeaderboardEntries).
+
+1. **Notifications Table** (for teacher notifications):
+   ```bash
+   php artisan make:migration create_notifications_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_notifications_table.php
+   Schema::create('notifications', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->string('type'); // e.g., SubmissionReceived, AssignmentStatusUpdated
+       $table->json('data'); // e.g., {"assignment_id": 1, "student_id": 1}
+       $table->timestamp('read_at')->nullable();
+       $table->timestamps();
+   });
+   ```
+
+2. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/TeacherController.php` to support the Teacher Dashboard.
+
+1. **Get Teacher Dashboard Data**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   namespace App\Http\Controllers\Api;
+
+   use App\Models\ClassModel;
+   use App\Models\Submission;
+   use Illuminate\Http\Request;
+   use App\Http\Controllers\Controller;
+
+   class TeacherController extends Controller
+   {
+       public function getDashboard(Request $request)
+       {
+           $teacherId = auth()->id();
+           $data = [
+               'classes' => ClassModel::where('teacher_id', $teacherId)
+                   ->with(['members' => fn($q) => $q->select('users.id', 'name')])
+                   ->get(),
+               'recent_submissions' => Submission::whereHas('assignment.class', fn($q) => $q->where('teacher_id', $teacherId))
+                   ->with(['student' => fn($q) => $q->select('id', 'name'), 'assignment'])
+                   ->latest()
+                   ->take(10)
+                   ->get(),
+               'notifications' => Notification::where('user_id', $teacherId)
+                   ->whereNull('read_at')
+                   ->latest()
+                   ->take(5)
+                   ->get(),
+               'analytics' => [
+                   'total_students' => ClassMember::whereHas('class', fn($q) => $q->where('teacher_id', $teacherId))
+                       ->distinct('user_id')
+                       ->count(),
+                   'completion_rate' => Submission::whereHas('assignment.class', fn($q) => $q->where('teacher_id', $teacherId))
+                       ->where('student_status', 'done')
+                       ->count() / max(1, Submission::whereHas('assignment.class', fn($q) => $q->where('teacher_id', $teacherId))->count()) * 100,
+                   'hotspot_interactions' => Submission::whereHas('assignment.class', fn($q) => $q->where('teacher_id', $teacherId))
+                       ->whereNotNull('hotspot_interactions')
+                       ->count(),
+               ],
+           ];
+           return response()->json($data);
+       }
+   }
+   ```
+
+2. **Manage Classes**:
+   ```php
+   public function createClass(Request $request)
+   {
+       $validated = $request->validate([
+           'name' => 'required|string|max:255',
+           'description' => 'nullable|string',
+           'student_ids' => 'array',
+           'student_ids.*' => 'exists:users,id',
+       ]);
+
+       $class = ClassModel::create([
+           'teacher_id' => auth()->id(),
+           'name' => $validated['name'],
+           'description' => $validated['description'],
+       ]);
+
+       if (!empty($validated['student_ids'])) {
+           $class->members()->attach($validated['student_ids']);
+       }
+
+       return response()->json($class);
+   }
+
+   public function updateClass(Request $request, ClassModel $class)
+   {
+       $this->authorize('update', $class);
+       $validated = $request->validate([
+           'name' => 'string|max:255',
+           'description' => 'nullable|string',
+           'student_ids' => 'array',
+           'student_ids.*' => 'exists:users,id',
+       ]);
+
+       $class->update($validated);
+       if (isset($validated['student_ids'])) {
+           $class->members()->sync($validated['student_ids']);
+       }
+
+       return response()->json($class);
+   }
+   ```
+
+3. **Mark Notification as Read**:
+   ```php
+   public function markNotificationRead(Request $request, Notification $notification)
+   {
+       $this->authorize('update', $notification);
+       $notification->update(['read_at' => now()]);
+       return response()->json(['message' => 'Notification marked as read']);
+   }
+   ```
+
+4. **Get Student Progress**:
+   ```php
+   public function getStudentProgress(Request $request, User $student)
+   {
+       $this->authorize('view', $student);
+       $progress = [
+           'leaderboard' => LeaderboardEntry::where('user_id', $student->id)->first(),
+           'submissions' => Submission::where('student_id', $student->id)
+               ->with(['assignment' => fn($q) => $q->select('id', 'title', 'surah_id', 'ayah_ids')])
+               ->latest()
+               ->take(5)
+               ->get(),
+           'badges' => Badge::where('user_id', $student->id)->latest()->take(5)->get(),
+           'sujud_events' => SujudEvent::where('user_id', $student->id)->latest()->take(5)->get(),
+       ];
+       return response()->json($progress);
+   }
+   ```
+
+**Existing APIs** (from previous systems):
+- `createAssignmentSchedule`, `updateAssignmentSchedule`, `createAssignment`, `reviewSubmission`, `getClassSchedules`, `getClassAssignments`.
+
+**Notifications** (reusing from Assignment System):
+- `AssignmentScheduleCreated`, `SubmissionReceived`, `AssignmentStatusUpdated`, `SubmissionGraded`.
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('teacher')->group(function () {
+    Route::get('/dashboard', [TeacherController::class, 'getDashboard']);
+    Route::post('/classes', [TeacherController::class, 'createClass']);
+    Route::put('/classes/{class}', [TeacherController::class, 'updateClass']);
+    Route::post('/notifications/{notification}/read', [TeacherController::class, 'markNotificationRead']);
+    Route::get('/students/{user}/progress', [TeacherController::class, 'getStudentProgress']);
+});
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Teacher Dashboard Page
+Create `src/app/teacher/dashboard/page.tsx`:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ClassManagement from '@/components/teacher/ClassManagement';
+import RecentSubmissions from '@/components/teacher/RecentSubmissions';
+import Notifications from '@/components/teacher/Notifications';
+import AnalyticsOverview from '@/components/teacher/AnalyticsOverview';
+
+export default function TeacherDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('teacher')) redirect('/');
+
+    const { data: dashboard } = useQuery(['teacher_dashboard'], () => 
+        api.get('/teacher/dashboard').then(res => res.data)
+    );
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                Welcome, {user.name}
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AnalyticsOverview analytics={dashboard?.analytics} />
+                <Notifications notifications={dashboard?.notifications} />
+                <ClassManagement classes={dashboard?.classes} />
+                <RecentSubmissions submissions={dashboard?.recent_submissions} />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Teacher Dashboard Components
+
+1. **Analytics Overview** (`src/components/teacher/AnalyticsOverview.tsx`):
+```tsx
+import { motion } from 'framer-motion';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function AnalyticsOverview({ analytics }: { analytics: any }) {
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            <h2 className="text-xl font-bold text-maroon">Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div>
+                    <p className="text-gold">Total Students</p>
+                    <p className="text-2xl">{analytics?.total_students}</p>
+                </div>
+                <div>
+                    <p className="text-gold">Completion Rate</p>
+                    <div className="w-16 h-16 mx-auto">
+                        <CircularProgressbar
+                            value={analytics?.completion_rate || 0}
+                            text={`${Math.round(analytics?.completion_rate || 0)}%`}
+                            styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                        />
+                    </div>
+                </div>
+                <div>
+                    <p className="text-gold">Hotspot Interactions</p>
+                    <p className="text-2xl">{analytics?.hotspot_interactions}</p>
+                </div>
+            </div>
+            <p className="mt-4 text-milk">MashaAllah, your students are thriving!</p>
+        </motion.div>
+    );
+}
+```
+
+2. **Notifications** (`src/components/teacher/Notifications.tsx`):
+```tsx
+import { useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaBell } from 'react-icons/fa';
+
+export default function Notifications({ notifications }: { notifications: any[] }) {
+    const markRead = useMutation({
+        mutationFn: (notificationId: number) => api.post(`/teacher/notifications/${notificationId}/read`),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            <h2 className="text-xl font-bold text-maroon">Notifications</h2>
+            {notifications?.length === 0 && <p className="text-milk">No new notifications</p>}
+            {notifications?.map((notification: any) => (
+                <motion.div
+                    key={notification.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className="mt-2 p-2 border rounded flex justify-between"
+                >
+                    <p className="text-milk">{notification.data.message}</p>
+                    <button
+                        onClick={() => markRead.mutate(notification.id)}
+                        className="p-2 bg-gold rounded"
+                        aria-label="Mark as read"
+                    >
+                        <FaBell />
+                    </button>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+3. **Class Management** (`src/components/teacher/ClassManagement.tsx`):
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaPlus, FaEdit } from 'react-icons/fa';
+
+export default function ClassManagement({ classes }: { classes: any[] }) {
+    const [showForm, setShowForm] = useState(false);
+    const [classData, setClassData] = useState({ name: '', description: '', student_ids: [] });
+    const createClass = useMutation({
+        mutationFn: (data: any) => api.post('/teacher/classes', data),
+        onSuccess: () => setShowForm(false),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            <h2 className="text-xl font-bold text-maroon">Classes</h2>
+            <button
+                onClick={() => setShowForm(!showForm)}
+                className="p-2 bg-gold rounded mt-2"
+                aria-label="Create Class"
+            >
+                <FaPlus /> New Class
+            </button>
+            {showForm && (
+                <form
+                    onSubmit={e => {
+                        e.preventDefault();
+                        createClass.mutate(classData);
+                    }}
+                    className="mt-4"
+                >
+                    <input
+                        type="text"
+                        placeholder="Class Name"
+                        value={classData.name}
+                        onChange={e => setClassData({ ...classData, name: e.target.value })}
+                        className="p-2 rounded w-full mb-2"
+                    />
+                    <textarea
+                        placeholder="Description"
+                        value={classData.description}
+                        onChange={e => setClassData({ ...classData, description: e.target.value })}
+                        className="p-2 rounded w-full"
+                    />
+                    <button type="submit" className="p-2 bg-maroon text-milk rounded mt-2">
+                        Create
+                    </button>
+                </form>
+            )}
+            {classes?.map((classItem: any) => (
+                <div key={classItem.id} className="mt-4 border p-4 rounded">
+                    <p className="font-bold">{classItem.name}</p>
+                    <p>{classItem.description}</p>
+                    <p>Students: {classItem.members.map((m: any) => m.name).join(', ')}</p>
+                    <a href={`/teacher/classes/${classItem.id}`} className="p-2 bg-gold rounded inline-block mt-2">
+                        <FaEdit /> Manage
+                    </a>
+                </div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+4. **Recent Submissions** (`src/components/teacher/RecentSubmissions.tsx`):
+```tsx
+import { motion } from 'framer-motion';
+import { FaPlay } from 'react-icons/fa';
+
+export default function RecentSubmissions({ submissions }: { submissions: any[] }) {
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            <h2 className="text-xl font-bold text-maroon">Recent Submissions</h2>
+            {submissions?.map((submission: any) => (
+                <motion.div
+                    key={submission.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className="mt-2 p-2 border rounded"
+                >
+                    <p className="font-bold">{submission.student.name}</p>
+                    <p>Assignment: {submission.assignment.title}</p>
+                    <p>Status: {submission.student_status}</p>
+                    {submission.audio && <audio controls src={submission.audio.s3_url} className="mt-2" />}
+                    {submission.whisper_feedback && (
+                        <p>AI Feedback: {submission.whisper_feedback.accuracy}%</p>
+                    )}
+                    {submission.hotspot_interactions?.length > 0 && (
+                        <p>Hotspot Interactions: {submission.hotspot_interactions.length}</p>
+                    )}
+                    <input
+                        type="number"
+                        placeholder="Score"
+                        className="p-2 rounded mt-2"
+                        onChange={e => api.post(`/teacher/submissions/${submission.id}/review`, {
+                            score: Number(e.target.value),
+                            comments: 'Great effort!',
+                        })}
+                    />
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Class Detail Page
+Create `src/app/teacher/classes/[id]/page.tsx`:
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import TeacherSchedulePanel from '@/components/teacher/TeacherSchedulePanel';
+import StudentProgress from '@/components/teacher/StudentProgress';
+
+export default function ClassDetail({ params }: { params: { id: string } }) {
+    const { data: classData } = useQuery(['class', params.id], () => 
+        api.get(`/teacher/classes/${params.id}/schedules`).then(res => res.data)
+    );
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-gradient-to-br from-maroon to-milk p-4"
+        >
+            <h2 className="text-xl font-bold text-gold">Class Schedules</h2>
+            <TeacherSchedulePanel classId={params.id} schedules={classData} />
+            <StudentProgress classId={params.id} />
+        </motion.div>
+    );
+}
+```
+
+5. **Student Progress** (`src/components/teacher/StudentProgress.tsx`):
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function StudentProgress({ classId }: { classId: string }) {
+    const { data: classData } = useQuery(['class_members', classId], () => 
+        api.get(`/teacher/classes/${classId}`).then(res => res.data)
+    );
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md mt-4"
+        >
+            <h2 className="text-xl font-bold text-maroon">Student Progress</h2>
+            {classData?.members.map((student: any) => (
+                <motion.div key={student.id} className="mt-2 p-2 border rounded">
+                    <p className="font-bold">{student.name}</p>
+                    <div className="flex space-x-4 mt-2">
+                        <div className="w-16 h-16">
+                            <CircularProgressbar
+                                value={student.leaderboard?.hasanat / 1000 * 100}
+                                text={`${student.leaderboard?.hasanat}`}
+                                styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                            />
+                            <p className="text-center">Hasanat</p>
+                        </div>
+                        <div>
+                            <p>Surahs: {student.leaderboard?.surahs_completed}</p>
+                            <p>Streaks: {student.leaderboard?.streak_days} days</p>
+                            <p>Sujud: {student.leaderboard?.sujud_count}</p>
+                        </div>
+                    </div>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Progress Visualization**: Use CircularProgressbar for completion rates and Hasanat.
+  - **Motivational Feedback**: Display “MashaAllah, your students are thriving!” in Analytics.
+  - **Interactive Tables**: Clickable class and submission entries with expandable details.
+- **Gradients**: Use `bg-gradient-to-br from-maroon to-milk` for the dashboard, `bg-white` for panels.
+- **Animations**:
+  - Panel Entry: Fade-in with `initial={{ y: 20, opacity: 0 }}`.
+  - Notification Slide: Slide-in with `initial={{ x: -20, opacity: 0 }}`.
+  - Button Hover: Scale up with `whileHover={{ scale: 1.1 }}`.
+- **Responsive**: Stack panels on mobile (`flex-col`), use `md:grid-cols-2` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., “Create Class”).
+  - Use `role="region"` for panels, `role="alert"` for notifications.
+  - Ensure keyboard navigation for interactive elements.
+- **Multilingual**: Use `next-intl` for labels:
+  ```tsx
+  import { useTranslations } from 'next-intl';
+  const t = useTranslations('teacher_dashboard');
+  <h2>{t('analytics')}</h2>
+  ```
+- **Offline**: Cache dashboard data in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('teacher_dashboard', { keyPath: 'id' });
+      },
+  });
+  useEffect(() => {
+      if (!navigator.onLine) {
+          dbPromise.then(db => db.getAll('teacher_dashboard')).then(data => setDashboard(data[0]));
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments/Schedules**: Reuse `TeacherSchedulePanel` for managing schedules and assignments.
+2. **Submit System**: Display submissions with hotspot interactions and Whisper feedback.
+3. **Leaderboard**: Show student leaderboard metrics (Hasanat, streaks) in Student Progress.
+4. **Gratification**: Display student badges in progress view.
+5. **Sujud**: Include Sujud event counts in progress metrics.
+
+**Example Integration** (in `StudentProgress.tsx`):
+```tsx
+const { data: progress } = useQuery(['student_progress', student.id], () => 
+    api.get(`/teacher/students/${student.id}/progress`).then(res => res.data)
+);
+```
+
+---
+
+## Phase 4: Admin Integration
+Update `src/app/admin/analytics/page.tsx`:
+```tsx
+const { data: analytics } = useQuery(['analytics'], () => api.get('/admin/analytics').then(res => res.data));
+<div>
+    <p>Schedule Adherence: {analytics?.data_json.schedule_adherence}%</p>
+    <p>Hotspot Interactions: {analytics?.data_json.hotspot_interactions}</p>
+    <p>Classes Created: {analytics?.data_json.classes_created}</p>
+</div>
+```
+
+Update `app/Console/Commands/GenerateAnalyticsSnapshot.php`:
+```php
+$data['classes_created'] = ClassModel::where('created_at', '>=', now()->subWeek())->count();
+```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test TeacherDashboardTest`:
+     ```php
+     public function test_get_dashboard()
+     {
+         $teacher = User::factory()->create()->assignRole('teacher');
+         $class = ClassModel::factory()->create(['teacher_id' => $teacher->id]);
+         $response = $this->actingAs($teacher, 'sanctum')->getJson('/api/teacher/dashboard');
+         $response->assertStatus(200)->assertJsonStructure(['classes', 'recent_submissions', 'notifications', 'analytics']);
+     }
+
+     public function test_create_class()
+     {
+         $teacher = User::factory()->create()->assignRole('teacher');
+         $response = $this->actingAs($teacher, 'sanctum')->postJson('/api/teacher/classes', [
+             'name' => 'Tajweed 101',
+             'description' => 'Beginner Tajweed',
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('classes', ['name' => 'Tajweed 101']);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays teacher dashboard', async () => {
+         render(<TeacherDashboard />);
+         expect(screen.getByText('Welcome')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Analytics')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/teacher/*` to `app/index.html`.
+   - Add cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache dashboard data for 1 hour.
+  - Use pagination for large class or submission lists.
+  - Optimize queries with eager loading (`with`).
+- **Error Handling**:
+  - Handle API failures with cached dashboard data.
+  - Validate student IDs in class creation.
+- **Engagement** (Quranly-inspired):
+  - Show “SubhanAllah, your class is growing!” on new student additions.
+  - Animate submission reviews with confetti.
+  - Highlight top-performing students in Analytics.
+- **Tracking**: Teachers see real-time submission statuses, hotspot interactions, and progress metrics; admins track class creation and engagement.
+- **Offline**: Store dashboard data and submission reviews in IndexedDB.
+
+This Teacher Dashboard is a comprehensive, engaging, and fully tracked interface that meets all requirements and integrates seamlessly with existing systems. If you need a UI mockup, additional features (e.g., student messaging), or further optimizations, let me know!

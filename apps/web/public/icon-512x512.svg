@@ -1,0 +1,29 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with maroon color -->
+  <circle cx="256" cy="256" r="256" fill="#800020"/>
+  
+  <!-- Outer decorative ring -->
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#FFD700" stroke-width="4" opacity="0.3"/>
+  
+  <!-- Crescent moon symbol -->
+  <path d="M256 80C256 80 340 120 340 256C340 392 256 432 256 432C320 432 384 368 384 256C384 144 320 80 256 80Z" fill="#F5F5DC"/>
+  
+  <!-- Large star -->
+  <path d="M256 120L268 152L300 152L274 172L286 204L256 184L226 204L238 172L212 152L244 152L256 120Z" fill="#FFD700"/>
+  
+  <!-- Arabic calligraphy inspired design -->
+  <path d="M160 320C160 320 208 304 256 304C304 304 352 320 352 320C352 336 304 352 256 352C208 352 160 336 160 320Z" fill="#F5F5DC" stroke="#FFD700" stroke-width="3"/>
+  
+  <!-- Additional decorative elements -->
+  <path d="M180 280C180 280 218 272 256 272C294 272 332 280 332 280" fill="none" stroke="#F5F5DC" stroke-width="2" opacity="0.7"/>
+  <path d="M180 360C180 360 218 368 256 368C294 368 332 360 332 360" fill="none" stroke="#F5F5DC" stroke-width="2" opacity="0.7"/>
+  
+  <!-- Small decorative stars -->
+  <circle cx="180" cy="180" r="4" fill="#FFD700" opacity="0.8"/>
+  <circle cx="332" cy="180" r="4" fill="#FFD700" opacity="0.8"/>
+  <circle cx="180" cy="332" r="4" fill="#FFD700" opacity="0.8"/>
+  <circle cx="332" cy="332" r="4" fill="#FFD700" opacity="0.8"/>
+  
+  <!-- Inner decorative border -->
+  <circle cx="256" cy="256" r="220" fill="none" stroke="#FFD700" stroke-width="2" opacity="0.6"/>
+</svg>

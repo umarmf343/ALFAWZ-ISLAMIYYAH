@@ -1,0 +1,1079 @@
+To address your request for a **full, detailed, enhanced guide for the Student Dashboard** for the **AlFawz Qur’an Institute** app, I’ll provide a comprehensive, step-by-step implementation that integrates seamlessly with the existing **Teacher Dashboard** and the newly added **Admin Dashboard**. This guide assumes the AI agent has coding skills but no prior knowledge of this specific project, as per your instructions. The Student Dashboard will be designed to be beautiful, engaging, and habit-building, with a focus on a spiritual UI/UX (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations), mobile responsiveness, and full tracking/oversight by teachers and admins. It will align with the app’s goals of Qur’an recitation, memorization, and community engagement, while being deployable on cPanel with the existing Laravel 11 backend and Next.js 14+ frontend.
+
+The Student Dashboard will include all features specified in the original requirements (e.g., greeting, real-time Hasanat counter, daily recitation tasks, progress bar, congratulatory popups, stats, Surah recommendations, etc.) and ensure data flows to the Teacher and Admin Dashboards for oversight. I’ll enhance the guide with detailed code, error handling, performance optimizations, and specific UI/UX elements to maximize engagement and habit-building.
+
+---
+
+## Objective
+Build a **Student Dashboard** that:
+- Displays a personalized greeting (e.g., “Assalamu Alaikum, [UserName]”).
+- Tracks real-time Hasanat (`letters * 10`), daily recitation (10 verses/day), progress bars, and stats (Today, This Week, All).
+- Shows Surahs read, Ayah of the Day, and Smart Daily Surah Recommendations.
+- Integrates memorization plans, leaderboards, and community features.
+- Uses engaging UI/UX: gradients, animations (bounces, glows, confetti), progress rings, and responsive design.
+- Syncs data with Teacher Dashboard (e.g., assignment submissions, recitation feedback) and Admin Dashboard (e.g., analytics, user activity).
+- Supports offline mode, multilingual UI, and accessibility.
+- Runs on cPanel with file-based caching (no Redis).
+
+---
+
+## Phase 1: Backend Enhancements for Student Dashboard
+The backend (Laravel 11) must provide APIs for the Student Dashboard, ensuring data is accessible to teachers and admins for oversight. This builds on the existing setup (MySQL, S3, Paystack, OpenAI Whisper, Al-Quran Cloud API).
+
+### Step 1.1: Extend Database Models
+Ensure models support student-specific data and tracking:
+1. **QuranProgress**: Add fields for tracking daily goals and teacher visibility:
+   ```php
+   // database/migrations/xxxx_create_quran_progress_table.php
+   Schema::create('quran_progress', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->integer('surah_id');
+       $table->integer('ayah_id');
+       $table->integer('recited_count')->default(0);
+       $table->float('memorized_confidence')->default(0); // 0-1
+       $table->timestamp('last_seen_at')->nullable();
+       $table->integer('daily_goal')->default(10); // Verses per day
+       $table->boolean('is_teacher_visible')->default(true); // For teacher oversight
+       $table->bigInteger('hasanat')->default(0); // Per ayah
+       $table->timestamps();
+   });
+   ```
+2. **DailyStats**: For precomputed daily/weekly stats:
+   ```bash
+   php artisan make:migration create_daily_stats_table
+   ```
+   ```php
+   Schema::create('daily_stats', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->date('date');
+       $table->integer('verses_read')->default(0);
+       $table->bigInteger('hasanat_earned')->default(0);
+       $table->integer('time_spent')->default(0); // Seconds
+       $table->integer('streak_days')->default(0);
+       $table->timestamps();
+   });
+   ```
+3. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Student Dashboard APIs
+Create `app/Http/Controllers/Api/StudentController.php`:
+```bash
+php artisan make:controller Api/StudentController
+```
+
+**APIs**:
+1. **Dashboard Summary** (greeting, Hasanat, progress):
+   ```php
+   public function getDashboard(Request $request)
+   {
+       $user = auth()->user();
+       $today = now()->startOfDay();
+       $stats = Cache::remember("dashboard:{$user->id}", 300, function () use ($user, $today) {
+           $daily = DailyStats::where('user_id', $user->id)->where('date', $today)->first();
+           $weekly = DailyStats::where('user_id', $user->id)->whereBetween('date', [now()->subWeek(), $today])->get();
+           return [
+               'greeting' => "Assalamu Alaikum, {$user->name}",
+               'hasanat_total' => $user->hasanat_total,
+               'daily_progress' => [
+                   'verses_read' => $daily?->verses_read ?? 0,
+                   'goal' => $daily?->daily_goal ?? 10,
+                   'time_spent' => $daily?->time_spent ?? 0,
+                   'streak' => $daily?->streak_days ?? 0,
+               ],
+               'weekly_stats' => [
+                   'verses' => $weekly->sum('verses_read'),
+                   'hasanat' => $weekly->sum('hasanat_earned'),
+               ],
+               'recent_surahs' => QuranProgress::where('user_id', $user->id)
+                   ->where('last_seen_at', '>=', now()->subDay())
+                   ->get(['surah_id', 'ayah_id', 'last_seen_at']),
+           ];
+       });
+       return response()->json($stats);
+   }
+   ```
+
+2. **Update Recitation** (tracks verses, updates Hasanat):
+   ```php
+   public function updateRecitation(Request $request)
+   {
+       $validated = $request->validate(['surah_id' => 'required|integer', 'ayah_id' => 'required|integer']);
+       $user = auth()->user();
+       $progress = QuranProgress::firstOrCreate([
+           'user_id' => $user->id,
+           'surah_id' => $validated['surah_id'],
+           'ayah_id' => $validated['ayah_id'],
+       ]);
+       $progress->recited_count++;
+       $progress->last_seen_at = now();
+       $letterCount = $this->getAyahLetterCount($validated['surah_id'], $validated['ayah_id']);
+       $hasanat = $letterCount * 10;
+       $progress->hasanat += $hasanat;
+       $progress->save();
+
+       $user->hasanat_total += $hasanat;
+       $user->save();
+
+       // Update daily stats
+       $today = now()->startOfDay();
+       $daily = DailyStats::firstOrCreate(
+           ['user_id' => $user->id, 'date' => $today],
+           ['daily_goal' => $progress->daily_goal]
+       );
+       $daily->verses_read++;
+       $daily->hasanat_earned += $hasanat;
+       $daily->time_spent += $request->time_spent ?? 60; // Seconds
+       $daily->streak_days = $this->calculateStreak($user->id);
+       $daily->save();
+
+       // Notify teacher if in class
+       if ($progress->is_teacher_visible) {
+           $class = ClassMember::where('user_id', $user->id)->first()?->class;
+           if ($class) {
+               Notification::send($class->teacher, new StudentProgressUpdated($user, $progress));
+           }
+       }
+
+       return response()->json([
+           'hasanat_added' => $hasanat,
+           'daily_progress' => $daily,
+       ]);
+   }
+
+   private function getAyahLetterCount($surahId, $ayahId)
+   {
+       return Cache::remember("quran:ayah:{$surahId}:{$ayahId}:letters", 3600 * 24, function () use ($surahId, $ayahId) {
+           $client = new Client();
+           $response = $client->get("https://api.alquran.cloud/v1/ayah/{$surahId}:{$ayahId}/uthmani");
+           $text = json_decode($response->getBody(), true)['data']['text'];
+           return mb_strlen(preg_replace('/[^\p{Arabic}]/u', '', $text), 'UTF-8');
+       });
+   }
+
+   private function calculateStreak($userId)
+   {
+       $days = DailyStats::where('user_id', $userId)
+           ->where('verses_read', '>', 0)
+           ->orderByDesc('date')
+           ->pluck('date')
+           ->take(30)
+           ->toArray();
+       $streak = 0;
+       $today = now()->startOfDay();
+       foreach (range(0, 29) as $i) {
+           $checkDate = $today->copy()->subDays($i)->format('Y-m-d');
+           if (in_array($checkDate, $days)) {
+               $streak++;
+           } else {
+               break;
+           }
+       }
+       return $streak;
+   }
+   ```
+
+3. **Ayah of the Day**:
+   ```php
+   public function getAyahOfDay()
+   {
+       $seed = now()->format('Ymd');
+       srand($seed);
+       $surahId = rand(1, 114);
+       $client = new Client();
+       $response = $client->get("https://api.alquran.cloud/v1/surah/{$surahId}/uthmani");
+       $surah = json_decode($response->getBody(), true)['data'];
+       $ayahId = rand(1, $surah['numberOfAyahs']);
+       $ayah = $client->get("https://api.alquran.cloud/v1/ayah/{$surahId}:{$ayahId}/en.sahih");
+       return Cache::remember("ayah:day:{$seed}", 3600 * 24, fn() => json_decode($ayah->getBody(), true)['data']);
+   }
+   ```
+
+4. **Smart Recommendations**: Extend `IslamicCalendarService` (from previous response) to include user-specific logic:
+   ```php
+   public function getRecommendations($userId)
+   {
+       $base = parent::getRecommendations($userId);
+       // Add user-specific: e.g., suggest unmemorized surahs
+       $unmemorized = QuranProgress::where('user_id', $userId)
+           ->where('memorized_confidence', '<', 0.9)
+           ->pluck('surah_id')
+           ->unique();
+       if ($unmemorized->isNotEmpty()) {
+           $base[] = ['surah_id' => $unmemorized->random(), 'title' => 'Unmemorized Surah', 'reason' => 'Continue your memorization'];
+       }
+       return $base;
+   }
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('student')->group(function () {
+    Route::get('/dashboard', [StudentController::class, 'getDashboard']);
+    Route::post('/recite', [StudentController::class, 'updateRecitation']);
+    Route::get('/ayah-of-day', [StudentController::class, 'getAyahOfDay']);
+    Route::get('/recommendations', [StudentController::class, 'getRecommendations']);
+});
+```
+
+**Teacher/Admin Sync**:
+- **Teacher Notification**: Create `app/Notifications/StudentProgressUpdated.php`:
+  ```php
+  public function toMail($notifiable)
+  {
+      return (new MailMessage)
+          ->subject('Student Progress Update')
+          ->line("{$this->user->name} recited Ayah {$this->progress->ayah_id} of Surah {$this->progress->surah_id}.");
+  }
+  ```
+- **Admin Analytics**: Update `GenerateAnalyticsSnapshot`:
+  ```php
+  $data['top_students'] = User::whereHas('roles', fn($q) => $q->where('name', 'student'))
+      ->orderByDesc('hasanat_total')
+      ->take(5)
+      ->get(['id', 'name', 'hasanat_total'])
+      ->toArray();
+  ```
+
+---
+
+## Phase 2: Frontend Implementation for Student Dashboard
+
+### Step 2.1: Setup Dashboard Route
+1. Create `src/app/dashboard/page.tsx`:
+   ```tsx
+   import { redirect } from 'next/navigation';
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+   import DailyRecommendations from '@/components/DailyRecommendations';
+   import ProgressSection from '@/components/ProgressSection';
+   import RecentSurahs from '@/components/RecentSurahs';
+   import AyahOfDay from '@/components/AyahOfDay';
+
+   export default function StudentDashboard() {
+       const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+       if (!user?.roles.includes('student')) redirect('/');
+
+       return (
+           <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               transition={{ duration: 0.5 }}
+               className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+           >
+               <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                   {user.greeting}
+               </h1>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <ProgressSection />
+                   <DailyRecommendations />
+                   <RecentSurahs />
+                   <AyahOfDay />
+               </div>
+           </motion.div>
+       );
+   }
+   ```
+
+### Step 2.2: Implement Components
+1. **Progress Section** (`src/components/ProgressSection.tsx`):
+   ```tsx
+   import { useQuery, useMutation } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { CircularProgressbar } from 'react-circular-progressbar';
+   import 'react-circular-progressbar/dist/styles.css';
+   import { motion } from 'framer-motion';
+   import Confetti from 'react-confetti';
+   import { useState } from 'react';
+
+   export default function ProgressSection() {
+       const [showConfetti, setShowConfetti] = useState(false);
+       const { data: dashboard, refetch } = useQuery(['dashboard'], () => api.get('/student/dashboard').then(res => res.data));
+       const recite = useMutation({
+           mutationFn: ({ surahId, ayahId }: { surahId: number; ayahId: number }) => 
+               api.post('/student/recite', { surah_id: surahId, ayah_id: ayahId, time_spent: 60 }),
+           onSuccess: () => {
+               if (dashboard.daily_progress.verses_read + 1 >= dashboard.daily_progress.goal) {
+                   setShowConfetti(true);
+                   setTimeout(() => setShowConfetti(false), 5000);
+               }
+               refetch();
+           },
+       });
+
+       return (
+           <motion.div
+               initial={{ y: 20, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               className="bg-white p-4 rounded-lg shadow-md"
+           >
+               {showConfetti && <Confetti />}
+               <h2 className="text-xl font-bold">Daily Progress</h2>
+               <div className="flex items-center space-x-4">
+                   <div className="w-24 h-24">
+                       <CircularProgressbar
+                           value={(dashboard?.daily_progress.verses_read / dashboard?.daily_progress.goal) * 100}
+                           text={`${dashboard?.daily_progress.verses_read}/${dashboard?.daily_progress.goal}`}
+                           styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                       />
+                   </div>
+                   <motion.span animate={{ scale: [1, 1.1, 1] }} className="text-gold">
+                       Hasanat: {dashboard?.hasanat_total}
+                   </motion.span>
+               </div>
+               <div className="mt-4">
+                   <select
+                       onChange={e => {
+                           const [surah, ayah] = e.target.value.split(':');
+                           recite.mutate({ surahId: Number(surah), ayahId: Number(ayah) });
+                       }}
+                       className="p-2 rounded"
+                   >
+                       {/* Populate with ayahs from API */}
+                       <option value="1:1">Surah 1, Ayah 1</option>
+                   </select>
+                   <button className="mt-2 p-2 bg-gold rounded">Continue Reading</button>
+               </div>
+               <div className="mt-4">
+                   <p>Time Spent: {Math.floor(dashboard?.daily_progress.time_spent / 60)} min</p>
+                   <p>Streak: {dashboard?.daily_progress.streak} days</p>
+               </div>
+           </motion.div>
+       );
+   }
+   ```
+
+2. **Recent Surahs** (`src/components/RecentSurahs.tsx`):
+   ```tsx
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+
+   export default function RecentSurahs() {
+       const { data: dashboard } = useQuery(['dashboard'], () => api.get('/student/dashboard').then(res => res.data));
+       return (
+           <motion.div
+               initial={{ y: 20, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               className="bg-white p-4 rounded-lg shadow-md"
+           >
+               <h2 className="text-xl font-bold">Surahs Read Today</h2>
+               <ul>
+                   {dashboard?.recent_surahs.map((s: any) => (
+                       <li key={`${s.surah_id}:${s.ayah_id}`} className="text-maroon">
+                           Surah {s.surah_id}, Ayah {s.ayah_id} - {new Date(s.last_seen_at).toLocaleTimeString()}
+                       </li>
+                   ))}
+               </ul>
+           </motion.div>
+       );
+   }
+   ```
+
+3. **Ayah of the Day** (`src/components/AyahOfDay.tsx`):
+   ```tsx
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+   import { FaShare } from 'react-icons/fa';
+
+   export default function AyahOfDay() {
+       const { data: ayah } = useQuery(['ayah-of-day'], () => api.get('/student/ayah-of-day').then(res => res.data));
+       const shareAyah = async () => {
+           await navigator.share({
+               text: `${ayah.text} (${ayah.surah.englishName} ${ayah.numberInSurah})`,
+               url: window.location.href,
+           });
+       };
+
+       return (
+           <motion.div
+               initial={{ y: 20, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               className="bg-gradient-to-r from-maroon to-gold p-4 rounded-lg"
+           >
+               <h2 className="text-xl font-bold text-milk">Ayah of the Day</h2>
+               <p className="text-2xl font-arabic">{ayah?.text}</p>
+               <p className="text-milk">{ayah?.translation}</p>
+               <button onClick={shareAyah} className="mt-2 p-2 bg-milk rounded" aria-label="Share Ayah">
+                   <FaShare />
+               </button>
+           </motion.div>
+       );
+   }
+   ```
+
+4. **Daily Recommendations**: Use the component from the previous response, integrated here.
+
+### Step 2.3: UI/UX Enhancements
+- **Gradients**: Apply `bg-gradient-to-br from-maroon to-milk` to main container, `from-maroon to-gold` for Ayah of the Day.
+- **Animations**:
+  - Hasanat counter: Bounce with `animate={{ scale: [1, 1.1, 1] }}`.
+  - Progress ring: Animate fill with CircularProgressbar’s `pathTransition`.
+  - Confetti: Trigger on daily goal completion.
+- **Responsive**: Use Tailwind `grid-cols-1 md:grid-cols-2` for layout, stack on mobile.
+- **Accessibility**: Add `aria-label` to buttons, `role="region"` to sections.
+- **Multilingual**: Use `next-intl` for translations:
+  ```tsx
+  import { useTranslations } from 'next-intl';
+  const t = useTranslations('dashboard');
+  <h1>{t('greeting', { name: user.name })}</h1>
+  ```
+- **Offline**: Cache dashboard data in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('dashboard', { keyPath: 'userId' });
+      },
+  });
+  useEffect(() => {
+      if (!navigator.onLine) {
+          dbPromise.then(db => db.get('dashboard', user.id)).then(cached => setData(cached));
+      }
+  }, []);
+  ```
+
+### Step 2.4: Teacher and Admin Integration
+1. **Teacher Oversight**: Teachers see student progress in their dashboard:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function getStudentProgress(Request $request, User $student)
+   {
+       $this->authorize('view', $student);
+       $progress = QuranProgress::where('user_id', $student->id)
+           ->where('is_teacher_visible', true)
+           ->with('dailyStats')
+           ->get();
+       return response()->json($progress);
+   }
+   ```
+   - Frontend: In `src/app/teacher/students/[id]/page.tsx`, display student’s verses, Hasanat, streaks.
+
+2. **Admin Oversight**: Admins see aggregated data in analytics:
+   ```php
+   // app/Console/Commands/GenerateAnalyticsSnapshot.php
+   $data['student_activity'] = User::whereHas('roles', fn($q) => $q->where('name', 'student'))
+       ->withCount(['progress' => fn($q) => $q->where('last_seen_at', '>=', now()->subWeek())])
+       ->get()
+       ->map(fn($user) => ['id' => $user->id, 'name' => $user->name, 'activity' => $user->progress_count]);
+   ```
+
+---
+
+## Phase 3: Integration and Testing
+1. **Link APIs**: Ensure dashboard fetches `/student/dashboard`, `/student/ayah-of-day`, etc.
+2. **Real-Time Updates**: Use React Query’s polling for Hasanat:
+   ```tsx
+   useQuery(['dashboard'], () => api.get('/student/dashboard').then(res => res.data), { refetchInterval: 60000 });
+   ```
+3. **Testing**:
+   - Backend: `php artisan make:test StudentDashboardTest`:
+     ```php
+     public function test_student_dashboard_data()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $progress = QuranProgress::factory()->create(['user_id' => $student->id, 'hasanat' => 100]);
+         $response = $this->actingAs($student, 'sanctum')->getJson('/api/student/dashboard');
+         $response->assertJsonFragment(['hasanat_total' => 100]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     import { render, screen } from '@testing-library/react';
+     test('renders greeting', () => {
+         render(<StudentDashboard />);
+         expect(screen.getByText(/Assalamu Alaikum/)).toBeInTheDocument();
+     });
+     ```
+
+---
+
+## Phase 4: Deployment Updates
+- Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+- Ensure `.htaccess` routes `/dashboard` to `app/index.html`.
+- Cache dashboard data in file cache for speed.
+
+---
+
+## Phase 5: Optimizations and Error Handling
+1. **Performance**:
+   - Cache API responses: Use `Cache::remember` with 5-min TTL.
+   - Lazy load Surah list: `<Suspense fallback={<Spinner />}>`.
+2. **Error Handling**:
+   - API failures: Show cached data or fallback message.
+   - Offline: Store recitations in IndexedDB, sync on reconnect.
+3. **Engagement**:
+   - Badges: Show on milestones (e.g., “Juz 1 Champion”) with confetti.
+   - Notifications: Push for incomplete daily goals (use Web Push API).
+
+---
+
+## Final Notes
+- The Student Dashboard is fully integrated with Teacher (progress visibility) and Admin (analytics) Dashboards.
+- UI/UX uses gradients, animations, and responsive design for engagement.
+- All features (Hasanat, daily goals, recommendations, etc.) are implemented with cPanel compatibility.
+- Commit: `git commit -m "Student Dashboard implemented"`.
+
+
+
+## Enhanced Student Dashboard with Whisper Tajweed Toggle
+
+### Objective
+Add a toggle to the Student Dashboard that enables/disables **OpenAI Whisper-based tajweed analysis** for recitation submissions. The feature will:
+- Allow students to record recitations, submit them for AI analysis (when enabled), and receive tajweed feedback (e.g., accuracy, errors in pronunciation, rhythm).
+- Store toggle preference in the user’s `preferences` JSON field.
+- Track usage (e.g., number of submissions, feedback results) for teacher oversight (via Teacher Dashboard) and admin analytics (via Admin Dashboard).
+- Use the same beautiful UI/UX: gradients, animations (e.g., confetti on successful recitation), and responsive design.
+- Ensure offline support (queue submissions locally) and cPanel compatibility.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+1. **Users Table**: Ensure `preferences` JSON field can store tajweed toggle state.
+   ```php
+   // database/migrations/xxxx_create_users_table.php (already exists)
+   $table->json('preferences')->nullable(); // e.g., {"whisper_tajweed_enabled": true}
+   ```
+2. **Submissions Table**: Add fields for Whisper feedback:
+   ```php
+   // database/migrations/xxxx_create_submissions_table.php
+   Schema::create('submissions', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('assignment_id')->nullable()->constrained()->onDelete('cascade');
+       $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
+       $table->string('status')->default('pending'); // pending, submitted, graded
+       $table->integer('score')->nullable();
+       $table->json('rubric_json')->nullable(); // {"tajweed": 8, "fluency": 9}
+       $table->json('whisper_feedback')->nullable(); // {"accuracy": 90, "errors": ["missed madd"]}
+       $table->foreignId('audio_id')->nullable()->constrained('audio_assets')->onDelete('set null');
+       $table->timestamps();
+   });
+   ```
+3. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Extend APIs for Whisper Tajweed
+Update `app/Http/Controllers/Api/StudentController.php` to handle recitation submissions with Whisper integration.
+
+1. **Toggle Whisper Preference**:
+   ```php
+   public function updatePreferences(Request $request)
+   {
+       $validated = $request->validate(['whisper_tajweed_enabled' => 'required|boolean']);
+       $user = auth()->user();
+       $user->preferences = array_merge($user->preferences ?? [], $validated);
+       $user->save();
+       return response()->json(['preferences' => $user->preferences]);
+   }
+   ```
+
+2. **Submit Recitation for Whisper Analysis**:
+   ```php
+   public function submitRecitation(Request $request)
+   {
+       $validated = $request->validate([
+           'surah_id' => 'required|integer',
+           'ayah_id' => 'required|integer',
+           'audio' => 'required|file|mimes:mp3,wav|max:10240', // 10MB max
+           'assignment_id' => 'nullable|exists:assignments,id',
+       ]);
+
+       $user = auth()->user();
+       if (!$user->preferences['whisper_tajweed_enabled'] ?? false) {
+           return response()->json(['message' => 'Whisper Tajweed is disabled'], 400);
+       }
+
+       // Store audio in S3
+       $path = $request->file('audio')->store('recitations', 's3');
+       $audio = AudioAsset::create([
+           'owner_type' => Submission::class,
+           'owner_id' => null, // Will update after submission creation
+           's3_url' => Storage::disk('s3')->url($path),
+           'duration' => $this->getAudioDuration($request->file('audio')),
+       ]);
+
+       // Create submission
+       $submission = Submission::create([
+           'student_id' => $user->id,
+           'assignment_id' => $validated['assignment_id'],
+           'audio_id' => $audio->id,
+       ]);
+       $audio->update(['owner_id' => $submission->id]);
+
+       // Dispatch Whisper job
+       TranscribeRecitation::dispatch($submission, $path, $validated['surah_id'], $validated['ayah_id']);
+
+       // Update progress
+       $progress = QuranProgress::firstOrCreate([
+           'user_id' => $user->id,
+           'surah_id' => $validated['surah_id'],
+           'ayah_id' => $validated['ayah_id'],
+       ]);
+       $progress->recited_count++;
+       $progress->hasanat += $this->getAyahLetterCount($validated['surah_id'], $validated['ayah_id']) * 10;
+       $progress->save();
+
+       // Notify teacher
+       if ($submission->assignment_id) {
+           $teacher = $submission->assignment->class->teacher;
+           Notification::send($teacher, new SubmissionReceived($submission));
+       }
+
+       return response()->json(['submission_id' => $submission->id, 'message' => 'Recitation submitted']);
+   }
+
+   private function getAudioDuration($file)
+   {
+       // Use FFmpeg or similar library to get duration
+       // Example placeholder: Assume 60 seconds for simplicity
+       return 60;
+   }
+   ```
+
+3. **Whisper Transcription Job** (from original guide, enhanced):
+   ```php
+   // app/Jobs/TranscribeRecitation.php
+   namespace App\Jobs;
+
+   use App\Models\Submission;
+   use GuzzleHttp\Client;
+   use Illuminate\Bus\Queueable;
+   use Illuminate\Contracts\Queue\ShouldQueue;
+   use Illuminate\Support\Facades\Storage;
+
+   class TranscribeRecitation implements ShouldQueue
+   {
+       use Queueable;
+
+       public function __construct(
+           public Submission $submission,
+           public string $audioPath,
+           public int $surahId,
+           public int $ayahId
+       ) {}
+
+       public function handle()
+       {
+           $client = new Client(['headers' => ['Authorization' => 'Bearer ' . env('OPENAI_API_KEY')]]);
+           $response = $client->post('https://api.openai.com/v1/audio/transcriptions', [
+               'multipart' => [
+                   ['name' => 'file', 'contents' => Storage::disk('s3')->get($this->audioPath), 'filename' => 'audio.mp3'],
+                   ['name' => 'model', 'contents' => 'whisper-1'],
+                   ['name' => 'response_format', 'contents' => 'verbose_json'],
+               ]
+           ]);
+
+           $transcript = json_decode($response->getBody(), true);
+           $expected = $this->getExpectedAyahText($this->surahId, $this->ayahId);
+           $feedback = $this->analyzeTajweed($transcript['text'], $expected);
+
+           $this->submission->update([
+               'whisper_feedback' => $feedback,
+               'status' => 'graded',
+               'score' => $feedback['accuracy'],
+           ]);
+
+           // Notify student
+           Notification::send($this->submission->student, new TajweedFeedbackReceived($this->submission));
+       }
+
+       private function getExpectedAyahText($surahId, $ayahId)
+       {
+           $response = (new Client())->get("https://api.alquran.cloud/v1/ayah/{$surahId}:{$ayahId}/uthmani");
+           return json_decode($response->getBody(), true)['data']['text'];
+       }
+
+       private function analyzeTajweed($transcript, $expected)
+       {
+           $distance = levenshtein($transcript, $expected);
+           $accuracy = max(0, 1 - $distance / max(strlen($transcript), strlen($expected))) * 100;
+           $errors = [];
+
+           // Basic tajweed rules (placeholder, extend with real rules)
+           if (strpos($transcript, 'aa') === false && strpos($expected, 'ا') !== false) {
+               $errors[] = 'Missed madd (elongation)';
+           }
+           // Add rules for ghunnah, idgham, etc., using regex or NLP
+           return ['accuracy' => round($accuracy), 'errors' => $errors];
+       }
+   }
+   ```
+
+4. **Notification for Feedback**:
+   ```php
+   // app/Notifications/TajweedFeedbackReceived.php
+   namespace App\Notifications;
+
+   use App\Models\Submission;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class TajweedFeedbackReceived extends Notification
+   {
+       public function __construct(public Submission $submission) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('Tajweed Feedback Received')
+               ->line("Your recitation for Surah {$this->submission->progress->surah_id}, Ayah {$this->submission->progress->ayah_id} has been analyzed.")
+               ->line("Accuracy: {$this->submission->whisper_feedback['accuracy']}%")
+               ->line("Errors: " . implode(', ', $this->submission->whisper_feedback['errors']))
+               ->action('View Feedback', url('/dashboard/submissions/' . $this->submission->id));
+       }
+
+       public function toArray($notifiable)
+       {
+           return [
+               'submission_id' => $this->submission->id,
+               'message' => 'Tajweed feedback received for your recitation.',
+           ];
+       }
+   }
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('student')->group(function () {
+    Route::put('/preferences', [StudentController::class, 'updatePreferences']);
+    Route::post('/recite/submit', [StudentController::class, 'submitRecitation']);
+});
+```
+
+**Teacher/Admin Sync**:
+1. **Teacher Oversight**: Add API in `TeacherController`:
+   ```php
+   public function getStudentSubmissions(Request $request, User $student)
+   {
+       $this->authorize('view', $student);
+       return Submission::where('student_id', $student->id)
+           ->with(['audio', 'whisper_feedback'])
+           ->get();
+   }
+   ```
+2. **Admin Analytics**: Update `GenerateAnalyticsSnapshot`:
+   ```php
+   $data['whisper_usage'] = Submission::whereNotNull('whisper_feedback')
+       ->where('created_at', '>=', now()->subWeek())
+       ->count();
+   ```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Student Dashboard
+Modify `src/app/dashboard/page.tsx` to include the tajweed toggle and submission UI:
+```tsx
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ProgressSection from '@/components/ProgressSection';
+import DailyRecommendations from '@/components/DailyRecommendations';
+import RecentSurahs from '@/components/RecentSurahs';
+import AyahOfDay from '@/components/AyahOfDay';
+import TajweedToggle from '@/components/TajweedToggle';
+import RecitationSubmission from '@/components/RecitationSubmission';
+
+export default function StudentDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('student')) redirect('/');
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                {user.greeting}
+            </h1>
+            <TajweedToggle />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ProgressSection />
+                <RecitationSubmission />
+                <DailyRecommendations />
+                <RecentSurahs />
+                <AyahOfDay />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Tajweed Toggle Component
+Create `src/components/TajweedToggle.tsx`:
+```tsx
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { useState } from 'react';
+
+export default function TajweedToggle() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    const [isEnabled, setIsEnabled] = useState(user?.preferences?.whisper_tajweed_enabled ?? false);
+    const toggle = useMutation({
+        mutationFn: (enabled: boolean) => api.put('/student/preferences', { whisper_tajweed_enabled: enabled }),
+        onSuccess: () => setIsEnabled(!isEnabled),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md mb-4"
+        >
+            <label className="flex items-center space-x-2">
+                <span className="text-maroon">Enable Tajweed Feedback</span>
+                <input
+                    type="checkbox"
+                    checked={isEnabled}
+                    onChange={() => toggle.mutate(!isEnabled)}
+                    className="toggle toggle-gold"
+                    aria-label="Toggle Tajweed Feedback"
+                />
+            </label>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Recitation Submission Component
+Create `src/components/RecitationSubmission.tsx`:
+```tsx
+import { useState, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaMicrophone, FaStop } from 'react-icons/fa';
+import Confetti from 'react-confetti';
+import { openDB } from 'idb';
+
+export default function RecitationSubmission() {
+    const [isRecording, setIsRecording] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [selectedAyah, setSelectedAyah] = useState({ surahId: 1, ayahId: 1 });
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+
+    const submit = useMutation({
+        mutationFn: async () => {
+            if (!audioBlob || !user?.preferences?.whisper_tajweed_enabled) return;
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recitation.mp3');
+            formData.append('surah_id', String(selectedAyah.surahId));
+            formData.append('ayah_id', String(selectedAyah.ayahId));
+            await api.post('/student/recite/submit', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+        },
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+        },
+        onError: async () => {
+            // Store offline
+            const db = await openDB('alfawz', 1);
+            await db.put('submissions', { ...selectedAyah, audio: audioBlob, userId: user.id });
+        },
+    });
+
+    const startRecording = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        const chunks: Blob[] = [];
+        mediaRecorderRef.current.ondataavailable = e => chunks.push(e.data);
+        mediaRecorderRef.current.onstop = () => setAudioBlob(new Blob(chunks, { type: 'audio/mp3' }));
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+    };
+
+    const stopRecording = () => {
+        mediaRecorderRef.current?.stop();
+        setIsRecording(false);
+    };
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            {showConfetti && <Confetti />}
+            <h2 className="text-xl font-bold">Submit Recitation</h2>
+            {!user?.preferences?.whisper_tajweed_enabled ? (
+                <p className="text-red-500">Enable Tajweed Feedback in settings</p>
+            ) : (
+                <>
+                    <select
+                        onChange={e => {
+                            const [surah, ayah] = e.target.value.split(':');
+                            setSelectedAyah({ surahId: Number(surah), ayahId: Number(ayah) });
+                        }}
+                        className="p-2 rounded"
+                    >
+                        <option value="1:1">Surah 1, Ayah 1</option>
+                        {/* Populate dynamically */}
+                    </select>
+                    <div className="flex space-x-2 mt-2">
+                        <button
+                            onClick={isRecording ? stopRecording : startRecording}
+                            className={`p-2 rounded ${isRecording ? 'bg-red-500' : 'bg-gold'}`}
+                            aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
+                        >
+                            {isRecording ? <FaStop /> : <FaMicrophone />}
+                        </button>
+                        <button
+                            onClick={() => submit.mutate()}
+                            disabled={!audioBlob || submit.isLoading}
+                            className="p-2 bg-maroon text-milk rounded"
+                            aria-label="Submit Recitation"
+                        >
+                            Submit
+                        </button>
+                    </div>
+                    {submit.isSuccess && (
+                        <motion.p animate={{ scale: [1, 1.1, 1] }} className="text-green-500 mt-2">
+                            Recitation submitted! Awaiting feedback...
+                        </motion.p>
+                    )}
+                </>
+            )}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: UI/UX Enhancements
+- **Toggle Styling**: Use Tailwind’s `toggle` class with `bg-gold` for checked state.
+- **Submission Feedback**: Display Whisper feedback in a modal:
+  ```tsx
+  import { useQuery } from '@tanstack/react-query';
+  import api from '@/lib/api';
+  import { motion } from 'framer-motion';
+
+  export default function SubmissionFeedback({ submissionId }: { submissionId: number }) {
+      const { data: submission } = useQuery(['submission', submissionId], () => 
+          api.get(`/submissions/${submissionId}`).then(res => res.data)
+      );
+
+      return (
+          <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="bg-gradient-to-r from-maroon to-gold p-4 rounded-lg"
+          >
+              <h3 className="text-milk">Tajweed Feedback</h3>
+              <p>Accuracy: {submission?.whisper_feedback?.accuracy}%</p>
+              <ul>
+                  {submission?.whisper_feedback?.errors.map((error: string) => (
+                      <li key={error} className="text-milk">{error}</li>
+                  ))}
+              </ul>
+          </motion.div>
+      );
+  }
+  ```
+- **Animations**: Use Framer Motion for button hover (scale: 1.1), confetti on submission success.
+- **Responsive**: Stack toggle and submission form on mobile (`flex-col`).
+- **Accessibility**: Add `aria-label` to toggle and buttons, `role="dialog"` to feedback modal.
+- **Offline**: Queue submissions in IndexedDB, sync with:
+  ```tsx
+  useEffect(() => {
+      if (navigator.onLine) {
+          dbPromise.then(db => db.getAll('submissions')).then(submissions => {
+              submissions.forEach(s => submit.mutateAsync(s));
+          });
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Teacher and Admin Dashboards
+1. **Teacher Dashboard** (`src/app/teacher/students/[id]/page.tsx`):
+   ```tsx
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+
+   export default function StudentProgress({ params }: { params: { id: string } }) {
+       const { data: submissions } = useQuery(['student_submissions', params.id], () => 
+           api.get(`/teacher/students/${params.id}/submissions`).then(res => res.data)
+       );
+
+       return (
+           <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               className="bg-gradient-to-br from-maroon to-milk p-4"
+           >
+               <h2 className="text-xl font-bold">Student Submissions</h2>
+               {submissions?.map((s: any) => (
+                   <div key={s.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>Surah {s.progress.surah_id}, Ayah {s.progress.ayah_id}</p>
+                       <p>Accuracy: {s.whisper_feedback?.accuracy}%</p>
+                       <p>Errors: {s.whisper_feedback?.errors.join(', ')}</p>
+                       <audio controls src={s.audio.s3_url} />
+                   </div>
+               ))}
+           </motion.div>
+       );
+   }
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   // Extend existing analytics
+   <p>Whisper Usage: {analytics?.data_json.whisper_usage} submissions this week</p>
+   ```
+
+---
+
+## Phase 4: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test WhisperTajweedTest`:
+     ```php
+     public function test_whisper_submission()
+     {
+         $student = User::factory()->create(['preferences' => ['whisper_tajweed_enabled' => true]])->assignRole('student');
+         $file = UploadedFile::fake()->create('audio.mp3', 1024);
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/recite/submit', [
+             'surah_id' => 1,
+             'ayah_id' => 1,
+             'audio' => $file,
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('submissions', ['student_id' => $student->id]);
+     }
+     ```
+   - Frontend: Jest for toggle and submission:
+     ```tsx
+     test('toggles whisper tajweed', () => {
+         render(<TajweedToggle />);
+         const toggle = screen.getByLabelText('Toggle Tajweed Feedback');
+         fireEvent.click(toggle);
+         expect(toggle).toBeChecked();
+     });
+     ```
+2. **Deployment**: Ensure `public/app` includes updated frontend assets. Add queue worker cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 5: Optimizations and Notes
+- **Performance**: Cache Whisper feedback in `submissions` table to avoid repeated API calls.
+- **Error Handling**: Handle Whisper API failures by retrying (use `tries` in job) or notifying admins.
+- **Engagement**: Show confetti and a badge (e.g., “Tajweed Star”) for high-accuracy submissions.
+- **Teacher/Admin Sync**: Teachers see real-time submission updates; admins track usage trends.
+

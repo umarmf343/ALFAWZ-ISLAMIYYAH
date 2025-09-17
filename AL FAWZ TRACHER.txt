@@ -1,0 +1,1332 @@
+### Comprehensive Detailed Teacher Panel Guide for AlFawz Qur¡¯an Institute
+
+This guide provides a complete, enhanced implementation of the **Teacher Panel** (Dashboard) for the **AlFawz Qur¡¯an Institute** app, integrating all existing systems (Assignments, Schedules, Submissions, Hotspots, Messaging, Games, Memorization, Gratification, Sujud, Whisper Tajweed, Leaderboard). The Teacher Panel will allow teachers to manage classes, create/schedule assignments with hotspots and messages, review submissions with AI feedback, monitor student progress (including game performance, Hasanat, streaks), and track class analytics. It will be beautiful, engaging, and spiritually focused, using maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations, Amiri font for Arabic, Lora for English, and Quranly-inspired gamification (e.g., progress visualizations, motivational feedback). The panel will be mobile-responsive, accessible, multilingual, and cPanel-compatible (file-based caching, no Redis). All actions will be fully tracked for admin analytics.
+
+The Teacher Panel will meet the acceptance criteria by enabling teachers to create classes, add assignments with hotspots, review student submissions, and see statuses, while integrating with student features for a cohesive experience.
+
+#### Prerequisites
+- Existing backend (Laravel 11 with Sanctum, Spatie permissions, Guzzle, Flysystem S3, OpenAI Whisper, Paystack, Al-Quran Cloud API).
+- Existing frontend (Next.js 14+ with TypeScript, Tailwind, React Query, Framer Motion, react-circular-progressbar, next-intl, idb, use-sound, wavesurfer.js).
+- Ensure teacher role is assigned via Spatie (e.g., `assignRole('teacher')`).
+
+---
+
+## Phase 1: Backend Implementation for Teacher Panel
+
+### Step 1.1: Models and Migrations
+Use existing models (Classes, AssignmentSchedules, Assignments, Submissions, Messages, GameSessions, etc.) and add teacher-specific tracking.
+
+1. **Teacher Analytics Table** (precompute class metrics):
+   ```bash
+   php artisan make:migration create_teacher_analytics_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_teacher_analytics_table.php
+   Schema::create('teacher_analytics', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('teacher_id')->constrained('users')->onDelete('cascade');
+       $table->integer('total_students')->default(0);
+       $table->float('completion_rate')->default(0);
+       $table->integer('hotspot_interactions')->default(0);
+       $table->integer('game_sessions')->default(0);
+       $table->integer('high_scores')->default(0);
+       $table->json('student_progress')->nullable(); // e.g., [{"student_id": 1, "hasanat": 500}]
+       $table->timestamps();
+   });
+   ```
+
+2. **Run Migrations**: `php artisan migrate`.
+
+3. **Seed Teacher Data**:
+   ```php
+   // database/seeders/TeacherSeeder.php
+   namespace Database\Seeders;
+
+   use App\Models\User;
+   use Illuminate\Database\Seeder;
+
+   class TeacherSeeder extends Seeder
+   {
+       public function run()
+       {
+           $teacher = User::factory()->create([
+               'name' => 'Teacher Example',
+               'email' => 'teacher@example.com',
+               'password' => bcrypt('password'),
+           ]);
+           $teacher->assignRole('teacher');
+       }
+   }
+   ```
+   Run: `php artisan db:seed --class=TeacherSeeder`.
+
+### Step 1.2: APIs for Teacher Panel
+Create `app/Http/Controllers/Api/TeacherController.php`.
+
+1. **Get Teacher Dashboard Data**:
+   ```php
+   public function getDashboard(Request $request)
+   {
+       $teacherId = auth()->id();
+       $classes = ClassModel::where('teacher_id', $teacherId)
+           ->withCount('members')
+           ->with(['assignments' => fn($q) => $q->withCount('submissions as completed_submissions' => fn($q2) => $q2->where('student_status', 'done'))])
+           ->get();
+       $recentSubmissions = Submission::whereHas('assignment.class', fn($q) => $q->where('teacher_id', $teacherId))
+           ->with(['student:name', 'assignment:title'])
+           ->latest()->take(10)->get();
+       $notifications = Notification::where('notifiable_id', $teacherId)
+           ->whereNull('read_at')
+           ->latest()->take(5)->get();
+       $analytics = TeacherAnalytics::where('teacher_id', $teacherId)->firstOrCreate([
+           'teacher_id' => $teacherId,
+       ]);
+       $analytics->update([
+           'total_students' => $classes->sum('members_count'),
+           'completion_rate' => $classes->sum('assignments') ? $classes->sum('completed_submissions') / $classes->sum('assignments') * 100 : 0,
+           'hotspot_interactions' => Submission::whereHas('assignment.class', fn($q) => $q->where('teacher_id', $teacherId))
+               ->whereJsonLength('hotspot_interactions', '>', 0)->count(),
+           'game_sessions' => GameSession::whereHas('user.classes', fn($q) => $q->where('teacher_id', $teacherId))->count(),
+           'high_scores' => GameSession::whereHas('user.classes', fn($q) => $q->where('teacher_id', $teacherId))
+               ->where('score', '>=', 80)->count(),
+           'student_progress' => User::whereHas('classes', fn($q) => $q->where('teacher_id', $teacherId))
+               ->select('id', 'name', 'hasanat_total')
+               ->orderByDesc('hasanat_total')
+               ->take(10)
+               ->get(),
+       ]);
+
+       return response()->json([
+           'classes' => $classes,
+           'recent_submissions' => $recentSubmissions,
+           'notifications' => $notifications,
+           'analytics' => $analytics,
+       ]);
+   }
+   ```
+
+2. **Mark Notification as Read**:
+   ```php
+   public function markNotificationRead(Request $request, Notification $notification)
+   {
+       $this->authorize('update', $notification);
+       $notification->markAsRead();
+       return response()->json(['message' => 'Notification marked as read']);
+   }
+   ```
+
+3. **Get Student Progress**:
+   ```php
+   public function getStudentProgress(User $student)
+   {
+       $this->authorize('view', $student);
+       $progress = [
+           'hasanat' => $student->hasanat_total,
+           'surahs_completed' => $student->quranProgress->where('is_surah_completed', true)->unique('surah_id')->count(),
+           'assignments_completed' => $student->submissions->where('student_status', 'done')->count(),
+           'game_sessions' => $student->gameSessions->count(),
+           'badges' => $student->badges->take(5)->get(),
+       ];
+       return response()->json($progress);
+   }
+   ```
+
+4. **Get Game Analytics**:
+   ```php
+   public function getGameAnalytics(ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       $gameAnalytics = [];
+       $games = Game::all();
+       foreach ($games as $game) {
+           $method = 'get' . ucfirst($game->name) . 'Analytics';
+           if (method_exists($this, $method)) {
+               $gameAnalytics[$game->name] = $this->$method($class);
+           }
+       }
+       return response()->json($gameAnalytics);
+   }
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->prefix('teacher')->group(function () {
+    Route::get('/dashboard', [TeacherController::class, 'getDashboard']);
+    Route::post('/notifications/{notification}/read', [TeacherController::class, 'markNotificationRead']);
+    Route::get('/students/{student}/progress', [TeacherController::class, 'getStudentProgress']);
+    Route::get('/classes/{class}/game-analytics', [TeacherController::class, 'getGameAnalytics']);
+});
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Teacher Dashboard Page
+Create `src/app/teacher/dashboard/page.tsx`:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import AnalyticsSection from '@/components/teacher/AnalyticsSection';
+import NotificationSection from '@/components/teacher/NotificationSection';
+import ClassSection from '@/components/teacher/ClassSection';
+import SubmissionSection from '@/components/teacher/SubmissionSection';
+import GameAnalyticsSection from '@/components/teacher/GameAnalyticsSection';
+import { useTranslations } from 'next-intl';
+
+export default function TeacherDashboard() {
+    const t = useTranslations('teacher_dashboard');
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('teacher')) redirect('/');
+
+    const { data: dashboardData } = useQuery(['teacher_dashboard'], () => api.get('/teacher/dashboard').then(res => res.data));
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8 relative"
+            style={{ backgroundImage: 'url(/images/teacher-bg.png)', backgroundSize: 'cover' }}
+        >
+            <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-maroon/50 to-milk/50"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+            />
+            <h1 className="text-4xl font-bold text-gold font-amiri mb-6 relative z-10">{t('welcome', { name: user.name })}</h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
+                <AnalyticsSection analytics={dashboardData?.analytics} />
+                <NotificationSection notifications={dashboardData?.notifications} />
+                <ClassSection classes={dashboardData?.classes} />
+                <SubmissionSection submissions={dashboardData?.recent_submissions} />
+                <GameAnalyticsSection classId={dashboardData?.classes[0]?.id} />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Teacher Dashboard Components
+
+1. **Analytics Section** (`src/components/teacher/AnalyticsSection.tsx`):
+```tsx
+import { motion } from 'framer-motion';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+import { useTranslations } from 'next-intl';
+
+export default function AnalyticsSection({ analytics }: { analytics: any }) {
+    const t = useTranslations('teacher_dashboard.analytics');
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="text-center">
+                    <p className="text-gold font-lora">{t('total_students')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{analytics?.total_students}</p>
+                </div>
+                <div className="text-center">
+                    <p className="text-gold font-lora">{t('completion_rate')}</p>
+                    <div className="w-20 h-20 mx-auto">
+                        <CircularProgressbar
+                            value={analytics?.completion_rate || 0}
+                            text={`${Math.round(analytics?.completion_rate || 0)}%`}
+                            styles={{
+                                path: { stroke: '#FFD700' },
+                                text: { fill: '#7A001F', fontSize: '16px' },
+                            }}
+                        />
+                    </div>
+                </div>
+                <div className="text-center">
+                    <p className="text-gold font-lora">{t('hotspot_interactions')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{analytics?.hotspot_interactions}</p>
+                </div>
+                <div className="text-center">
+                    <p className="text-gold font-lora">{t('game_sessions')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{analytics?.game_sessions}</p>
+                </div>
+                <div className="text-center">
+                    <p className="text-gold font-lora">{t('high_scores')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{analytics?.high_scores}</p>
+                </div>
+            </div>
+            <p className="text-milk font-lora mt-4 text-center">{t('motivational_message')}</p>
+        </motion.div>
+    );
+}
+```
+
+2. **Notification Section** (`src/components/teacher/NotificationSection.tsx`):
+```tsx
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaBell } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+
+export default function NotificationSection({ notifications }: { notifications: any[] }) {
+    const t = useTranslations('teacher_dashboard.notifications');
+    const [localNotifications, setLocalNotifications] = useState(notifications);
+    const markRead = useMutation({
+        mutationFn: (notificationId: number) => api.post(`/teacher/notifications/${notificationId}/read`),
+        onSuccess: (_, notificationId) => {
+            setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+        },
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            {localNotifications?.length === 0 && <p className="text-milk font-lora">{t('no_notifications')}</p>}
+            {localNotifications?.map((notification: any) => (
+                <motion.div
+                    key={notification.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className="mt-2 p-4 border rounded flex justify-between bg-milk text-maroon font-lora"
+                    whileHover={{ scale: 1.02 }}
+                >
+                    <p>{notification.data.message}</p>
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        onClick={() => markRead.mutate(notification.id)}
+                        className="p-2 bg-gold rounded text-maroon"
+                        aria-label={t('mark_read')}
+                    >
+                        <FaBell />
+                    </motion.button>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+3. **Class Section** (`src/components/teacher/ClassSection.tsx`):
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+
+export default function ClassSection({ classes }: { classes: any[] }) {
+    const t = useTranslations('teacher_dashboard.classes');
+    const [showForm, setShowForm] = useState(false);
+    const [editClassId, setEditClassId] = useState<number | null>(null);
+    const [formData, setFormData] = useState({ name: '', description: '', student_ids: [] as number[] });
+    const { data: students, isLoading: studentsLoading } = useQuery(['students'], () => api.get('/teacher/students').then(res => res.data));
+    const createClass = useMutation({
+        mutationFn: (data: any) => api.post('/teacher/classes', data),
+        onSuccess: () => {
+            setShowForm(false);
+            setFormData({ name: '', description: '', student_ids: [] });
+        },
+    });
+    const updateClass = useMutation({
+        mutationFn: ({ id, data }: { id: number; data: any }) => api.put(`/teacher/classes/${id}`, data),
+        onSuccess: () => {
+            setShowForm(false);
+            setEditClassId(null);
+            setFormData({ name: '', description: '', student_ids: [] });
+        },
+    });
+    const deleteClass = useMutation({
+        mutationFn: (id: number) => api.delete(`/teacher/classes/${id}`),
+    });
+
+    useEffect(() => {
+        if (editClassId) {
+            const classToEdit = classes.find(c => c.id === editClassId);
+            if (classToEdit) {
+                setFormData({
+                    name: classToEdit.name,
+                    description: classToEdit.description,
+                    student_ids: classToEdit.members.map((m: any) => m.id),
+                });
+            }
+        }
+    }, [editClassId, classes]);
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            <motion.button
+                whileHover={{ scale: 1.05 }}
+                onClick={() => {
+                    setShowForm(!showForm);
+                    setEditClassId(null);
+                }}
+                className="p-2 bg-gold rounded mb-4"
+                aria-label={t('create_class')}
+            >
+                <FaPlus /> {t('create_class')}
+            </motion.button>
+            {showForm && (
+                <motion.form
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        if (editClassId) {
+                            updateClass.mutate({ id: editClassId, data: formData });
+                        } else {
+                            createClass.mutate(formData);
+                        }
+                    }}
+                    className="mt-4"
+                >
+                    <input
+                        type="text"
+                        placeholder={t('class_name')}
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="p-2 rounded w-full mb-2 font-lora"
+                        aria-label={t('class_name')}
+                    />
+                    <textarea
+                        placeholder={t('description')}
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="p-2 rounded w-full mb-2 font-lora"
+                        aria-label={t('description')}
+                    />
+                    <select
+                        multiple
+                        value={formData.student_ids.map(String)}
+                        onChange={(e) => setFormData({ ...formData, student_ids: Array.from(e.target.selectedOptions, option => Number(option.value)) })}
+                        className="p-2 rounded w-full mb-2 font-lora"
+                        aria-label={t('select_students')}
+                    >
+                        {students?.map((student: any) => (
+                            <option key={student.id} value={student.id}>{student.name}</option>
+                        ))}
+                    </select>
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        type="submit"
+                        className="p-2 bg-maroon text-milk rounded w-full"
+                        disabled={createClass.isLoading || updateClass.isLoading}
+                    >
+                        {editClassId ? t('update_class') : t('create_class')}
+                    </motion.button>
+                </motion.form>
+            )}
+            {classes?.map((classItem: any) => (
+                <motion.div
+                    key={classItem.id}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="bg-milk p-4 rounded-lg mt-4"
+                >
+                    <p className="text-maroon font-amiri font-bold">{classItem.name}</p>
+                    <p className="text-milk font-lora">{classItem.description}</p>
+                    <p className="text-gold">{t('students_count')}: {classItem.members_count}</p>
+                    <div className="flex space-x-2 mt-2">
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            onClick={() => {
+                                setEditClassId(classItem.id);
+                                setShowForm(true);
+                            }}
+                            className="p-2 bg-gold rounded"
+                            aria-label={t('edit_class')}
+                        >
+                            <FaEdit />
+                        </motion.button>
+                        <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            onClick={() => deleteClass.mutate(classItem.id)}
+                            className="p-2 bg-red-500 rounded"
+                            aria-label={t('delete_class')}
+                        >
+                            <FaTrash />
+                        </motion.button>
+                    </div>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+4. **Submission Section** (`src/components/teacher/SubmissionSection.tsx`):
+```tsx
+import { motion } from 'framer-motion';
+import { FaPlay, FaCheck } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+
+export default function SubmissionSection({ submissions }: { submissions: any[] }) {
+    const t = useTranslations('teacher_dashboard.submissions');
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            {submissions?.map((submission: any) => (
+                <motion.div
+                    key={submission.id}
+                    initial={{ x: -20, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    className="mt-2 p-4 border rounded bg-milk text-maroon font-lora"
+                    whileHover={{ scale: 1.02 }}
+                >
+                    <p className="font-bold">{submission.student.name}</p>
+                    <p>{submission.assignment.title}</p>
+                    <p>{t('status')}: {submission.student_status}</p>
+                    <p>{t('score')}: {submission.score ?? t('pending_review')}</p>
+                    {submission.audio && (
+                        <audio controls src={submission.audio.s3_url} className="mt-2 w-full">
+                            <FaPlay className="inline mr-2" />
+                        </audio>
+                    )}
+                    {submission.whisper_feedback && (
+                        <p className="mt-2">{t('ai_feedback')}: {submission.whisper_feedback.accuracy}%</p>
+                    )}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        className="p-2 bg-gold rounded mt-2"
+                        aria-label={t('approve')}
+                    >
+                        <FaCheck />
+                    </motion.button>
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+5. **Game Analytics Section** (`src/components/teacher/GameAnalyticsSection.tsx`):
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
+
+export default function GameAnalyticsSection({ classId }: { classId: number }) {
+    const t = useTranslations('teacher_dashboard.game_analytics');
+    const { data: gameAnalytics } = useQuery(['game_analytics', classId], () => 
+        api.get(`/teacher/classes/${classId}/game-analytics`).then(res => res.data)
+    );
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(gameAnalytics ?? {}).map(([gameName, analytics]: any) => (
+                    <motion.div
+                        key={gameName}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="p-4 bg-milk rounded-lg text-maroon font-lora"
+                    >
+                        <p className="font-bold">{t(gameName)}</p>
+                        <p>{t('total_sessions')}: {analytics.total_sessions}</p>
+                        <p>{t('average_score')}: {Math.round(analytics.average_score)}%</p>
+                        <p>{t('hotspot_usage')}: {analytics.hotspot_usage}</p>
+                        <p>{t('sujud_prompts')}: {analytics.sujud_prompts}</p>
+                    </motion.div>
+                ))}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Analytics Visualization**: CircularProgressbar for completion rates, bar charts for game metrics (use nivo or recharts).
+  - **Motivational Feedback**: Display ¡°MashaAllah, your class is shining!¡± in Analytics.
+  - **Interactive Panels**: Expandable sections for class details and submissions.
+- **Gradients**: Use `bg-gradient-to-br from-maroon to-milk` for the page, `bg-white` or `bg-gold` for panels, `text-gold` for accents.
+- **Animations**:
+  - Panel Entry: Slide-in with `initial={{ y: 20, opacity: 0 }}`.
+  - Form Expand: Smooth height transition with `initial={{ height: 0, opacity: 0 }}`.
+  - Button Hover: Scale up with `whileHover={{ scale: 1.05 }}`.
+- **Typography**:
+  - **Amiri**: For Arabic text and titles (Quranic aesthetic).
+  - **Lora**: For descriptions and English text (clean, readable).
+- **Responsive**: Grid layouts with `md:grid-cols-2` for desktop, stack on mobile.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., ¡°Create Class¡±).
+  - Use `role="region"` for sections, `role="alert"` for notifications.
+  - Ensure keyboard navigation for forms and expandable content.
+- **Multilingual**: Use `next-intl` for labels:
+  ```json
+  // teacher_dashboard/en.json
+  {
+      "welcome": "Welcome, {name}",
+      "analytics": {
+          "title": "Analytics Overview",
+          "total_students": "Total Students",
+          "completion_rate": "Completion Rate",
+          "hotspot_interactions": "Hotspot Interactions",
+          "game_sessions": "Game Sessions",
+          "high_scores": "High Scores",
+          "motivational_message": "MashaAllah, your students are thriving!"
+      },
+      "notifications": {
+          "title": "Notifications",
+          "no_notifications": "No new notifications"
+      },
+      "classes": {
+          "title": "Class Management",
+          "create_class": "Create Class",
+          "update_class": "Update Class",
+          "delete_class": "Delete Class",
+          "class_name": "Class Name",
+          "description": "Description",
+          "select_students": "Select Students",
+          "students_count": "Students"
+      },
+      "submissions": {
+          "title": "Recent Submissions",
+          "status": "Status",
+          "score": "Score",
+          "pending_review": "Pending Review",
+          "ai_feedback": "AI Feedback"
+      },
+      "game_analytics": {
+          "title": "Game Analytics",
+          "total_sessions": "Total Sessions",
+          "average_score": "Average Score",
+          "hotspot_usage": "Hotspot Usage",
+          "sujud_prompts": "Sujud Prompts"
+      }
+  }
+  ```
+- **Offline**: Cache dashboard data in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('teacher_dashboard', { keyPath: 'teacher_id' });
+      },
+  });
+  useEffect(() => {
+      if (!navigator.onLine) {
+          dbPromise.then(db => db.get('teacher_dashboard', user.id)).then(data => setDashboardData(data));
+      }
+  }, [user.id]);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments**: Teachers can view and manage assignments in ClassSection, with links to Schedule and Message.
+2. **Messages**: Integrate MessageComposer in the dashboard for sending class-wide messages.
+3. **Games**: Display game analytics per class, with links to student game progress.
+4. **Memorization/Gratification/Sujud**: Student progress includes metrics from these systems.
+5. **Whisper Tajweed**: Show AI feedback in submissions.
+
+**Example Integration**:
+```tsx
+// src/components/teacher/SubmissionSection.tsx
+{submission.whisper_feedback && (
+    <p className="text-gold font-lora">{t('ai_feedback')}: {submission.whisper_feedback.accuracy}%</p>
+)}
+```
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache dashboard data for 1 hour.
+  - Use pagination for large student lists.
+  - Optimize queries with eager loading (`with`).
+- **Error Handling**:
+  - Handle API failures with cached dashboard data.
+  - Validate student additions to classes.
+- **Engagement** (Quranly-inspired):
+  - Show ¡°SubhanAllah, your class is growing!¡± on new class creation.
+  - Animate submission approvals with confetti.
+  - Highlight top-performing students in Analytics.
+- **UI Perfection**:
+  - Dashboard background with subtle Quranic calligraphy.
+  - Panels with gold borders and smooth animations.
+  - Motivational messages enhance the spiritual experience.
+- **Tracking**: Admin analytics include teacher-specific metrics (e.g., classes created).
+- **Offline**: Store dashboard data in IndexedDB for offline access.
+
+
+### Comprehensive Detailed Enhancement: Student Messaging System for AlFawz Qur¡¯an Institute
+
+This guide provides a complete, enhanced implementation of a **Student Messaging System** for the **AlFawz Qur¡¯an Institute** app, allowing students to send and receive messages (peer-to-peer or to teachers) in a spiritually enriching environment. The system will be fully integrated into the **Student Dashboard** and **Teacher Dashboard**, with a beautiful UI/UX (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations, Amiri font for Arabic, Lora for English), inspired by **Quranly**¡¯s community and habit-building features. Messages will support text with title, subtitle, body, and sender, appearing elegantly in the student panel as chat threads or notifications. The system will be mobile-responsive, accessible, multilingual, and cPanel-compatible (file-based caching, no Redis). All messaging activities (sending, reading, interactions) will be **fully tracked** for teacher oversight (e.g., read receipts, message logs) and admin analytics (e.g., engagement rates, content moderation).
+
+The system will meet the acceptance criteria by enabling teachers to monitor messages for safety and engagement, while students can communicate collaboratively (e.g., discuss assignments). It integrates with existing systems (Assignments, Games, Leaderboard) for contextual messaging (e.g., message linked to an assignment).
+
+#### Prerequisites
+- Existing backend (Laravel 11 with Sanctum, Spatie permissions, Guzzle, Flysystem S3, OpenAI Whisper, Paystack, Al-Quran Cloud API).
+- Existing frontend (Next.js 14+ with TypeScript, Tailwind, React Query, Framer Motion, react-circular-progressbar, next-intl, idb, use-sound, wavesurfer.js).
+- Ensure student and teacher roles are assigned via Spatie.
+
+---
+
+## Phase 1: Backend Implementation for Student Messaging
+
+### Step 1.1: Models and Migrations
+Create models for messages and tracking.
+
+1. **Messages Table** (store messages):
+   ```bash
+   php artisan make:migration create_messages_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_messages_table.php
+   Schema::create('messages', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('sender_id')->constrained('users')->onDelete('cascade');
+       $table->foreignId('receiver_id')->constrained('users')->onDelete('cascade');
+       $table->string('title');
+       $table->string('subtitle')->nullable();
+       $table->text('body');
+       $table->foreignId('assignment_id')->nullable()->constrained()->onDelete('set null');
+       $table->foreignId('schedule_id')->nullable()->constrained('assignment_schedules')->onDelete('set null');
+       $table->foreignId('class_id')->nullable()->constrained()->onDelete('set null');
+       $table->boolean('is_read')->default(false);
+       $table->timestamp('read_at')->nullable();
+       $table->timestamps();
+   });
+   ```
+
+2. **Message Analytics Table** (for tracking):
+   ```bash
+   php artisan make:migration create_message_analytics_table
+   ```
+   ```php
+   Schema::create('message_analytics', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('teacher_id')->nullable()->constrained('users')->onDelete('cascade');
+       $table->foreignId('class_id')->nullable()->constrained()->onDelete('cascade');
+       $table->integer('total_messages')->default(0);
+       $table->integer('unread_messages')->default(0);
+       $table->float('read_rate')->default(0);
+       $table->json('student_engagement')->nullable(); // e.g., [{"student_id": 1, "messages_sent": 5, "messages_read": 3}]
+       $table->timestamps();
+   });
+   ```
+
+3. **Run Migrations**: `php artisan migrate`.
+
+4. **Models**:
+   ```php
+   // app/Models/Message.php
+   namespace App\Models;
+
+   use Illuminate\Database\Eloquent\Model;
+   use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+   class Message extends Model
+   {
+       protected $fillable = ['sender_id', 'receiver_id', 'title', 'subtitle', 'body', 'assignment_id', 'schedule_id', 'class_id', 'is_read', 'read_at'];
+
+       public function sender(): BelongsTo
+       {
+           return $this->belongsTo(User::class, 'sender_id');
+       }
+
+       public function receiver(): BelongsTo
+       {
+           return $this->belongsTo(User::class, 'receiver_id');
+       }
+
+       public function assignment(): BelongsTo
+       {
+           return $this->belongsTo(Assignment::class);
+       }
+
+       public function schedule(): BelongsTo
+       {
+           return $this->belongsTo(AssignmentSchedule::class);
+       }
+
+       public function class(): BelongsTo
+       {
+           return $this->belongsTo(ClassModel::class);
+       }
+   }
+   ```
+
+5. **Seeder**:
+   ```php
+   // database/seeders/MessageSeeder.php
+   namespace Database\Seeders;
+
+   use App\Models\Message;
+   use App\Models\User;
+   use Illuminate\Database\Seeder;
+
+   class MessageSeeder extends Seeder
+   {
+       public function run()
+       {
+           $student1 = User::where('role', 'student')->first();
+           $student2 = User::where('role', 'student')->skip(1)->first();
+           Message::create([
+               'sender_id' => $student1->id,
+               'receiver_id' => $student2->id,
+               'title' => 'Assignment Discussion',
+               'subtitle' => 'Tajweed Tips',
+               'body' => 'Hey, how did you apply Ikhfa in ayah 1?',
+               'assignment_id' => 1,
+           ]);
+       }
+   }
+   ```
+   Run: `php artisan db:seed --class=MessageSeeder`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/StudentController.php` and `TeacherController.php`.
+
+1. **Student: Send Message**:
+   ```php
+   // app/Http/Controllers/Api/StudentController.php
+   public function sendMessage(Request $request)
+   {
+       $validated = $request->validate([
+           'receiver_id' => 'required|exists:users,id',
+           'title' => 'required|string|max:255',
+           'subtitle' => 'nullable|string|max:255',
+           'body' => 'required|string',
+           'assignment_id' => 'nullable|exists:assignments,id',
+           'schedule_id' => 'nullable|exists:assignment_schedules,id',
+       ]);
+
+       $message = Message::create([
+           'sender_id' => auth()->id(),
+           'receiver_id' => $validated['receiver_id'],
+           'title' => $validated['title'],
+           'subtitle' => $validated['subtitle'] ?? null,
+           'body' => $validated['body'],
+           'assignment_id' => $validated['assignment_id'] ?? null,
+           'schedule_id' => $validated['schedule_id'] ?? null,
+       ]);
+
+       Notification::send(User::find($validated['receiver_id']), new MessageReceived($message));
+
+       return response()->json(['message' => 'Message sent']);
+   }
+   ```
+
+2. **Student: Mark Message as Read**:
+   ```php
+   public function markMessageRead(Request $request, Message $message)
+   {
+       $this->authorize('update', $message);
+       $message->update(['is_read' => true, 'read_at' => now()]);
+
+       // Update message analytics
+       $this->updateMessageAnalytics($message->class_id);
+
+       return response()->json(['message' => 'Message marked as read']);
+   }
+   ```
+
+3. **Teacher: Get Message Logs**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function getMessageLogs(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return Message::where('class_id', $class->id)
+           ->orWhereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+           ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))
+           ->with(['sender:name', 'receiver:name'])
+           ->latest()->paginate(20);
+   }
+   ```
+
+4. **Teacher: Get Message Analytics**:
+   ```php
+   public function getMessageAnalytics(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       $analytics = MessageAnalytics::where('class_id', $class->id)->firstOrCreate([
+           'class_id' => $class->id,
+           'teacher_id' => auth()->id(),
+       ]);
+       $analytics->update([
+           'total_messages' => Message::whereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+               ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->count(),
+           'unread_messages' => Message::whereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+               ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->where('is_read', false)->count(),
+           'read_rate' => Message::whereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+               ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->count() ? Message::whereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                   ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->where('is_read', true)->count() / Message::whereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                   ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->count() * 100 : 0,
+           'student_engagement' => User::whereHas('classes', fn($q) => $q->where('id', $class->id))
+               ->withCount(['sentMessages' => fn($q) => $q->whereHas('receiver.classes', fn($q2) => $q2->where('id', $class->id)), 'receivedMessages' => fn($q) => $q->where('is_read', true)])
+               ->get(['id', 'name'])
+               ->map(fn($user) => ['student_id' => $user->id, 'name' => $user->name, 'messages_sent' => $user->sent_messages_count, 'messages_read' => $user->received_messages_count]),
+       ]);
+
+       return response()->json($analytics);
+   }
+   ```
+
+5. **Update Message Analytics** (helper method):
+   ```php
+   private function updateMessageAnalytics($classId)
+   {
+       $class = ClassModel::find($classId);
+       if ($class) {
+           $analytics = MessageAnalytics::where('class_id', $class->id)->firstOrCreate([
+               'class_id' => $class->id,
+               'teacher_id' => $class->teacher_id,
+           ]);
+           $analytics->update([
+               'total_messages' => Message::where('class_id', $class->id)
+                   ->orWhereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                   ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->count(),
+               'unread_messages' => Message::where('class_id', $class->id)
+                   ->orWhereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                   ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->where('is_read', false)->count(),
+               'read_rate' => Message::where('class_id', $class->id)
+                   ->orWhereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                   ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->count() ? Message::where('class_id', $class->id)
+                       ->orWhereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                       ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->where('is_read', true)->count() / Message::where('class_id', $class->id)
+                       ->orWhereHas('sender.classes', fn($q) => $q->where('id', $class->id))
+                       ->orWhereHas('receiver.classes', fn($q) => $q->where('id', $class->id))->count() * 100 : 0,
+               'student_engagement' => User::whereHas('classes', fn($q) => $q->where('id', $class->id))
+                   ->withCount(['messages as messages_sent' => fn($q) => $q->whereHas('receiver.classes', fn($q2) => $q2->where('id', $class->id)), 'messages as messages_read' => fn($q) => $q->whereHas('sender.classes', fn($q2) => $q2->where('id', $class->id))->where('is_read', true)])
+                   ->get(['id', 'name'])
+                   ->map(fn($user) => ['student_id' => $user->id, 'name' => $user->name, 'messages_sent' => $user->messages_sent, 'messages_read' => $user->messages_read]),
+           ]);
+       }
+   }
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('teacher')->group(function () {
+        Route::get('/classes/{class}/messages', [TeacherController::class, 'getMessages']);
+        Route::get('/classes/{class}/message-analytics', [TeacherController::class, 'getMessageAnalytics']);
+    });
+    Route::prefix('student')->group(function () {
+        Route::post('/messages', [StudentController::class, 'sendMessage']);
+        Route::get('/messages', [StudentController::class, 'getMessages']);
+        Route::post('/messages/{message}/read', [StudentController::class, 'markMessageRead']);
+    });
+});
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Student Messaging Panel
+Update `src/app/dashboard/page.tsx` to include messaging:
+```tsx
+// src/app/dashboard/page.tsx
+import MessageSection from '@/components/student/MessageSection';
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <ProgressSection />
+    <MessageSection />
+    // Other components...
+</div>
+```
+
+Create `src/components/student/MessageSection.tsx`:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaEnvelope, FaPaperPlane } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+
+export default function MessageSection() {
+    const t = useTranslations('student_messaging');
+    const [selectedConversation, setSelectedConversation] = useState(null);
+    const [messageBody, setMessageBody] = useState('');
+    const { data: conversations, refetch } = useQuery(['conversations'], () => api.get('/student/conversations').then(res => res.data));
+    const { data: messages, refetch: refetchMessages } = useQuery(
+        ['messages', selectedConversation],
+        () => api.get('/student/messages/' . selectedConversation).then(res => res.data),
+        { enabled: !!selectedConversation }
+    );
+    const sendMessage = useMutation({
+        mutationFn: (data: any) => api.post('/student/messages', data),
+        onSuccess: () => {
+            setMessageBody('');
+            refetchMessages();
+        },
+    });
+    const markRead = useMutation({
+        mutationFn: (messageId: number) => api.post('/student/messages/' . messageId . '/read'),
+        onSuccess: () => refetchMessages(),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <p className="font-lora">{t('conversations')}</p>
+                    {conversations?.map((conv: any) => (
+                        <motion.div
+                            key={conv.id}
+                            whileHover={{ scale: 1.02 }}
+                            onClick={() => setSelectedConversation(conv.id)}
+                            className="mt-2 p-4 border rounded cursor-pointer"
+                        >
+                            <p className="font-bold font-amiri">{conv.other_user.name}</p>
+                            <p>{conv.last_message}</p>
+                        </motion.div>
+                    ))}
+                </div>
+                <div>
+                    {selectedConversation && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="p-4 rounded border"
+                        >
+                            <p className="font-bold font-amiri">{t('conversation_with')} {messages?.other_user.name}</p>
+                            {messages?.messages.map((msg: any) => (
+                                <motion.div
+                                    key={msg.id}
+                                    className={`mt-2 p-4 rounded ${msg.sender_id === user.id ? 'bg-milk text-maroon' : 'bg-gold text-milk'}`}
+                                >
+                                    <p className="font-bold font-amiri">{msg.title}</p>
+                                    <p className="font-lora">{msg.subtitle}</p>
+                                    <p className="font-lora">{msg.body}</p>
+                                    <p className="text-sm text-maroon font-lora">{t('from')} {msg.sender.name}</p>
+                                    {!msg.is_read && (
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            onClick={() => markRead.mutate(msg.id)}
+                                            className="p-2 bg-maroon text-milk rounded mt-2"
+                                            aria-label={t('mark_read')}
+                                        >
+                                            <FaEnvelopeOpen />
+                                        </motion.button>
+                                    )}
+                                </motion.div>
+                            ))}
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    sendMessage.mutate({
+                                        receiver_id: messages.other_user.id,
+                                        title: 'Reply',
+                                        subtitle: 'Discussion',
+                                        body: messageBody,
+                                    });
+                                }}
+                                className="mt-4"
+                            >
+                                <textarea
+                                    value={messageBody}
+                                    onChange={(e) => setMessageBody(e.target.value)}
+                                    placeholder={t('write_message')}
+                                    className="p-2 rounded w-full"
+                                    aria-label={t('write_message')}
+                                />
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    type="submit"
+                                    className="p-2 bg-maroon text-milk rounded mt-2"
+                                    aria-label={t('send_message')}
+                                >
+                                    <FaPaperPlane />
+                                </motion.button>
+                            </form>
+                        </motion.div>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Teacher Messaging Oversight
+Add `src/components/teacher/MessageLogSection.tsx`:
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { useTranslations } from 'next-intl';
+
+export default function MessageLogSection({ classId }: { classId: number }) {
+    const t = useTranslations('teacher_dashboard.message_logs');
+    const { data: messages } = useQuery(['message_logs', classId], () => api.get(`/teacher/classes/${classId}/messages`).then(res => res.data));
+    const { data: analytics } = useQuery(['message_analytics', classId], () => api.get(`/teacher/classes/${classId}/message-analytics`).then(res => res.data));
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-6 rounded-lg shadow-lg border-2 border-gold"
+        >
+            <h2 className="text-2xl font-bold text-maroon font-amiri mb-4">{t('title')}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <p className="text-gold font-lora">{t('total_messages')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{analytics?.total_messages}</p>
+                </div>
+                <div>
+                    <p className="text-gold font-lora">{t('read_rate')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{Math.round(analytics?.read_rate)}%</p>
+                </div>
+                <div>
+                    <p className="text-gold font-lora">{t('unread_messages')}</p>
+                    <p className="text-3xl text-maroon font-amiri">{analytics?.unread_messages}</p>
+                </div>
+            </div>
+            <p className="text-milk font-lora mt-4">{t('motivational_message')}</p>
+            <div className="mt-4">
+                {messages?.map((message: any) => (
+                    <motion.div
+                        key={message.id}
+                        initial={{ x: -20, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        className="mt-2 p-4 border rounded"
+                    >
+                        <p className="font-bold font-amiri">{message.title}</p>
+                        <p className="font-lora">{message.subtitle}</p>
+                        <p className="font-lora">{message.body}</p>
+                        <p className="text-sm text-maroon font-lora">{t('from')} {message.sender.name} {t('to')} {message.receiver.name}</p>
+                    </motion.div>
+                ))}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: Update Teacher Dashboard
+Modify `src/app/teacher/dashboard/page.tsx` to include messaging oversight:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import AnalyticsOverview from '@/components/teacher/AnalyticsOverview';
+import NotificationSection from '@/components/teacher/NotificationSection';
+import ClassSection from '@/components/teacher/ClassSection';
+import MessageLogSection from '@/components/teacher/MessageLogSection';
+import SubmissionSection from '@/components/teacher/SubmissionSection';
+import GameAnalyticsSection from '@/components/teacher/GameAnalyticsSection';
+
+export default function TeacherDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    if (!user?.roles.includes('teacher')) redirect('/');
+
+    const { data: dashboardData } = useQuery(['teacher_dashboard'], () => api.get('/teacher/dashboard').then(res => res.data));
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                Welcome, {user.name}
+            </h1>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AnalyticsOverview analytics={dashboardData?.analytics} />
+                <NotificationSection notifications={dashboardData?.notifications} />
+                <ClassSection classes={dashboardData?.classes} />
+                <MessageLogSection classId={dashboardData?.classes[0]?.id} />
+                <SubmissionSection submissions={dashboardData?.recent_submissions} />
+                <GameAnalyticsSection classId={dashboardData?.classes[0]?.id} />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.5: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Message Threads**: Elegant chat layout with gold accents for unread messages.
+  - **Analytics Visualization**: CircularProgressbar for read rates, bar charts for engagement (use nivo or recharts).
+  - **Motivational Feedback**: Display ¡°MashaAllah, your students are communicating well!¡± in analytics.
+- **Gradients**: Use `bg-gradient-to-r from-maroon to-gold` for unread messages, `bg-white` for panels, `bg-milk` for read messages.
+- **Animations**:
+  - Message Entry: Slide-in with `initial={{ x: -20, opacity: 0 }}`.
+  - Send Button: Scale up with `whileHover={{ scale: 1.05 }}`.
+  - Confetti: Trigger on message send or read.
+- **Typography**:
+  - **Amiri**: For Arabic text and titles (Quranic aesthetic).
+  - **Lora**: For subtitles, body, and English text (clean, readable).
+- **Responsive**: Stack conversations and chat on mobile (`grid-cols-1`), use `md:grid-cols-2` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to inputs and buttons (e.g., ¡°Send Message¡±).
+  - Use `role="dialog"` for message composer, `role="listitem"` for message threads.
+  - Ensure keyboard navigation for form fields and chat scrolling.
+- **Multilingual**: Use `next-intl` for labels:
+  ```json
+  // student_messaging/en.json
+  {
+      "title": "Messages",
+      "conversations": "Conversations",
+      "conversation_with": "Conversation with",
+      "from": "From",
+      "write_message": "Write your message...",
+      "send_message": "Send Message",
+      "mark_read": "Mark as Read"
+  }
+  ```
+- **Offline**: Cache messages and send queue in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('messages', { keyPath: 'id', autoIncrement: true });
+      },
+  });
+  const storeMessage = async (message: any) => {
+      const db = await dbPromise;
+      await db.put('messages', { ...message, id: Date.now() });
+  };
+  const syncMessages = async () => {
+      const db = await dbPromise;
+      const messages = await db.getAll('messages');
+      for (const message of messages) {
+          await sendMessage.mutateAsync(message);
+          await db.delete('messages', message.id);
+      }
+  };
+  useEffect(() => {
+      if (navigator.onLine) syncMessages();
+      window.addEventListener('online', syncMessages);
+      return () => window.removeEventListener('online', syncMessages);
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments/Schedules**: Messages can be linked to assignments/schedules via `assignment_id`/`schedule_id`, appearing in `AssignmentPanel`.
+2. **Submit System**: Messages can include submission reminders, tracked via read receipts.
+3. **Leaderboard**: Update entries with engagement from message reads/sends.
+4. **Gratification**: Award badges for active messaging (e.g., ¡°Communicator¡± for 10 messages).
+5. **Sujud**: If messages discuss Sajda ayahs, prompt Sujud via `SujudSection`.
+
+**Example Integration**:
+```tsx
+// src/components/student/MessageSection.tsx
+useEffect(() => {
+    if (markRead.isSuccess) {
+        api.post('/student/leaderboard/update');
+    }
+}, [markRead.isSuccess]);
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/app/teacher/dashboard/page.tsx`):
+   ```tsx
+   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+       <AnalyticsOverview analytics={dashboardData?.analytics} />
+       <NotificationSection notifications={dashboardData?.notifications} />
+       <ClassSection classes={dashboardData?.classes} />
+       <MessageLogSection classId={dashboardData?.classes[0]?.id} />
+       <SubmissionSection submissions={dashboardData?.recent_submissions} />
+       <GameAnalyticsSection classId={dashboardData?.classes[0]?.id} />
+   </div>
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <p>Message Read Rate: {analytics?.data_json.message_read_rate}%</p>
+   <p>Total Messages: {analytics?.data_json.total_messages}</p>
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test MessagingTest`:
+     ```php
+     public function test_send_message()
+     {
+         $student1 = User::factory()->create()->assignRole('student');
+         $student2 = User::factory()->create()->assignRole('student');
+         $response = $this->actingAs($student1, 'sanctum')->postJson('/api/student/messages', [
+             'receiver_id' => $student2->id,
+             'title' => 'Tajweed Question',
+             'subtitle' => 'Ikhfa Rule',
+             'body' => 'How do you apply Ikhfa?',
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('messages', ['sender_id' => $student1->id, 'receiver_id' => $student2->id]);
+     }
+
+     public function test_mark_message_read()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $message = Message::factory()->create(['receiver_id' => $student->id]);
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/messages/' . $message->id . '/read');
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('messages', ['id' => $message->id, 'is_read' => true]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays messages', async () => {
+         render(<MessageSection />);
+         expect(screen.getByText('Messages')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Send Message')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard` to `app/index.html`.
+   - Add cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache message data for 1 hour.
+  - Use pagination for long message logs.
+  - Optimize analytics queries with indexed `class_id`.
+- **Error Handling**:
+  - Handle invalid receiver IDs with validation messages.
+  - Queue message sends offline, sync on reconnect.
+- **Engagement** (Quranly-inspired):
+  - Show ¡°SubhanAllah, your message was delivered!¡± on send.
+  - Animate message cards with gold glow on unread.
+  - Award badges for active communication (e.g., ¡°Quranic Communicator¡± for 10 messages).
+- **UI Perfection**:
+  - Messages with elegant gold borders for unread, smooth slide-in animations.
+  - Composer with real-time preview for title/subtitle/body.
+  - Background with subtle Quranic calligraphy enhances spiritual feel.
+- **Tracking**: Teachers see message logs and analytics per class; admins track overall engagement.
+- **Offline**: Store messages and read actions in IndexedDB for seamless syncing.
+

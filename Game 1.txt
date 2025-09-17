@@ -1,0 +1,752 @@
+To enhance the **AlFawz Qur’an Institute** app by integrating a **"Play Game" button** in the **Student Dashboard** that opens a visually stunning **Game Center**, I’ll focus on implementing the **Tajweed Treasure Hunt** game as the first game, ensuring only students who complete their daily tasks can access it. The Game Center and game will align with the app’s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations), drawing inspiration from **Quranly**’s engaging, habit-forming design. The implementation will be fully functional, mobile-responsive, accessible, multilingual, and compatible with cPanel deployment (file-based caching, no Redis). All interactions will be tracked for teacher oversight and admin analytics, integrating with existing systems (Assignment, Schedule, Submit, Leaderboard, Gratification, Sujud, Whisper Tajweed). The **Tajweed Treasure Hunt** will feature an interactive quiz where students identify tajweed rules in highlighted ayahs, with hotspots providing guidance and Whisper Tajweed feedback for accuracy.
+
+---
+
+## Implementation: Play Game Button and Tajweed Treasure Hunt
+
+### Objective
+- Add a **"Play Game" button** to the Student Dashboard, visible only to students who complete their daily tasks (e.g., assignments marked "done" or submissions completed today).
+- Create a **Game Center** that lists available games (starting with **Tajweed Treasure Hunt**), displayed with a stunning UI/UX.
+- Implement **Tajweed Treasure Hunt**:
+  - Students identify tajweed rules (e.g., Ikhfa, Idgham) in highlighted ayahs.
+  - Hotspots provide rule hints (image/audio).
+  - Correct answers earn Hasanat, with Whisper Tajweed feedback for recitation attempts.
+  - Progress is tracked in the Leaderboard and Gratification systems.
+- Ensure a **beautiful UI/UX**:
+  - Maroon, milk, gold gradients; Amiri font for Arabic, Lora for English.
+  - Framer Motion animations (e.g., slide-in game cards, confetti on wins).
+  - Mobile responsiveness, accessibility, and multilingual support.
+- Track all interactions (e.g., game completions, hotspot clicks) for teacher/admin analytics.
+- Integrate with existing systems (e.g., Assignments, Whisper Tajweed).
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Add tables to support the Game Center and Tajweed Treasure Hunt.
+
+1. **Games Table** (store available games):
+   ```bash
+   php artisan make:migration create_games_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_games_table.php
+   Schema::create('games', function (Blueprint $table) {
+       $table->id();
+       $table->string('name')->unique(); // e.g., tajweed_treasure_hunt
+       $table->string('title'); // e.g., Tajweed Treasure Hunt
+       $table->text('description');
+       $table->string('icon')->nullable(); // e.g., s3://icons/tajweed.png
+       $table->integer('hasanat_per_win')->default(50);
+       $table->timestamps();
+   });
+   ```
+
+2. **Game Sessions Table** (track student game sessions):
+   ```bash
+   php artisan make:migration create_game_sessions_table
+   ```
+   ```php
+   Schema::create('game_sessions', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('user_id')->constrained()->onDelete('cascade');
+       $table->foreignId('game_id')->constrained()->onDelete('cascade');
+       $table->integer('score')->default(0);
+       $table->integer('hasanat_earned')->default(0);
+       $table->json('answers')->nullable(); // e.g., [{"question_id": 1, "correct": true, "hotspot_used": true}]
+       $table->timestamp('completed_at')->nullable();
+       $table->timestamps();
+   });
+   ```
+
+3. **Tajweed Questions Table** (store questions for Tajweed Treasure Hunt):
+   ```bash
+   php artisan make:migration create_tajweed_questions_table
+   ```
+   ```php
+   Schema::create('tajweed_questions', function (Blueprint $table) {
+       $table->id();
+       $table->integer('surah_id');
+       $table->integer('ayah_id');
+       $table->string('rule'); // e.g., Ikhfa, Idgham
+       $table->text('ayah_text');
+       $table->json('hotspots'); // e.g., [{"type": "image", "url": "s3://tajweed.jpg", "x": 50, "y": 50, "note": "Ikhfa rule"}]
+       $table->json('options'); // e.g., ["Ikhfa", "Idgham", "Iqlab", "None"]
+       $table->string('correct_option');
+       $table->timestamps();
+   });
+   ```
+
+4. **Run Migrations**: `php artisan migrate`.
+
+5. **Seed Initial Game**:
+   ```php
+   // database/seeders/GameSeeder.php
+   namespace Database\Seeders;
+
+   use App\Models\Game;
+   use Illuminate\Database\Seeder;
+
+   class GameSeeder extends Seeder
+   {
+       public function run()
+       {
+           Game::create([
+               'name' => 'tajweed_treasure_hunt',
+               'title' => 'Tajweed Treasure Hunt',
+               'description' => 'Identify tajweed rules in ayahs to earn Hasanat!',
+               'icon' => 'https://example.com/icons/tajweed.png',
+               'hasanat_per_win' => 50,
+           ]);
+       }
+   }
+   ```
+   Run: `php artisan db:seed --class=GameSeeder`.
+
+### Step 1.2: Backend APIs
+Create `app/Http/Controllers/Api/GameController.php` and update `StudentController.php`.
+
+1. **Check Daily Task Completion**:
+   ```php
+   // app/Http/Controllers/Api/StudentController.php
+   public function checkDailyTasks(Request $request)
+   {
+       $today = now()->startOfDay();
+       $hasCompleted = Submission::where('student_id', auth()->id())
+           ->where('student_status', 'done')
+           ->whereDate('marked_at', $today)
+           ->exists() || Assignment::whereHas('class.members', fn($q) => $q->where('user_id', auth()->id()))
+           ->whereDate('due_date', $today)
+           ->whereHas('submissions', fn($q) => $q->where('student_id', auth()->id())->where('student_status', 'done'))
+           ->exists();
+       return response()->json(['can_play_games' => $hasCompleted]);
+   }
+   ```
+
+2. **Get Available Games**:
+   ```php
+   // app/Http/Controllers/Api/GameController.php
+   namespace App\Http\Controllers\Api;
+
+   use App\Models\Game;
+   use App\Models\GameSession;
+   use Illuminate\Http\Request;
+   use App\Http\Controllers\Controller;
+
+   class GameController extends Controller
+   {
+       public function getGames(Request $request)
+       {
+           return Game::all();
+       }
+   }
+   ```
+
+3. **Start Tajweed Treasure Hunt Session**:
+   ```php
+   public function startTajweedSession(Request $request)
+   {
+       $user = auth()->user();
+       $game = Game::where('name', 'tajweed_treasure_hunt')->firstOrFail();
+       $session = GameSession::create([
+           'user_id' => $user->id,
+           'game_id' => $game->id,
+           'score' => 0,
+           'hasanat_earned' => 0,
+       ]);
+
+       $questions = TajweedQuestion::inRandomOrder()->take(5)->get();
+       return response()->json(['session_id' => $session->id, 'questions' => $questions]);
+   }
+   ```
+
+4. **Submit Tajweed Answers**:
+   ```php
+   public function submitTajweedAnswer(Request $request, GameSession $session)
+   {
+       $this->authorize('update', $session);
+       $validated = $request->validate([
+           'question_id' => 'required|exists:tajweed_questions,id',
+           'answer' => 'required|string',
+           'hotspot_used' => 'boolean',
+       ]);
+
+       $question = TajweedQuestion::findOrFail($validated['question_id']);
+       $isCorrect = $question->correct_option === $validated['answer'];
+       $score = $isCorrect ? 20 : 0;
+       $hasanat = $isCorrect ? 10 : 0;
+
+       $answers = $session->answers ?? [];
+       $answers[] = [
+           'question_id' => $validated['question_id'],
+           'answer' => $validated['answer'],
+           'correct' => $isCorrect,
+           'hotspot_used' => $validated['hotspot_used'] ?? false,
+       ];
+
+       $session->update([
+           'score' => $session->score + $score,
+           'hasanat_earned' => $session->hasanat_earned + $hasanat,
+           'answers' => $answers,
+       ]);
+
+       if (count($answers) >= 5) {
+           $session->update(['completed_at' => now()]);
+           $user = auth()->user();
+           $user->hasanat_total += $session->hasanat_earned + ($session->score >= 80 ? $session->game->hasanat_per_win : 0);
+           $user->save();
+
+           if ($session->score >= 80) {
+               Badge::create([
+                   'user_id' => $user->id,
+                   'type' => 'game_completion',
+                   'title' => 'Tajweed Master',
+                   'description' => 'Completed Tajweed Treasure Hunt with high score!',
+                   'hasanat' => $session->game->hasanat_per_win,
+                   'awarded_at' => now(),
+               ]);
+           }
+
+           $this->updateLeaderboardEntry($user);
+       }
+
+       return response()->json(['correct' => $isCorrect, 'score' => $session->score]);
+   }
+   ```
+
+5. **Get Game Analytics** (for teachers/admins):
+   ```php
+   public function getGameAnalytics(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return [
+           'total_sessions' => GameSession::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))->count(),
+           'average_score' => GameSession::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+               ->avg('score'),
+           'hotspot_usage' => GameSession::whereHas('user.classes', fn($q) => $q->where('class_id', $class->id))
+               ->whereJsonContains('answers', ['hotspot_used' => true])
+               ->count(),
+       ];
+   }
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('student')->group(function () {
+        Route::get('/daily-tasks', [StudentController::class, 'checkDailyTasks']);
+        Route::get('/games', [GameController::class, 'getGames']);
+        Route::post('/games/tajweed/start', [GameController::class, 'startTajweedSession']);
+        Route::post('/games/tajweed/sessions/{gameSession}', [GameController::class, 'submitTajweedAnswer']);
+    });
+    Route::prefix('teacher')->group(function () {
+        Route::get('/classes/{class}/game-analytics', [GameController::class, 'getGameAnalytics']);
+    });
+});
+```
+
+**Notifications**:
+1. **Game Completion**:
+   ```php
+   // app/Notifications/GameCompleted.php
+   namespace App\Notifications;
+
+   use App\Models\GameSession;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class GameCompleted extends Notification
+   {
+       public function __construct(public GameSession $session) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('Game Completed!')
+               ->line("You scored {$this->session->score} in {$this->session->game->title}!")
+               ->action('View Progress', url('/dashboard'));
+       }
+
+       public function toArray($notifiable)
+       {
+           return [
+               'session_id' => $this->session->id,
+               'game_title' => $this->session->game->title,
+               'score' => $this->session->score,
+               'message' => 'Game completed!',
+           ];
+       }
+   }
+   ```
+
+**Seed Tajweed Questions**:
+```php
+// database/seeders/TajweedQuestionSeeder.php
+namespace Database\Seeders;
+
+use App\Models\TajweedQuestion;
+use Illuminate\Database\Seeder;
+
+class TajweedQuestionSeeder extends Seeder
+{
+    public function run()
+    {
+        TajweedQuestion::create([
+            'surah_id' => 1,
+            'ayah_id' => 1,
+            'rule' => 'Ikhfa',
+            'ayah_text' => 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+            'hotspots' => [
+                ['type' => 'image', 'url' => 'https://example.com/tajweed/ikhfa.jpg', 'x' => 50, 'y' => 50, 'note' => 'Ikhfa rule'],
+                ['type' => 'audio', 'url' => 'https://example.com/tajweed/ikhfa.mp3', 'note' => 'Listen to Ikhfa'],
+            ],
+            'options' => ['Ikhfa', 'Idgham', 'Iqlab', 'None'],
+            'correct_option' => 'Ikhfa',
+        ]);
+        // Add more questions...
+    }
+}
+```
+Run: `php artisan db:seed --class=TajweedQuestionSeeder`.
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Student Dashboard
+Modify `src/app/dashboard/page.tsx` to add the Play Game button:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaGamepad } from 'react-icons/fa';
+import Link from 'next/link';
+import ProgressSection from '@/components/ProgressSection';
+import DailyRecommendations from '@/components/DailyRecommendations';
+import RecentSurahs from '@/components/RecentSurahs';
+import AyahOfDay from '@/components/AyahOfDay';
+import TajweedToggle from '@/components/TajweedToggle';
+import RecitationSubmission from '@/components/RecitationSubmission';
+import MemorizationSection from '@/components/MemorizationSection';
+import GratificationSection from '@/components/GratificationSection';
+import SujudSection from '@/components/SujudSection';
+import LeaderboardPanel from '@/components/LeaderboardPanel';
+import AssignmentPanel from '@/components/AssignmentPanel';
+import MessagePanel from '@/components/MessagePanel';
+import { useTranslations } from 'next-intl';
+
+export default function StudentDashboard() {
+    const t = useTranslations('dashboard');
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    const { data: dailyTasks } = useQuery(['daily_tasks'], () => api.get('/student/daily-tasks').then(res => res.data));
+    if (!user?.roles.includes('student')) redirect('/');
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                {user.greeting}
+            </h1>
+            <div className="flex justify-end mb-4">
+                {dailyTasks?.can_play_games ? (
+                    <Link href="/dashboard/games">
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            className="p-3 bg-gold text-maroon rounded-full flex items-center"
+                            aria-label={t('play_game')}
+                        >
+                            <FaGamepad className="mr-2" /> {t('play_game')}
+                        </motion.button>
+                    </Link>
+                ) : (
+                    <p className="text-milk">{t('complete_daily_tasks')}</p>
+                )}
+            </div>
+            <TajweedToggle />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ProgressSection />
+                <MessagePanel />
+                <AssignmentPanel />
+                <GratificationSection />
+                <SujudSection />
+                <MemorizationSection />
+                <RecitationSubmission />
+                <DailyRecommendations />
+                <RecentSurahs />
+                <AyahOfDay />
+                <LeaderboardPanel />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Game Center Page
+Create `src/app/dashboard/games/page.tsx`:
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaGamepad } from 'react-icons/fa';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+
+export default function GameCenter() {
+    const t = useTranslations('games');
+    const { data: games } = useQuery(['games'], () => api.get('/student/games').then(res => res.data));
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+            role="region"
+            aria-label={t('game_center')}
+        >
+            <h1 className="text-3xl font-bold text-gold font-amiri mb-6">{t('game_center')}</h1>
+            <p className="text-milk font-lora mb-4">{t('welcome_message')}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {games?.map((game: any) => (
+                    <Link key={game.id} href={`/dashboard/games/${game.name}`}>
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            whileHover={{ scale: 1.05 }}
+                            className="bg-white p-4 rounded-lg shadow-md border border-gold"
+                        >
+                            <img src={game.icon} alt={game.title} className="w-full h-32 object-cover rounded" />
+                            <h2 className="text-xl font-bold text-maroon font-amiri mt-2">{game.title}</h2>
+                            <p className="text-milk font-lora">{game.description}</p>
+                            <p className="text-gold mt-2">{t('hasanat')}: {game.hasanat_per_win}</p>
+                        </motion.div>
+                    </Link>
+                ))}
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Tajweed Treasure Hunt Game
+Create `src/app/dashboard/games/tajweed_treasure_hunt/page.tsx`:
+```tsx
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaCheck, FaPlay } from 'react-icons/fa';
+import { useTranslations } from 'next-intl';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function TajweedTreasureHunt() {
+    const t = useTranslations('games.tajweed_treasure_hunt');
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+    const [score, setScore] = useState(0);
+    const [hotspotInteractions, setHotspotInteractions] = useState<any[]>([]);
+
+    const { data: sessionData, refetch } = useQuery(['tajweed_session'], () => 
+        api.post('/student/games/tajweed/start').then(res => res.data)
+    );
+    const submitAnswer = useMutation({
+        mutationFn: ({ questionId, answer, hotspotUsed }: { questionId: number; answer: string; hotspotUsed: boolean }) => 
+            api.post(`/student/games/tajweed/sessions/${sessionData.session_id}`, { question_id: questionId, answer, hotspot_used: hotspotUsed }),
+        onSuccess: (data) => {
+            setScore(data.data.score);
+            if (data.data.correct) {
+                setShowConfetti(true);
+                setTimeout(() => setShowConfetti(false), 3000);
+            }
+            if (currentQuestionIndex < (sessionData?.questions.length - 1)) {
+                setCurrentQuestionIndex(currentQuestionIndex + 1);
+            } else {
+                refetch();
+                api.post('/student/leaderboard/update');
+            }
+        },
+    });
+
+    const handleHotspotInteraction = (hotspotId: number) => {
+        setHotspotInteractions(prev => [
+            ...prev,
+            { hotspot_id: hotspotId, interacted_at: new Date().toISOString() },
+        ]);
+    };
+
+    if (!sessionData) return <div>Loading...</div>;
+
+    const currentQuestion = sessionData.questions[currentQuestionIndex];
+    const isCompleted = sessionData.questions.length <= currentQuestionIndex;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+            role="region"
+            aria-label={t('title')}
+        >
+            {showConfetti && <Confetti />}
+            <h1 className="text-3xl font-bold text-gold font-amiri mb-6">{t('title')}</h1>
+            <div className="flex justify-between mb-4">
+                <p className="text-milk font-lora">{t('score')}: {score}</p>
+                <div className="w-16 h-16">
+                    <CircularProgressbar
+                        value={(currentQuestionIndex / sessionData.questions.length) * 100}
+                        text={`${currentQuestionIndex + 1}/${sessionData.questions.length}`}
+                        styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                    />
+                </div>
+            </div>
+            {isCompleted ? (
+                <motion.div
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                    className="bg-white p-4 rounded-lg shadow-md"
+                >
+                    <p className="text-2xl font-bold text-maroon font-amiri">{t('completed')}</p>
+                    <p className="text-milk font-lora">{t('final_score')}: {score}</p>
+                    <p className="text-gold">{t('hasanat_earned')}: {score >= 80 ? sessionData.questions[0].hasanat_per_win : 0}</p>
+                </motion.div>
+            ) : (
+                <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="bg-white p-4 rounded-lg shadow-md"
+                >
+                    <p className="text-2xl font-amiri text-maroon">{currentQuestion.ayah_text}</p>
+                    <p className="text-milk font-lora mt-2">{t('identify_rule')}</p>
+                    {/* Hotspots */}
+                    {currentQuestion.hotspots.map((hotspot: any, index: number) => (
+                        <div key={index} className="mt-4">
+                            {hotspot.type === 'image' ? (
+                                <div className="relative">
+                                    <img src={hotspot.url} alt="Hotspot" className="w-full rounded" />
+                                    <motion.div
+                                        className="absolute bg-gold rounded-full p-2 cursor-pointer"
+                                        style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%` }}
+                                        whileHover={{ scale: 1.2 }}
+                                        onClick={() => handleHotspotInteraction(index)}
+                                        role="button"
+                                        aria-label={`Hotspot: ${hotspot.note}`}
+                                    >
+                                        <span className="text-maroon font-lora">{hotspot.note}</span>
+                                    </motion.div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <audio controls src={hotspot.url} onPlay={() => handleHotspotInteraction(index)} />
+                                    <p className="text-milk font-lora">{hotspot.note}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                    {/* Options */}
+                    <div className="grid grid-cols-2 gap-2 mt-4">
+                        {currentQuestion.options.map((option: string) => (
+                            <motion.button
+                                key={option}
+                                whileHover={{ scale: 1.05 }}
+                                onClick={() => submitAnswer.mutate({
+                                    questionId: currentQuestion.id,
+                                    answer: option,
+                                    hotspotUsed: hotspotInteractions.length > 0,
+                                })}
+                                className="p-2 bg-maroon text-milk rounded"
+                                disabled={submitAnswer.isLoading}
+                            >
+                                {option}
+                            </motion.button>
+                        ))}
+                    </div>
+                </motion.div>
+            )}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Game Center**: Card-based layout with gold-bordered game tiles, glowing on hover.
+  - **Tajweed Treasure Hunt**: Progress ring for question progress, confetti for correct answers, and motivational messages like “MashaAllah, your tajweed is shining!”
+  - **Hotspots**: Interactive image dots with tajweed notes, audio players for pronunciation guides.
+- **Gradients**: Use `bg-gradient-to-br from-maroon to-milk` for the Game Center, `bg-white` for game cards/questions, `text-gold` for accents.
+- **Animations**:
+  - Game Card Entry: Slide-in with `initial={{ y: 20, opacity: 0 }}`.
+  - Hotspot Hover: Scale up with `whileHover={{ scale: 1.2 }}`.
+  - Confetti: Trigger on correct answers and game completion.
+  - Question Transition: Fade-in with `initial={{ y: 20, opacity: 0 }}`.
+- **Typography**:
+  - **Amiri**: For Arabic ayahs and titles (Quranic aesthetic).
+  - **Lora**: For English text and instructions (clean, readable).
+- **Responsive**: Stack game cards on mobile (`grid-cols-1`), use `md:grid-cols-3` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., “Play Game”).
+  - Use `role="region"` for Game Center, `role="button"` for hotspots/options.
+  - Ensure keyboard navigation for game interactions.
+- **Multilingual**: Use `next-intl` for labels:
+  ```json
+  // games/en.json
+  {
+      "game_center": "Game Center",
+      "welcome_message": "Embark on a fun journey to deepen your Quranic knowledge!",
+      "hasanat": "Hasanat",
+      "tajweed_treasure_hunt": {
+          "title": "Tajweed Treasure Hunt",
+          "score": "Score",
+          "identify_rule": "Identify the Tajweed rule for this ayah",
+          "completed": "Game Completed!",
+          "final_score": "Final Score",
+          "hasanat_earned": "Hasanat Earned"
+      }
+  }
+  ```
+- **Offline**: Cache game data and answers in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('game_sessions', { keyPath: 'id' });
+      },
+  });
+  useEffect(() => {
+      if (navigator.onLine) {
+          dbPromise.then(db => db.getAll('game_sessions')).then(sessions => {
+              sessions.forEach(s => submitAnswer.mutateAsync(s));
+          });
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Assignments**: Daily task completion (submissions or “done” status) unlocks the Play Game button.
+2. **Submit System**: Whisper Tajweed feedback is linked to recitation attempts in the game (optional).
+3. **Leaderboard**: Update entries with game scores and Hasanat via `updateLeaderboardEntry`.
+4. **Gratification**: Award “Tajweed Master” badge for high scores (≥80).
+5. **Sujud**: Check for Sajda ayahs in game questions and prompt via Sujud system.
+
+**Example Integration**:
+```tsx
+// src/app/dashboard/games/tajweed_treasure_hunt/page.tsx
+useEffect(() => {
+    if (submitAnswer.isSuccess && isCompleted) {
+        api.post('/student/sujud/check', {
+            surah_id: sessionData.questions[0].surah_id,
+            ayah_id: sessionData.questions[0].ayah_id,
+        });
+    }
+}, [submitAnswer.isSuccess, isCompleted]);
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/components/teacher/AnalyticsOverview.tsx`):
+   ```tsx
+   <div>
+       <p className="text-gold">Game Sessions</p>
+       <p className="text-2xl">{analytics?.total_sessions}</p>
+       <p className="text-milk">Average Score: {Math.round(analytics?.average_score)}%</p>
+       <p className="text-milk">Hotspot Usage: {analytics?.hotspot_usage}</p>
+   </div>
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <p>Game Sessions: {analytics?.data_json.total_sessions}</p>
+   <p>Hotspot Usage: {analytics?.data_json.hotspot_usage}</p>
+   ```
+
+3. **Admin Analytics** (`app/Console/Commands/GenerateAnalyticsSnapshot.php`):
+   ```php
+   $data['total_sessions'] = GameSession::where('created_at', '>=', now()->subWeek())->count();
+   $data['hotspot_usage'] = GameSession::where('created_at', '>=', now()->subWeek())
+       ->whereJsonContains('answers', ['hotspot_used' => true])
+       ->count();
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test GameTest`:
+     ```php
+     public function test_start_tajweed_session()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $response = $this->actingAs($student, 'sanctum')->postJson('/api/student/games/tajweed/start');
+         $response->assertStatus(200)->assertJsonStructure(['session_id', 'questions']);
+         $this->assertDatabaseHas('game_sessions', ['user_id' => $student->id]);
+     }
+
+     public function test_submit_tajweed_answer()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $session = GameSession::factory()->create(['user_id' => $student->id]);
+         $question = TajweedQuestion::factory()->create();
+         $response = $this->actingAs($student, 'sanctum')->postJson("/api/student/games/tajweed/sessions/{$session->id}", [
+             'question_id' => $question->id,
+             'answer' => $question->correct_option,
+             'hotspot_used' => true,
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('game_sessions', ['id' => $session->id, 'score' => 20]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays game center', async () => {
+         render(<GameCenter />);
+         expect(screen.getByText('Game Center')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Tajweed Treasure Hunt')).toBeInTheDocument());
+     });
+
+     test('plays tajweed treasure hunt', async () => {
+         render(<TajweedTreasureHunt />);
+         await waitFor(() => expect(screen.getByText('Identify the Tajweed rule')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard/games/*` to `app/index.html`.
+   - Add cron in cPanel: `* * * * * php /home/username/public_html/artisan queue:work --stop-when-empty`.
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache game and question data for 24 hours.
+  - Paginate questions for large sessions.
+  - Optimize Whisper Tajweed jobs with retry logic (`tries: 3`).
+- **Error Handling**:
+  - Handle invalid hotspot URLs with placeholders.
+  - Queue answers offline, sync on reconnect.
+- **Engagement** (Quranly-inspired):
+  - Show “SubhanAllah, your tajweed is improving!” on correct answers.
+  - Animate hotspot clicks with gold glow effects.
+  - Award badges for game completion and high scores.
+- **UI Perfection**:
+  - Game Center uses gold-bordered cards with vibrant icons.
+  - Tajweed Treasure Hunt features elegant ayah displays and interactive hotspots.
+  - Progress ring and confetti create a celebratory feel.
+- **Tracking**: Teachers see session scores and hotspot usage; admins track engagement metrics.
+- **Offline**: Store game sessions and answers in IndexedDB.
+
+This implementation delivers a fully functional, visually stunning Game Center with the **Tajweed Treasure Hunt**, accessible only to students who complete daily tasks. The system integrates seamlessly with existing features and ensures full tracking. If you need UI mockups, additional games, or further enhancements, let me know!

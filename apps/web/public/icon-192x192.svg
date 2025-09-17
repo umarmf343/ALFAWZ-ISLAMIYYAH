@@ -1,0 +1,16 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle with maroon color -->
+  <circle cx="96" cy="96" r="96" fill="#800020"/>
+  
+  <!-- Crescent moon symbol -->
+  <path d="M96 32C96 32 128 48 128 96C128 144 96 160 96 160C120 160 144 136 144 96C144 56 120 32 96 32Z" fill="#F5F5DC"/>
+  
+  <!-- Star -->
+  <path d="M96 48L100 60L112 60L102 68L106 80L96 72L86 80L90 68L80 60L92 60L96 48Z" fill="#FFD700"/>
+  
+  <!-- Arabic calligraphy inspired design -->
+  <path d="M64 120C64 120 80 112 96 112C112 112 128 120 128 120C128 128 112 136 96 136C80 136 64 128 64 120Z" fill="#F5F5DC" stroke="#FFD700" stroke-width="2"/>
+  
+  <!-- Decorative border -->
+  <circle cx="96" cy="96" r="88" fill="none" stroke="#FFD700" stroke-width="2" opacity="0.5"/>
+</svg>

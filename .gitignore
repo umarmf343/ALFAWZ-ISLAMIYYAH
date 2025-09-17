@@ -1,0 +1,359 @@
+# AlFawz Qur'an Institute — generated with TRAE
+# Author: Auto-scaffold (review required)
+# Comprehensive .gitignore for Laravel + Next.js monorepo
+
+# =============================================================================
+# ENVIRONMENT & SECRETS
+# =============================================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backup
+*.key
+*.pem
+*.p12
+*.pfx
+
+# =============================================================================
+# LARAVEL API (apps/api)
+# =============================================================================
+
+# Laravel specific
+apps/api/.env
+apps/api/.env.*
+apps/api/bootstrap/cache/*
+apps/api/storage/app/*
+apps/api/storage/framework/cache/*
+apps/api/storage/framework/sessions/*
+apps/api/storage/framework/testing/*
+apps/api/storage/framework/views/*
+apps/api/storage/logs/*
+apps/api/storage/debugbar/*
+
+# Keep storage structure
+!apps/api/storage/app/.gitkeep
+!apps/api/storage/framework/.gitkeep
+!apps/api/storage/framework/cache/.gitkeep
+!apps/api/storage/framework/sessions/.gitkeep
+!apps/api/storage/framework/testing/.gitkeep
+!apps/api/storage/framework/views/.gitkeep
+!apps/api/storage/logs/.gitkeep
+
+# Laravel Mix / Vite
+apps/api/public/hot
+apps/api/public/storage
+apps/api/public/build
+apps/api/public/mix-manifest.json
+
+# Laravel Telescope
+apps/api/storage/telescope/*
+
+# Laravel Horizon
+apps/api/storage/horizon/*
+
+# IDE Helper
+apps/api/_ide_helper.php
+apps/api/_ide_helper_models.php
+apps/api/.phpstorm.meta.php
+
+# =============================================================================
+# NEXT.JS WEB (apps/web)
+# =============================================================================
+
+# Next.js build outputs
+apps/web/.next/
+apps/web/out/
+apps/web/build/
+apps/web/dist/
+
+# Next.js cache
+apps/web/.next/cache/
+
+# Vercel
+apps/web/.vercel
+
+# =============================================================================
+# NODE.JS & NPM
+# =============================================================================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Package manager lock files (keep one, ignore others)
+# yarn.lock
+# pnpm-lock.yaml
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# ESLint cache
+.eslintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# =============================================================================
+# PHP & COMPOSER
+# =============================================================================
+
+# Composer
+vendor/
+composer.phar
+composer.lock
+
+# PHPUnit
+.phpunit.result.cache
+phpunit.xml
+coverage.xml
+
+# PHP CS Fixer
+.php_cs.cache
+.php-cs-fixer.cache
+
+# =============================================================================
+# DATABASES
+# =============================================================================
+
+# SQLite
+*.sqlite
+*.sqlite3
+*.db
+
+# MySQL dumps
+*.sql
+*.dump
+
+# =============================================================================
+# OPERATING SYSTEMS
+# =============================================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# IDEs & EDITORS
+# =============================================================================
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.swp
+*.swo
+*~
+
+# Sublime Text
+*.tmlanguage.cache
+*.tmPreferences.cache
+*.stTheme.cache
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# LOGS & TEMPORARY FILES
+# =============================================================================
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Temporary folders
+tmp/
+temp/
+
+# =============================================================================
+# BUILD & DEPLOYMENT
+# =============================================================================
+
+# Build outputs
+build/
+dist/
+out/
+
+# Static exports (Next.js to Laravel public)
+apps/api/public/app/*
+!apps/api/public/app/.gitkeep
+
+# Deployment artifacts
+*.tar.gz
+*.zip
+*.rar
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+# Test coverage
+coverage/
+.coverage
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# =============================================================================
+# CACHING & OPTIMIZATION
+# =============================================================================
+
+# Various caches
+.cache/
+.parcel-cache/
+.sass-cache/
+
+# =============================================================================
+# MEDIA & UPLOADS
+# =============================================================================
+
+# User uploaded files (should be on S3 in production)
+apps/api/storage/app/public/uploads/*
+!apps/api/storage/app/public/uploads/.gitkeep
+
+# Generated thumbnails
+thumbnails/
+
+# =============================================================================
+# DOCUMENTATION
+# =============================================================================
+
+# Generated docs
+docs/build/
+docs/_build/
+
+# =============================================================================
+# MONITORING & ANALYTICS
+# =============================================================================
+
+# Sentry
+.sentryclirc
+
+# =============================================================================
+# CUSTOM PROJECT FILES
+# =============================================================================
+
+# Local development overrides
+local.config.js
+local.config.php
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Personal notes
+NOTES.md
+TODO.md
+.personal/
+
+# =============================================================================
+# KEEP IMPORTANT STRUCTURE FILES
+# =============================================================================
+
+# Keep important empty directories
+!.gitkeep
+!.htaccess
+
+# Keep example files
+!*.example
+!*.sample
+!*.template

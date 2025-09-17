@@ -1,0 +1,1023 @@
+To enhance the **Assignment System** for the **AlFawz Qur’an Institute** app by adding a **Schedule System** for teachers and a **Submit System** for students, while incorporating the **hotspot** functionality and building on the previously provided systems (memorization, gratification, Sujud, leaderboard, and assignments), I’ll provide a comprehensive, detailed guide. This implementation will meet the **Acceptance Criteria**, ensuring students can read Qur’an text, play audio, track Hasanat, receive assignment notifications, interact with image/audio hotspots, record recitations with Whisper Tajweed AI feedback, and mark assignments as “done” or “later.” Teachers will be able to create classes, schedule assignments with recurring or one-time options, add hotspots, review submissions, and track statuses. The system will align with the app’s spiritual aesthetic (maroon #7A001F, milk #FAF7F2, gold #FFD700 gradients, Framer Motion animations), ensure mobile responsiveness, accessibility, and cPanel compatibility (file-based caching, no Redis). All activities will be fully tracked for teacher and admin oversight, using Laravel 11, Next.js 14+, and MySQL.
+
+Drawing inspiration from **Quranly**’s habit-building and gamification (e.g., streaks, progress tracking, community features), the Assignment System will include a robust Schedule System for teachers to plan assignments and a Submit System for students to manage submissions efficiently. The system will enhance engagement with motivational messages, badges, and interactive hotspot features, ensuring a seamless and spiritually enriching experience.
+
+---
+
+## Enhanced Assignment System with Schedule and Submit Systems
+
+### Objective
+Enhance the Assignment System to include:
+- **Schedule System** (Teachers):
+  - Create and manage assignment schedules (one-time or recurring, e.g., weekly Surah Al-Kahf for Jumu’ah).
+  - Assign tasks to classes with image/audio hotspots (e.g., tajweed rules, tafsir audio).
+  - Set due dates, recurrence patterns, and notifications.
+  - Track assignment progress and student submissions.
+- **Submit System** (Students):
+  - Receive and view scheduled assignments via notifications on the Student Dashboard.
+  - Read Qur’an text, play audio, and interact with hotspots.
+  - Record and submit recitations with Whisper Tajweed AI feedback (if enabled).
+  - Mark assignments as “done” or “later,” with status updates visible to teachers.
+  - Track Hasanat earned from assignments.
+- **UI/UX**:
+  - Use maroon, milk, gold gradients and Framer Motion animations (e.g., confetti on submission).
+  - Display progress rings, interactive hotspot overlays, and motivational messages.
+  - Ensure mobile responsiveness, accessibility, and multilingual support.
+- **Tracking**:
+  - Full tracking for teachers (real-time submission statuses, hotspot interactions).
+  - Admin analytics on schedule adherence, completion rates, and hotspot usage.
+- **Integration**:
+  - Link with memorization, gratification, Sujud, and leaderboard systems.
+  - Support offline mode and cPanel deployment.
+
+---
+
+## Phase 1: Backend Enhancements
+
+### Step 1.1: Update Database Models
+Enhance the database to support assignment schedules, submissions, and tracking.
+
+1. **Assignment Schedules Table**:
+   ```bash
+   php artisan make:migration create_assignment_schedules_table
+   ```
+   ```php
+   // database/migrations/xxxx_create_assignment_schedules_table.php
+   Schema::create('assignment_schedules', function (Blueprint $table) {
+       $table->id();
+       $table->foreignId('class_id')->constrained()->onDelete('cascade');
+       $table->string('title');
+       $table->text('description')->nullable();
+       $table->integer('surah_id');
+       $table->json('ayah_ids'); // e.g., [1, 2, 3]
+       $table->json('hotspots')->nullable(); // e.g., [{"type": "image", "url": "s3://tajweed.jpg", "x": 50, "y": 50, "note": "Madd"}, {"type": "audio", "url": "s3://tafsir.mp3"}]
+       $table->string('recurrence')->nullable(); // daily, weekly, monthly, null (one-time)
+       $table->date('start_date');
+       $table->date('end_date')->nullable();
+       $table->integer('hasanat')->default(0);
+       $table->timestamps();
+   });
+   ```
+
+2. **Assignments Table** (update to link with schedules):
+   ```php
+   $table->foreignId('schedule_id')->nullable()->constrained('assignment_schedules')->onDelete('cascade');
+   ```
+
+3. **Submissions Table** (update for submission tracking):
+   ```php
+   $table->json('hotspot_interactions')->nullable(); // e.g., [{"hotspot_id": 1, "interacted_at": "2025-09-12T12:00:00Z"}]
+   ```
+
+4. **Run Migrations**: `php artisan migrate`.
+
+### Step 1.2: Backend APIs
+Update `app/Http/Controllers/Api/TeacherController.php` and `StudentController.php`.
+
+1. **Teacher: Create Assignment Schedule**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function createAssignmentSchedule(Request $request, ClassModel $class)
+   {
+       $this->authorize('update', $class);
+       $validated = $request->validate([
+           'title' => 'required|string|max:255',
+           'description' => 'nullable|string',
+           'surah_id' => 'required|integer|min:1|max:114',
+           'ayah_ids' => 'required|array',
+           'ayah_ids.*' => 'integer',
+           'hotspots' => 'nullable|array',
+           'hotspots.*.type' => 'required|in:image,audio',
+           'hotspots.*.url' => 'required|url',
+           'hotspots.*.x' => 'nullable|numeric|min:0|max:100',
+           'hotspots.*.y' => 'nullable|numeric|min:0|max:100',
+           'hotspots.*.note' => 'nullable|string',
+           'recurrence' => 'nullable|in:daily,weekly,monthly',
+           'start_date' => 'required|date|after:now',
+           'end_date' => 'nullable|date|after:start_date',
+       ]);
+
+       $hasanat = $this->calculateAssignmentHasanat($validated['surah_id'], $validated['ayah_ids']);
+       $schedule = AssignmentSchedule::create([
+           'class_id' => $class->id,
+           ...$validated,
+           'hasanat' => $hasanat,
+       ]);
+
+       // Create initial assignment instance
+       $this->generateAssignmentInstances($schedule);
+
+       // Notify students
+       Notification::send($class->members, new AssignmentScheduleCreated($schedule));
+
+       return response()->json($schedule);
+   }
+
+   private function generateAssignmentInstances(AssignmentSchedule $schedule)
+   {
+       $start = Carbon::parse($schedule->start_date);
+       $end = $schedule->end_date ? Carbon::parse($schedule->end_date) : $start->copy()->addMonth();
+       $dates = [];
+
+       if (!$schedule->recurrence) {
+           $dates[] = $start;
+       } else {
+           while ($start <= $end) {
+               $dates[] = $start->copy();
+               if ($schedule->recurrence === 'daily') {
+                   $start->addDay();
+               } elseif ($schedule->recurrence === 'weekly') {
+                   $start->addWeek();
+               } else {
+                   $start->addMonth();
+               }
+           }
+       }
+
+       foreach ($dates as $date) {
+           Assignment::create([
+               'class_id' => $schedule->class_id,
+               'schedule_id' => $schedule->id,
+               'title' => $schedule->title,
+               'description' => $schedule->description,
+               'surah_id' => $schedule->surah_id,
+               'ayah_ids' => $schedule->ayah_ids,
+               'hotspots' => $schedule->hotspots,
+               'due_date' => $date->copy()->endOfDay(),
+               'hasanat' => $schedule->hasanat,
+           ]);
+       }
+   }
+
+   private function calculateAssignmentHasanat($surahId, $ayahIds)
+   {
+       return Cache::remember("surah:{$surahId}:letters", 3600 * 24, function () use ($surahId, $ayahIds) {
+           $client = new Client();
+           $response = $client->get("https://api.alquran.cloud/v1/surah/{$surahId}/uthmani");
+           $ayahs = collect(json_decode($response->getBody(), true)['data']['ayahs'])
+               ->whereIn('numberInSurah', $ayahIds)
+               ->pluck('text')
+               ->join('');
+           return mb_strlen(preg_replace('/[^\p{Arabic}]/u', '', $ayahs), 'UTF-8') * 10;
+       });
+   }
+   ```
+
+2. **Teacher: Update Assignment Schedule**:
+   ```php
+   public function updateAssignmentSchedule(Request $request, AssignmentSchedule $schedule)
+   {
+       $this->authorize('update', $schedule->class);
+       $validated = $request->validate([
+           'title' => 'string|max:255',
+           'description' => 'nullable|string',
+           'surah_id' => 'integer|min:1|max:114',
+           'ayah_ids' => 'array',
+           'ayah_ids.*' => 'integer',
+           'hotspots' => 'nullable|array',
+           'hotspots.*.type' => 'required|in:image,audio',
+           'hotspots.*.url' => 'required|url',
+           'hotspots.*.x' => 'nullable|numeric|min:0|max:100',
+           'hotspots.*.y' => 'nullable|numeric|min:0|max:100',
+           'hotspots.*.note' => 'nullable|string',
+           'recurrence' => 'nullable|in:daily,weekly,monthly',
+           'start_date' => 'date|after:now',
+           'end_date' => 'nullable|date|after:start_date',
+       ]);
+
+       $schedule->update($validated);
+       Assignment::where('schedule_id', $schedule->id)->delete();
+       $this->generateAssignmentInstances($schedule);
+
+       return response()->json($schedule);
+   }
+   ```
+
+3. **Student: Get Assignments** (updated to include schedules):
+   ```php
+   // app/Http/Controllers/Api/StudentController.php
+   public function getAssignments(Request $request)
+   {
+       $assignments = Assignment::whereHas('class.members', fn($q) => $q->where('user_id', auth()->id()))
+           ->with(['schedule', 'submissions' => fn($q) => $q->where('student_id', auth()->id())])
+           ->get()
+           ->map(function ($assignment) {
+               $submission = $assignment->submissions->first();
+               $ayahDetails = Cache::remember("assignment:{$assignment->id}:ayahs", 3600 * 24, function () use ($assignment) {
+                   $client = new Client();
+                   return collect($assignment->ayah_ids)->map(function ($ayahId) use ($assignment, $client) {
+                       $response = $client->get("https://api.alquran.cloud/v1/ayah/{$assignment->surah_id}:{$ayahId}/uthmani");
+                       return json_decode($response->getBody(), true)['data'];
+                   })->toArray();
+               });
+               return [
+                   ...$assignment->toArray(),
+                   'student_status' => $submission?->student_status ?? 'pending',
+                   'submission_id' => $submission?->id,
+                   'ayah_details' => $ayahDetails,
+               ];
+           });
+       return response()->json($assignments);
+   }
+   ```
+
+4. **Student: Submit Recitation** (Submit System):
+   ```php
+   public function submitRecitation(Request $request, Assignment $assignment)
+   {
+       $validated = $request->validate([
+           'audio' => 'required|file|mimes:mp3,wav|max:10240',
+           'hotspot_interactions' => 'nullable|array',
+           'hotspot_interactions.*.hotspot_id' => 'required|integer',
+           'hotspot_interactions.*.interacted_at' => 'required|date',
+       ]);
+
+       $user = auth()->user();
+       $submission = Submission::firstOrCreate(
+           ['assignment_id' => $assignment->id, 'student_id' => $user->id],
+           ['status' => 'submitted', 'student_status' => 'done']
+       );
+
+       $path = $request->file('audio')->store('recitations', 's3');
+       $audio = AudioAsset::create([
+           'owner_type' => Submission::class,
+           'owner_id' => $submission->id,
+           's3_url' => Storage::disk('s3')->url($path),
+           'duration' => 60,
+       ]);
+
+       $submission->update(['hotspot_interactions' => $validated['hotspot_interactions'] ?? []]);
+
+       if ($user->preferences['whisper_tajweed_enabled'] ?? false) {
+           TranscribeRecitation::dispatch($submission, $path, $assignment->surah_id, $assignment->ayah_ids[0]);
+       }
+
+       $progresses = collect($assignment->ayah_ids)->map(function ($ayahId) use ($user, $assignment) {
+           $progress = QuranProgress::firstOrCreate([
+               'user_id' => $user->id,
+               'surah_id' => $assignment->surah_id,
+               'ayah_id' => $ayahId,
+           ], ['recited_count' => 1]);
+           $progress->recited_count++;
+           $progress->save();
+           return $progress;
+       });
+
+       $user->hasanat_total += $assignment->hasanat;
+       $user->save();
+
+       Badge::create([
+           'user_id' => $user->id,
+           'type' => 'assignment_submission',
+           'title' => "Submitted: {$assignment->title}",
+           'description' => "Submitted recitation for Surah {$assignment->surah_id}",
+           'hasanat' => $assignment->hasanat,
+           'awarded_at' => now(),
+       ]);
+
+       $this->updateLeaderboardEntry($user);
+
+       Notification::send($assignment->class->teacher, new SubmissionReceived($submission));
+
+       return response()->json(['submission_id' => $submission->id, 'message' => 'Recitation submitted']);
+   }
+   ```
+
+5. **Student: Mark Assignment Status**:
+   ```php
+   public function markAssignment(Request $request, Assignment $assignment)
+   {
+       $validated = $request->validate(['status' => 'required|in:done,later']);
+       $submission = Submission::firstOrCreate(
+           ['assignment_id' => $assignment->id, 'student_id' => auth()->id()],
+           ['status' => 'pending']
+       );
+       $submission->student_status = $validated['status'];
+       $submission->marked_at = now();
+       $submission->save();
+
+       if ($validated['status'] === 'done' && !$submission->audio_id) {
+           $user = auth()->user();
+           $user->hasanat_total += $assignment->hasanat;
+           $user->save();
+           Badge::create([
+               'user_id' => $user->id,
+               'type' => 'assignment_completion',
+               'title' => "Completed: {$assignment->title}",
+               'description' => "Marked assignment for Surah {$assignment->surah_id} as done",
+               'hasanat' => $assignment->hasanat,
+               'awarded_at' => now(),
+           ]);
+           $this->updateLeaderboardEntry($user);
+       }
+
+       Notification::send($assignment->class->teacher, new AssignmentStatusUpdated($submission));
+
+       return response()->json(['message' => 'Status updated']);
+   }
+   ```
+
+6. **Teacher: Review Submission** (unchanged from previous):
+   ```php
+   public function reviewSubmission(Request $request, Submission $submission)
+   {
+       $this->authorize('update', $submission->assignment->class);
+       $validated = $request->validate([
+           'score' => 'required|integer|min:0|max:100',
+           'comments' => 'nullable|string',
+       ]);
+
+       $submission->update([
+           'status' => 'graded',
+           'score' => $validated['score'],
+           'comments' => $validated['comments'],
+       ]);
+
+       Notification::send($submission->student, new SubmissionGraded($submission));
+
+       return response()->json(['message' => 'Submission reviewed']);
+   }
+   ```
+
+**Notifications**:
+1. **Assignment Schedule Created**:
+   ```php
+   // app/Notifications/AssignmentScheduleCreated.php
+   namespace App\Notifications;
+
+   use App\Models\AssignmentSchedule;
+   use Illuminate\Notifications\Messages\MailMessage;
+   use Illuminate\Notifications\Notification;
+
+   class AssignmentScheduleCreated extends Notification
+   {
+       public function __construct(public AssignmentSchedule $schedule) {}
+
+       public function via($notifiable)
+       {
+           return ['mail', 'database'];
+       }
+
+       public function toMail($notifiable)
+       {
+           return (new MailMessage)
+               ->subject('New Assignment Schedule')
+               ->line("New schedule: {$this->schedule->title}")
+               ->line("Recurrence: {$this->schedule->recurrence ?? 'One-time'}")
+               ->action('View Schedule', url('/dashboard/assignments'));
+       }
+
+       public function toArray($notifiable)
+       {
+           return [
+               'schedule_id' => $this->schedule->id,
+               'title' => $this->schedule->title,
+               'message' => 'New assignment schedule received',
+           ];
+       }
+   }
+   ```
+
+**Teacher/Admin Sync**:
+1. **Teacher Oversight**:
+   ```php
+   // app/Http/Controllers/Api/TeacherController.php
+   public function getClassSchedules(Request $request, ClassModel $class)
+   {
+       $this->authorize('view', $class);
+       return $class->schedules()->with(['assignments.submissions' => fn($q) => $q->with('student')])->get();
+   }
+   ```
+
+2. **Admin Analytics**:
+   ```php
+   // app/Console/Commands/GenerateAnalyticsSnapshot.php
+   $data['schedule_adherence'] = Assignment::whereNotNull('schedule_id')
+       ->where('due_date', '>=', now()->subWeek())
+       ->whereHas('submissions', fn($q) => $q->where('student_status', 'done'))
+       ->count() / max(1, Assignment::whereNotNull('schedule_id')->count()) * 100;
+   $data['hotspot_interactions'] = Submission::whereNotNull('hotspot_interactions')
+       ->where('created_at', '>=', now()->subWeek())
+       ->count();
+   ```
+
+**Routes** (`routes/api.php`):
+```php
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('teacher')->group(function () {
+        Route::post('/classes/{class}/schedules', [TeacherController::class, 'createAssignmentSchedule']);
+        Route::put('/schedules/{assignmentSchedule}', [TeacherController::class, 'updateAssignmentSchedule']);
+        Route::get('/classes/{class}/schedules', [TeacherController::class, 'getClassSchedules']);
+    });
+});
+```
+
+**Cron Job for Recurring Schedules**:
+Add a Laravel command to generate new assignment instances for recurring schedules:
+```php
+// app/Console/Commands/GenerateScheduledAssignments.php
+namespace App\Console\Commands;
+
+use App\Models\AssignmentSchedule;
+use Illuminate\Console\Command;
+
+class GenerateScheduledAssignments extends Command
+{
+    protected $signature = 'assignments:generate';
+    protected $description = 'Generate assignment instances for recurring schedules';
+
+    public function handle()
+    {
+        AssignmentSchedule::whereNotNull('recurrence')
+            ->where('end_date', '>=', now())
+            ->each(function ($schedule) {
+                $lastAssignment = $schedule->assignments()->latest('due_date')->first();
+                $nextDate = $lastAssignment ? Carbon::parse($lastAssignment->due_date) : Carbon::parse($schedule->start_date);
+                if ($schedule->recurrence === 'daily') {
+                    $nextDate->addDay();
+                } elseif ($schedule->recurrence === 'weekly') {
+                    $nextDate->addWeek();
+                } else {
+                    $nextDate->addMonth();
+                }
+                if ($nextDate <= now() && $nextDate <= Carbon::parse($schedule->end_date ?? now()->addYear())) {
+                    Assignment::create([
+                        'class_id' => $schedule->class_id,
+                        'schedule_id' => $schedule->id,
+                        'title' => $schedule->title,
+                        'description' => $schedule->description,
+                        'surah_id' => $schedule->surah_id,
+                        'ayah_ids' => $schedule->ayah_ids,
+                        'hotspots' => $schedule->hotspots,
+                        'due_date' => $nextDate->endOfDay(),
+                        'hasanat' => $schedule->hasanat,
+                    ]);
+                }
+            });
+    }
+}
+```
+Add to `app/Console/Kernel.php`:
+```php
+protected $commands = [GenerateScheduledAssignments::class];
+protected function schedule(Schedule $schedule)
+{
+    $schedule->command('assignments:generate')->daily();
+}
+```
+
+---
+
+## Phase 2: Frontend Implementation
+
+### Step 2.1: Update Student Dashboard
+Modify `src/app/dashboard/page.tsx` to highlight assignment notifications:
+```tsx
+import { redirect } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import ProgressSection from '@/components/ProgressSection';
+import DailyRecommendations from '@/components/DailyRecommendations';
+import RecentSurahs from '@/components/RecentSurahs';
+import AyahOfDay from '@/components/AyahOfDay';
+import TajweedToggle from '@/components/TajweedToggle';
+import RecitationSubmission from '@/components/RecitationSubmission';
+import MemorizationSection from '@/components/MemorizationSection';
+import GratificationSection from '@/components/GratificationSection';
+import SujudSection from '@/components/SujudSection';
+import LeaderboardPanel from '@/components/LeaderboardPanel';
+import AssignmentPanel from '@/components/AssignmentPanel';
+
+export default function StudentDashboard() {
+    const { data: user } = useQuery(['user'], () => api.get('/user').then(res => res.data));
+    const { data: notifications } = useQuery(['notifications'], () => 
+        api.get('/notifications').then(res => res.data.filter((n: any) => n.type.includes('Assignment')))
+    );
+    if (!user?.roles.includes('student')) redirect('/');
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            className="bg-gradient-to-br from-maroon to-milk min-h-screen p-4 md:p-8"
+        >
+            <h1 className="text-2xl md:text-3xl font-bold text-gold mb-4">
+                {user.greeting}
+            </h1>
+            {notifications?.length > 0 && (
+                <motion.div
+                    initial={{ y: -20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    className="bg-gold p-4 rounded-lg mb-4"
+                >
+                    <p className="text-maroon">New Assignments: {notifications.length}</p>
+                    {notifications.map((n: any) => (
+                        <p key={n.id}>{n.data.message}</p>
+                    ))}
+                </motion.div>
+            )}
+            <TajweedToggle />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ProgressSection />
+                <AssignmentPanel />
+                <GratificationSection />
+                <SujudSection />
+                <MemorizationSection />
+                <RecitationSubmission />
+                <DailyRecommendations />
+                <RecentSurahs />
+                <AyahOfDay />
+                <LeaderboardPanel />
+            </div>
+        </motion.div>
+    );
+}
+```
+
+### Step 2.2: Assignment Panel Component (Submit System)
+Update `src/components/AssignmentPanel.tsx`:
+```tsx
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import Confetti from 'react-confetti';
+import { FaCheck, FaClock, FaPlay, FaMicrophone, FaStop } from 'react-icons/fa';
+import { CircularProgressbar } from 'react-circular-progressbar';
+import 'react-circular-progressbar/dist/styles.css';
+
+export default function AssignmentPanel() {
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [activeAssignment, setActiveAssignment] = useState(null);
+    const { data: assignments, refetch } = useQuery(['assignments'], () => 
+        api.get('/student/assignments').then(res => res.data)
+    );
+    const markAssignment = useMutation({
+        mutationFn: ({ assignmentId, status }: { assignmentId: number; status: 'done' | 'later' }) => 
+            api.post(`/student/assignments/${assignmentId}/mark`, { status }),
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            refetch();
+            api.post('/student/leaderboard/update');
+        },
+    });
+    const submitRecitation = useMutation({
+        mutationFn: ({ assignmentId, audio, hotspotInteractions }: { assignmentId: number; audio: Blob; hotspotInteractions: any[] }) => {
+            const formData = new FormData();
+            formData.append('audio', audio, 'recitation.mp3');
+            formData.append('hotspot_interactions', JSON.stringify(hotspotInteractions));
+            return api.post(`/student/assignments/${assignmentId}/recite`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+        },
+        onSuccess: () => {
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 5000);
+            refetch();
+            api.post('/student/leaderboard/update');
+        },
+    });
+
+    const [isRecording, setIsRecording] = useState(false);
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [hotspotInteractions, setHotspotInteractions] = useState<any[]>([]);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+    const startRecording = async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderRef.current = new MediaRecorder(stream);
+        const chunks: Blob[] = [];
+        mediaRecorderRef.current.ondataavailable = e => chunks.push(e.data);
+        mediaRecorderRef.current.onstop = () => setAudioBlob(new Blob(chunks, { type: 'audio/mp3' }));
+        mediaRecorderRef.current.start();
+        setIsRecording(true);
+    };
+
+    const stopRecording = () => {
+        mediaRecorderRef.current?.stop();
+        setIsRecording(false);
+    };
+
+    const handleHotspotInteraction = (hotspotId: number) => {
+        setHotspotInteractions(prev => [
+            ...prev,
+            { hotspot_id: hotspotId, interacted_at: new Date().toISOString() },
+        ]);
+    };
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            {showConfetti && <Confetti />}
+            <h2 className="text-xl font-bold text-maroon">Assignments</h2>
+            {assignments?.map((assignment: any) => (
+                <motion.div
+                    key={assignment.id}
+                    initial={{ scale: 0.95 }}
+                    animate={{ scale: 1 }}
+                    className="mt-4 border p-4 rounded"
+                    onClick={() => setActiveAssignment(assignment)}
+                >
+                    <div className="flex items-center">
+                        <div className="w-16 h-16">
+                            <CircularProgressbar
+                                value={assignment.student_status === 'done' ? 100 : assignment.student_status === 'later' ? 50 : 0}
+                                text={assignment.student_status === 'done' ? '✓' : assignment.student_status === 'later' ? '⌛' : ''}
+                                styles={{ path: { stroke: '#FFD700' }, text: { fill: '#7A001F' } }}
+                            />
+                        </div>
+                        <div className="ml-4 flex-1">
+                            <p className="font-bold">{assignment.title}</p>
+                            <p>Surah {assignment.surah_id}, Ayahs {assignment.ayah_ids.join(', ')}</p>
+                            <p>Due: {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString() : 'No due date'}</p>
+                            {assignment.schedule && (
+                                <p>Recurrence: {assignment.schedule.recurrence || 'One-time'}</p>
+                            )}
+                            <p>Hasanat: {assignment.hasanat}</p>
+                        </div>
+                    </div>
+                    {activeAssignment?.id === assignment.id && (
+                        <div className="mt-4">
+                            <p className="text-milk">{assignment.description}</p>
+                            {/* Quran Text and Audio */}
+                            {assignment.ayah_details?.map((ayah: any) => (
+                                <div key={ayah.numberInSurah} className="mt-2">
+                                    <p className="text-2xl font-arabic">{ayah.text}</p>
+                                    <audio controls src={ayah.audio} className="mt-2" />
+                                </div>
+                            ))}
+                            {/* Hotspots */}
+                            {assignment.hotspots?.map((hotspot: any, index: number) => (
+                                <div key={index} className="mt-2">
+                                    {hotspot.type === 'image' ? (
+                                        <div className="relative">
+                                            <img src={hotspot.url} alt="Hotspot" className="w-full rounded" />
+                                            <motion.div
+                                                className="absolute bg-gold rounded-full p-2 cursor-pointer"
+                                                style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%` }}
+                                                whileHover={{ scale: 1.2 }}
+                                                onClick={() => handleHotspotInteraction(index)}
+                                                role="button"
+                                                aria-label={`Hotspot: ${hotspot.note}`}
+                                            >
+                                                <span className="text-maroon">{hotspot.note}</span>
+                                            </motion.div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <audio controls src={hotspot.url} onPlay={() => handleHotspotInteraction(index)} />
+                                            <p>{hotspot.note}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {/* Recitation Submission */}
+                            <div className="flex space-x-2 mt-2">
+                                <button
+                                    onClick={isRecording ? stopRecording : startRecording}
+                                    className={`p-2 rounded ${isRecording ? 'bg-red-500' : 'bg-gold'}`}
+                                    aria-label={isRecording ? 'Stop Recording' : 'Start Recording'}
+                                >
+                                    {isRecording ? <FaStop /> : <FaMicrophone />}
+                                </button>
+                                <button
+                                    onClick={() => submitRecitation.mutate({ 
+                                        assignmentId: assignment.id, 
+                                        audio: audioBlob, 
+                                        hotspotInteractions 
+                                    })}
+                                    disabled={!audioBlob || submitRecitation.isLoading}
+                                    className="p-2 bg-maroon text-milk rounded"
+                                    aria-label="Submit Recitation"
+                                >
+                                    Submit Recitation
+                                </button>
+                            </div>
+                            {/* Status Buttons */}
+                            <div className="flex space-x-2 mt-2">
+                                <button
+                                    onClick={() => markAssignment.mutate({ assignmentId: assignment.id, status: 'done' })}
+                                    className="p-2 bg-gold rounded"
+                                    aria-label="Mark Done"
+                                >
+                                    <FaCheck /> Done
+                                </button>
+                                <button
+                                    onClick={() => markAssignment.mutate({ assignmentId: assignment.id, status: 'later' })}
+                                    className="p-2 bg-maroon text-milk rounded"
+                                    aria-label="Mark Later"
+                                >
+                                    <FaClock /> Later
+                                </button>
+                            </div>
+                            {assignment.submission_id && (
+                                <div className="mt-2">
+                                    <p>Status: {assignment.student_status}</p>
+                                    {assignment.submissions?.[0]?.whisper_feedback && (
+                                        <div>
+                                            <p>AI Feedback: {assignment.submissions[0].whisper_feedback.accuracy}%</p>
+                                            <p>Errors: {assignment.submissions[0].whisper_feedback.errors.join(', ')}</p>
+                                        </div>
+                                    )}
+                                    {assignment.submissions?.[0]?.score && (
+                                        <p>Teacher Score: {assignment.submissions[0].score}%</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </motion.div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.3: Teacher Schedule Management
+Create `src/components/TeacherSchedulePanel.tsx`:
+```tsx
+import { useQuery, useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { motion } from 'framer-motion';
+import { FaPlus, FaCalendar } from 'react-icons/fa';
+
+export default function TeacherSchedulePanel() {
+    const { data: classes } = useQuery(['classes'], () => api.get('/teacher/classes').then(res => res.data));
+    const createSchedule = useMutation({
+        mutationFn: ({ classId, data }: { classId: number; data: any }) => 
+            api.post(`/teacher/classes/${classId}/schedules`, data),
+    });
+
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="bg-white p-4 rounded-lg shadow-md"
+        >
+            <h2 className="text-xl font-bold text-maroon">Assignment Schedules</h2>
+            {classes?.map((classItem: any) => (
+                <div key={classItem.id} className="mt-4">
+                    <h3>{classItem.name}</h3>
+                    <button
+                        onClick={() => createSchedule.mutate({
+                            classId: classItem.id,
+                            data: {
+                                title: 'Weekly Tajweed Practice',
+                                surah_id: 18,
+                                ayah_ids: [1, 2, 3],
+                                hotspots: [
+                                    { type: 'image', url: 'https://example.com/tajweed.jpg', x: 50, y: 50, note: 'Madd rule' },
+                                    { type: 'audio', url: 'https://example.com/tafsir.mp3', note: 'Tafsir' },
+                                ],
+                                recurrence: 'weekly',
+                                start_date: new Date().toISOString().split('T')[0],
+                                end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                            },
+                        })}
+                        className="p-2 bg-gold rounded"
+                        aria-label="Create Schedule"
+                    >
+                        <FaCalendar /> New Schedule
+                    </button>
+                    {classItem.schedules?.map((schedule: any) => (
+                        <div key={schedule.id} className="mt-2 border p-4 rounded">
+                            <p>{schedule.title} ({schedule.recurrence || 'One-time'})</p>
+                            <p>Assignments:</p>
+                            {schedule.assignments.map((assignment: any) => (
+                                <div key={assignment.id} className="mt-2">
+                                    <p>Due: {new Date(assignment.due_date).toLocaleDateString()}</p>
+                                    <p>Submissions:</p>
+                                    {assignment.submissions.map((submission: any) => (
+                                        <div key={submission.id}>
+                                            <p>Student: {submission.student.name}</p>
+                                            <p>Status: {submission.student_status}</p>
+                                            {submission.audio && <audio controls src={submission.audio.s3_url} />}
+                                            {submission.whisper_feedback && (
+                                                <p>AI Feedback: {submission.whisper_feedback.accuracy}%</p>
+                                            )}
+                                            <input
+                                                type="number"
+                                                placeholder="Score"
+                                                className="p-2 rounded"
+                                                onChange={e => api.post(`/teacher/submissions/${submission.id}/review`, {
+                                                    score: Number(e.target.value),
+                                                    comments: 'Great effort!',
+                                                })}
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            ))}
+        </motion.div>
+    );
+}
+```
+
+### Step 2.4: UI/UX Enhancements
+- **Inspired by Quranly**:
+  - **Progress Visualization**: Use CircularProgressbar for assignment status (done: 100%, later: 50%, pending: 0%).
+  - **Habit Formation**: Show messages like “MashaAllah, your consistency is inspiring!” on submission.
+  - **Interactive Hotspots**: Clickable image dots with notes, playable audio for tafsir/pronunciation.
+  - **Schedule Clarity**: Display recurrence (e.g., “Weekly”) with calendar icons.
+- **Gradients**: Use `bg-gradient-to-r from-maroon to-gold` for active assignments/schedules, `bg-white` for panels.
+- **Animations**:
+  - Assignment Entry: Fade-in with `initial={{ scale: 0.95 }}`.
+  - Hotspot Hover: Scale up with `whileHover={{ scale: 1.2 }}`.
+  - Confetti: Trigger on submission or marking done.
+  - Notification Slide: Slide-in for new assignments with `initial={{ y: -20, opacity: 0 }}`.
+- **Responsive**: Stack assignments on mobile (`flex-col`), use `md:grid-cols-2` for desktop.
+- **Accessibility**:
+  - Add `aria-label` to buttons (e.g., “Submit Recitation”).
+  - Use `role="alert"` for notifications, `role="button"` for hotspots.
+  - Ensure keyboard navigation for hotspot interactions.
+- **Multilingual**: Use `next-intl` for labels:
+  ```tsx
+  import { useTranslations } from 'next-intl';
+  const t = useTranslations('assignments');
+  <h2>{t('title')}</h2>
+  ```
+- **Offline**: Queue submissions and hotspot interactions in IndexedDB:
+  ```tsx
+  import { openDB } from 'idb';
+  const dbPromise = openDB('alfawz', 1, {
+      upgrade(db) {
+          db.createObjectStore('submissions', { keyPath: 'id' });
+          db.createObjectStore('hotspot_interactions', { keyPath: 'id' });
+      },
+  });
+  useEffect(() => {
+      if (navigator.onLine) {
+          dbPromise.then(db => db.getAll('submissions')).then(submissions => {
+              submissions.forEach(s => submitRecitation.mutateAsync(s));
+          });
+      }
+  }, []);
+  ```
+
+---
+
+## Phase 3: Integration with Existing Systems
+1. **Memorization**: Update `SrsQueue` when assignments are completed, linking to memorization plans.
+2. **Gratification**: Award badges for assignment submissions in `GratificationSection`.
+3. **Sujud**: Check for Sajda ayahs in assignments and prompt via `SujudSection`.
+4. **Whisper Tajweed**: Integrate AI feedback in submission responses.
+5. **Leaderboard**: Update `LeaderboardEntry` after submissions via `updateLeaderboardEntry`.
+
+**Example Integration** (in `AssignmentPanel.tsx`):
+```tsx
+useEffect(() => {
+    if (submitRecitation.isSuccess) {
+        api.post('/student/sujud/check', {
+            surah_id: activeAssignment?.surah_id,
+            ayah_id: activeAssignment?.ayah_ids[0],
+        }); // Trigger Sujud check
+    }
+}, [submitRecitation.isSuccess]);
+```
+
+---
+
+## Phase 4: Teacher and Admin Integration
+1. **Teacher Dashboard** (`src/app/teacher/classes/[id]/page.tsx`):
+   ```tsx
+   import { useQuery } from '@tanstack/react-query';
+   import api from '@/lib/api';
+   import { motion } from 'framer-motion';
+
+   export default function ClassSchedules({ params }: { params: { id: string } }) {
+       const { data: schedules } = useQuery(['class_schedules', params.id], () => 
+           api.get(`/teacher/classes/${params.id}/schedules`).then(res => res.data)
+       );
+
+       return (
+           <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               className="bg-gradient-to-br from-maroon to-milk p-4"
+           >
+               <h2 className="text-xl font-bold">Class Schedules</h2>
+               {schedules?.map((schedule: any) => (
+                   <div key={schedule.id} className="bg-white p-4 rounded-lg shadow-md mt-2">
+                       <p>{schedule.title} ({schedule.recurrence || 'One-time'})</p>
+                       <p>Assignments:</p>
+                       {schedule.assignments.map((assignment: any) => (
+                           <div key={assignment.id}>
+                               <p>Due: {new Date(assignment.due_date).toLocaleDateString()}</p>
+                               <p>Submissions:</p>
+                               {assignment.submissions.map((submission: any) => (
+                                   <div key={submission.id}>
+                                       <p>Student: {submission.student.name}</p>
+                                       <p>Status: {submission.student_status}</p>
+                                       {submission.hotspot_interactions.length > 0 && (
+                                           <p>Hotspot Interactions: {submission.hotspot_interactions.length}</p>
+                                       )}
+                                       {submission.audio && <audio controls src={submission.audio.s3_url} />}
+                                       {submission.whisper_feedback && (
+                                           <p>AI Feedback: {submission.whisper_feedback.accuracy}%</p>
+                                       )}
+                                   </div>
+                               ))}
+                           </div>
+                       ))}
+                   </div>
+               ))}
+           </motion.div>
+       );
+   }
+   ```
+
+2. **Admin Dashboard** (`src/app/admin/analytics/page.tsx`):
+   ```tsx
+   <div>
+       <p>Schedule Adherence: {analytics?.data_json.schedule_adherence}%</p>
+       <p>Hotspot Interactions: {analytics?.data_json.hotspot_interactions} this week</p>
+   </div>
+   ```
+
+---
+
+## Phase 5: Testing and Deployment
+1. **Testing**:
+   - Backend: `php artisan make:test AssignmentScheduleTest`:
+     ```php
+     public function test_create_schedule()
+     {
+         $teacher = User::factory()->create()->assignRole('teacher');
+         $class = ClassModel::factory()->create(['teacher_id' => $teacher->id]);
+         $response = $this->actingAs($teacher, 'sanctum')->postJson("/api/teacher/classes/{$class->id}/schedules", [
+             'title' => 'Weekly Tajweed',
+             'surah_id' => 18,
+             'ayah_ids' => [1, 2],
+             'hotspots' => [
+                 ['type' => 'image', 'url' => 'https://example.com/tajweed.jpg', 'x' => 50, 'y' => 50, 'note' => 'Madd'],
+             ],
+             'recurrence' => 'weekly',
+             'start_date' => now()->addDay()->toDateString(),
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('assignment_schedules', ['title' => 'Weekly Tajweed']);
+         $this->assertDatabaseHas('assignments', ['schedule_id' => AssignmentSchedule::first()->id]);
+     }
+
+     public function test_submit_recitation()
+     {
+         $student = User::factory()->create()->assignRole('student');
+         $class = ClassModel::factory()->create();
+         $assignment = Assignment::factory()->create(['class_id' => $class->id]);
+         $file = UploadedFile::fake()->create('audio.mp3', 1024);
+         $response = $this->actingAs($student, 'sanctum')->postJson("/api/student/assignments/{$assignment->id}/recite", [
+             'audio' => $file,
+             'hotspot_interactions' => [['hotspot_id' => 1, 'interacted_at' => now()->toISOString()]],
+         ]);
+         $response->assertStatus(200);
+         $this->assertDatabaseHas('submissions', ['assignment_id' => $assignment->id]);
+     }
+     ```
+   - Frontend: Jest for components:
+     ```tsx
+     test('displays assignment schedule', async () => {
+         render(<AssignmentPanel />);
+         expect(screen.getByText('Assignments')).toBeInTheDocument();
+         await waitFor(() => expect(screen.getByText('Weekly')).toBeInTheDocument());
+     });
+     ```
+2. **Deployment**:
+   - Build frontend: `npm run build && npm run export`, copy `out/` to `al-fawz-backend/public/app`.
+   - Ensure `.htaccess` routes `/dashboard` to `app/index.html`.
+   - Add queue and schedule crons in cPanel:
+     ```bash
+     * * * * * php /home/username/public_html/artisan queue:work --stop-when-empty
+     0 0 * * * php /home/username/public_html/artisan assignments:generate
+     ```
+
+---
+
+## Phase 6: Optimizations and Notes
+- **Performance**:
+  - Cache ayah details and hotspot data for 24 hours.
+  - Use pagination for large assignment lists.
+  - Optimize schedule generation with indexed `due_date`.
+- **Error Handling**:
+  - Handle invalid hotspot URLs with placeholders.
+  - Queue submissions and interactions offline, sync on reconnect.
+- **Engagement** (Quranly-inspired):
+  - Show “SubhanAllah, your effort is blessed!” on submission.
+  - Award badges for recurring schedule completions (e.g., “Weekly Reciter”).
+  - Animate hotspot interactions with glow effects.
+- **Teacher/Admin Sync**: Teachers see real-time submission statuses and hotspot interactions; admins track schedule adherence and hotspot usage.
+- **Hotspot Feature**:
+  - Image hotspots: Clickable dots with tajweed/tafsir notes.
+  - Audio hotspots: Playable pronunciation guides or tafsir.
+- **Offline**: Store submissions, hotspot interactions, and schedule data in IndexedDB.
+
+This guide fully implements an advanced Assignment System with Schedule and Submit Systems, meeting all acceptance criteria with a Quranly-inspired, engaging UI/UX. If you need a UI mockup, additional features (e.g., schedule calendar view), or specific hotspot enhancements, let me know!
