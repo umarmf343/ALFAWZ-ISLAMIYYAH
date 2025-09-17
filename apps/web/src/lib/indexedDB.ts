@@ -491,6 +491,7 @@ export const CACHE_KEYS = {
   AYAH_OF_DAY: 'ayah-of-day',
   WEEKLY_PROGRESS: 'weekly-progress',
   LEADERBOARD: 'leaderboard',
+  STUDENT_MESSAGES: 'student-messages',
   USER_PROFILE: 'user-profile',
   MEMORIZATION_PLANS: 'memorization-plans',
   DUE_REVIEWS: 'due-reviews',

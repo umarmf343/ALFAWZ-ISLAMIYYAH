@@ -19,6 +19,7 @@ import OfflineIndicator, { OfflineBadge } from '@/components/OfflineIndicator';
 import { offlineApi, isDataStale } from '@/lib/offlineApi';
 import { useTranslations } from 'next-intl';
 import MemorizationSection from '@/components/MemorizationSection';
+import MessageSection from '@/components/student/MessageSection';
 import MemorizationOversight from '@/components/MemorizationOversight';
 
 interface DashboardStats {
@@ -549,14 +550,25 @@ export default function DashboardPage() {
               </motion.div>
             </div>
 
-            {/* Memorization Section */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-            >
-              <MemorizationSection />
-            </motion.div>
+            {/* Message Center & Memorization */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="h-full"
+              >
+                <MessageSection />
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.65 }}
+              >
+                <MemorizationSection />
+              </motion.div>
+            </div>
           </div>
         )}
 
