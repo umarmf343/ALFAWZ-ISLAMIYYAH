@@ -339,23 +339,16 @@ class AdminUserController extends Controller
             return 'pending';
         }
 
-        if ($user->status === 'active') {
-            if ($user->last_login_at && $user->last_login_at < now()->subDays(30)) {
-                return 'inactive';
-            }
-
-            return 'active';
-        }
-
+        // At this point, status is considered active
         if (!$user->last_login_at) {
             return 'new';
         }
 
-        if ($user->last_login_at >= now()->subDays(30)) {
-            return 'active';
+        if ($user->last_login_at < now()->subDays(30)) {
+            return 'inactive';
         }
 
-        return 'inactive';
+        return 'active';
     }
     
     /**
