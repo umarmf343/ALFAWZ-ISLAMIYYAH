@@ -117,12 +117,9 @@ class StudentController extends Controller
             return 'beginner';
         } elseif ($totalHasanat < 100000 || $recentActivity < 20) {
             return 'intermediate';
-        } else {
-            return 'advanced';
         }
-    });
-        
-        return response()->json($stats);
+
+        return 'advanced';
     }
 
     /**
