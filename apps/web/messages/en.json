@@ -21,6 +21,7 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
+    "docs": "Docs",
     "profile": "Profile",
     "settings": "Settings",
     "logout": "Logout",

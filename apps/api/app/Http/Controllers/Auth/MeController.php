@@ -4,6 +4,8 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\DataTransferObjects\Shared\ApiResponse;
+use App\DataTransferObjects\Shared\UserData;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
@@ -24,20 +26,16 @@ class MeController extends Controller
         $user = $request->user(); // Sanctum / token guard
         
         if (!$user) {
-            return response()->json(['error' => 'Unauthenticated'], 401)
+            return response()->json(ApiResponse::error('Unauthenticated'), 401)
                 ->header('Cache-Control', 'no-store, private')
                 ->header('Vary', 'Cookie');
         }
-        
-        return response()->json([
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->getRoleNames()->first() ?? 'student',
-                'email_verified_at' => $user->email_verified_at,
-            ]
-        ])
+
+        return response()->json(
+            ApiResponse::data([
+                'user' => UserData::fromModel($user),
+            ])
+        )
             ->header('Cache-Control', 'no-store, private')
             ->header('Vary', 'Cookie');
     }

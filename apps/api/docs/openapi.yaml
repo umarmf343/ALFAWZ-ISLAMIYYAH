@@ -1,0 +1,5749 @@
+openapi: 3.0.3
+info:
+  title: "AlFawz Qur'an Institute API"
+  version: 1.0.0
+  description: 'Automatically generated specification from Laravel routes.'
+servers:
+  -
+    url: 'https://api.alfawz.local/api'
+    description: 'Production API base URL (example)'
+  -
+    url: 'http://localhost:8000/api'
+    description: 'Local development API'
+tags:
+  -
+    name: Admin
+    description: 'Endpoints under the admin namespace.'
+  -
+    name: 'Ai Feedback'
+    description: 'Endpoints under the ai feedback namespace.'
+  -
+    name: Assignments
+    description: 'Endpoints under the assignments namespace.'
+  -
+    name: Auth
+    description: 'Endpoints under the auth namespace.'
+  -
+    name: Broadcasting
+    description: 'Endpoints under the broadcasting namespace.'
+  -
+    name: Classes
+    description: 'Endpoints under the classes namespace.'
+  -
+    name: Feedback
+    description: 'Endpoints under the feedback namespace.'
+  -
+    name: Hasanat
+    description: 'Endpoints under the hasanat namespace.'
+  -
+    name: Health
+    description: 'Endpoints under the health namespace.'
+  -
+    name: Hotspots
+    description: 'Endpoints under the hotspots namespace.'
+  -
+    name: Leaderboard
+    description: 'Endpoints under the leaderboard namespace.'
+  -
+    name: Me
+    description: 'Endpoints under the me namespace.'
+  -
+    name: Media
+    description: 'Endpoints under the media namespace.'
+  -
+    name: Memorization
+    description: 'Endpoints under the memorization namespace.'
+  -
+    name: Notifications
+    description: 'Endpoints under the notifications namespace.'
+  -
+    name: Payments
+    description: 'Endpoints under the payments namespace.'
+  -
+    name: Profile
+    description: 'Endpoints under the profile namespace.'
+  -
+    name: Quran
+    description: 'Endpoints under the quran namespace.'
+  -
+    name: Reader
+    description: 'Endpoints under the reader namespace.'
+  -
+    name: Recitations
+    description: 'Endpoints under the recitations namespace.'
+  -
+    name: Resources
+    description: 'Endpoints under the resources namespace.'
+  -
+    name: Srs
+    description: 'Endpoints under the srs namespace.'
+  -
+    name: Student
+    description: 'Endpoints under the student namespace.'
+  -
+    name: Submissions
+    description: 'Endpoints under the submissions namespace.'
+  -
+    name: Tajweed
+    description: 'Endpoints under the tajweed namespace.'
+  -
+    name: Teacher
+    description: 'Endpoints under the teacher namespace.'
+  -
+    name: 'Test Auth'
+    description: 'Endpoints under the test auth namespace.'
+  -
+    name: Upload
+    description: 'Endpoints under the upload namespace.'
+  -
+    name: Uploads
+    description: 'Endpoints under the uploads namespace.'
+  -
+    name: Webhooks
+    description: 'Endpoints under the webhooks namespace.'
+paths:
+  /admin/analytics:
+    get:
+      tags:
+        - Admin
+      summary: Dashboard
+      description: 'Handled by AdminAnalyticsController::dashboard. Requires ability `admin`.'
+      operationId: getAdminAnalytics
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/assets:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminAssetController::index. Requires ability `admin`.'
+      operationId: getAdminAssets
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/assets/sign:
+    post:
+      tags:
+        - Admin
+      summary: 'Sign Upload'
+      description: 'Handled by AdminAssetController::signUpload. Requires ability `admin`.'
+      operationId: postAdminAssetsSign
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/assignments:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminAssignmentController::index. Requires ability `admin`.'
+      operationId: getAdminAssignments
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/audits:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminAuditController::index. Requires ability `admin`.'
+      operationId: getAdminAudits
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/classes:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminClassController::index. Requires ability `admin`.'
+      operationId: getAdminClasses
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Admin
+      summary: 'Create resource'
+      description: 'Handled by AdminClassController::store. Requires ability `admin`.'
+      operationId: postAdminClasses
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/admin/classes/{id}/assign-teacher':
+    post:
+      tags:
+        - Admin
+      summary: 'Assign Teacher'
+      description: 'Handled by AdminClassController::assignTeacher. Requires ability `admin`.'
+      operationId: postAdminClassesIdAssignTeacher
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/flags:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminFlagsController::index. Requires ability `admin`.'
+      operationId: getAdminFlags
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  '/admin/flags/{key}':
+    post:
+      tags:
+        - Admin
+      summary: Toggle
+      description: 'Handled by AdminFlagsController::toggle. Requires ability `admin`.'
+      operationId: postAdminFlagsKey
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/invoices:
+    get:
+      tags:
+        - Admin
+      summary: Invoices
+      description: 'Handled by AdminBillingController::invoices. Requires ability `admin`.'
+      operationId: getAdminInvoices
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/invoices/bulk-refund:
+    post:
+      tags:
+        - Admin
+      summary: 'Bulk Refund'
+      description: 'Handled by AdminBillingController::bulkRefund. Requires ability `admin`.'
+      operationId: postAdminInvoicesBulkRefund
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/admin/invoices/{id}/refund':
+    post:
+      tags:
+        - Admin
+      summary: Refund
+      description: 'Handled by AdminBillingController::refund. Requires ability `admin`.'
+      operationId: postAdminInvoicesIdRefund
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/leaderboards/regenerate:
+    post:
+      tags:
+        - Admin
+      summary: Regenerate
+      description: 'Handled by AdminLeaderboardController::regenerate. Requires ability `admin`.'
+      operationId: postAdminLeaderboardsRegenerate
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/leaderboards/snapshots:
+    get:
+      tags:
+        - Admin
+      summary: Snapshots
+      description: 'Handled by AdminLeaderboardController::snapshots. Requires ability `admin`.'
+      operationId: getAdminLeaderboardsSnapshots
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/org:
+    get:
+      tags:
+        - Admin
+      summary: 'Get resource'
+      description: 'Handled by AdminOrgController::show. Requires ability `admin`.'
+      operationId: getAdminOrg
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+    patch:
+      tags:
+        - Admin
+      summary: 'Update resource'
+      description: 'Handled by AdminOrgController::update. Requires ability `admin`.'
+      operationId: patchAdminOrg
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/org/summary:
+    get:
+      tags:
+        - Admin
+      summary: Summary
+      description: 'Handled by AdminOrgController::summary. Requires ability `admin`.'
+      operationId: getAdminOrgSummary
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/overview:
+    get:
+      tags:
+        - Admin
+      summary: Metrics
+      description: 'Handled by AdminOverviewController::metrics. Requires ability `admin`.'
+      operationId: getAdminOverview
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/plans:
+    get:
+      tags:
+        - Admin
+      summary: Plans
+      description: 'Handled by AdminBillingController::plans. Requires ability `admin`.'
+      operationId: getAdminPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Admin
+      summary: 'Upsert Plan'
+      description: 'Handled by AdminBillingController::upsertPlan. Requires ability `admin`.'
+      operationId: postAdminPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/settings:
+    get:
+      tags:
+        - Admin
+      summary: All
+      description: 'Handled by AdminSettingsController::all. Requires ability `admin`.'
+      operationId: getAdminSettings
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Admin
+      summary: Upsert
+      description: 'Handled by AdminSettingsController::upsert. Requires ability `admin`.'
+      operationId: postAdminSettings
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/submissions:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminSubmissionController::index. Requires ability `admin`.'
+      operationId: getAdminSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/submissions/bulk-update:
+    post:
+      tags:
+        - Admin
+      summary: 'Bulk Update'
+      description: 'Handled by AdminSubmissionController::bulkUpdate. Requires ability `admin`.'
+      operationId: postAdminSubmissionsBulkUpdate
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/tools/queue/ping:
+    get:
+      tags:
+        - Admin
+      summary: 'Queue Ping'
+      description: 'Handled by AdminToolsController::queuePing. Requires ability `admin`.'
+      operationId: getAdminToolsQueuePing
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/tools/s3/health:
+    get:
+      tags:
+        - Admin
+      summary: 'S3 Health'
+      description: 'Handled by AdminToolsController::s3Health. Requires ability `admin`.'
+      operationId: getAdminToolsS3Health
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/tools/s3/sign:
+    post:
+      tags:
+        - Admin
+      summary: 'Sign S3 Upload'
+      description: 'Handled by AdminToolsController::signS3Upload. Requires ability `admin`.'
+      operationId: postAdminToolsS3Sign
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/tools/test-webhook:
+    post:
+      tags:
+        - Admin
+      summary: 'Test Paystack Webhook'
+      description: 'Handled by AdminToolsController::testPaystackWebhook. Requires ability `admin`.'
+      operationId: postAdminToolsTestWebhook
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/tools/verify:
+    post:
+      tags:
+        - Admin
+      summary: 'Verify Paystack Ref'
+      description: 'Handled by AdminToolsController::verifyPaystackRef. Requires ability `admin`.'
+      operationId: postAdminToolsVerify
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/users:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminUserController::index. Requires ability `admin`.'
+      operationId: getAdminUsers
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /admin/users/bulk-role:
+    post:
+      tags:
+        - Admin
+      summary: 'Bulk Role'
+      description: 'Handled by AdminUserController::bulkRole. Requires ability `admin`.'
+      operationId: postAdminUsersBulkRole
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/admin/users/{id}/impersonate':
+    post:
+      tags:
+        - Admin
+      summary: Impersonate
+      description: 'Handled by AdminUserController::impersonate. Requires ability `admin`.'
+      operationId: postAdminUsersIdImpersonate
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/admin/users/{id}/role':
+    post:
+      tags:
+        - Admin
+      summary: 'Update Role'
+      description: 'Handled by AdminUserController::updateRole. Requires ability `admin`.'
+      operationId: postAdminUsersIdRole
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    put:
+      tags:
+        - Admin
+      summary: 'Update Role'
+      description: 'Handled by AdminUserController::updateRole. Requires ability `admin`.'
+      operationId: putAdminUsersIdRole
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/admin/users/{id}/status':
+    put:
+      tags:
+        - Admin
+      summary: 'Update Status'
+      description: 'Handled by AdminUserController::updateStatus. Requires ability `admin`.'
+      operationId: putAdminUsersIdStatus
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/admin/users/{id}/suspend':
+    put:
+      tags:
+        - Admin
+      summary: 'Update Status'
+      description: 'Handled by AdminUserController::updateStatus. Requires ability `admin`.'
+      operationId: putAdminUsersIdSuspend
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /admin/whisper/jobs:
+    get:
+      tags:
+        - Admin
+      summary: 'List resources'
+      description: 'Handled by AdminWhisperController::index. Requires ability `admin`.'
+      operationId: getAdminWhisperJobs
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  '/admin/whisper/jobs/{id}':
+    get:
+      tags:
+        - Admin
+      summary: 'Get resource'
+      description: 'Handled by AdminWhisperController::show. Requires ability `admin`.'
+      operationId: getAdminWhisperJobsId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /ai-feedback/capabilities:
+    get:
+      tags:
+        - 'Ai Feedback'
+      summary: 'Get Capabilities'
+      description: 'Handled by AIFeedbackController::getCapabilities.'
+      operationId: getAiFeedbackCapabilities
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /assignments:
+    get:
+      tags:
+        - Assignments
+      summary: 'List resources'
+      description: 'Handled by AssignmentController::index.'
+      operationId: getAssignments
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Assignments
+      summary: 'Create resource'
+      description: 'Handled by AssignmentController::store.'
+      operationId: postAssignments
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/assignments/{assignment}':
+    get:
+      tags:
+        - Assignments
+      summary: 'Get resource'
+      description: 'Handled by AssignmentController::show.'
+      operationId: getAssignmentsAssignment
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    put:
+      tags:
+        - Assignments
+      summary: 'Update resource'
+      description: 'Handled by AssignmentController::update.'
+      operationId: putAssignmentsAssignment
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    patch:
+      tags:
+        - Assignments
+      summary: 'Update resource'
+      description: 'Handled by AssignmentController::update.'
+      operationId: patchAssignmentsAssignment
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Assignments
+      summary: 'Delete resource'
+      description: 'Handled by AssignmentController::destroy.'
+      operationId: deleteAssignmentsAssignment
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/assignments/{assignment}/duplicate':
+    post:
+      tags:
+        - Assignments
+      summary: Duplicate
+      description: 'Handled by AssignmentController::duplicate.'
+      operationId: postAssignmentsAssignmentDuplicate
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/assignments/{assignment}/hotspots':
+    get:
+      tags:
+        - Assignments
+      summary: 'List resources'
+      description: 'Handled by HotspotController::index.'
+      operationId: getAssignmentsAssignmentHotspots
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Assignments
+      summary: 'Create resource'
+      description: 'Handled by HotspotController::store.'
+      operationId: postAssignmentsAssignmentHotspots
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/assignments/{assignment}/publish':
+    post:
+      tags:
+        - Assignments
+      summary: Publish
+      description: 'Handled by AssignmentController::publish.'
+      operationId: postAssignmentsAssignmentPublish
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/assignments/{assignment}/stats':
+    get:
+      tags:
+        - Assignments
+      summary: 'Get Stats'
+      description: 'Handled by AssignmentController::getStats.'
+      operationId: getAssignmentsAssignmentStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/assignments/{assignment}/submissions':
+    get:
+      tags:
+        - Assignments
+      summary: 'Get Submissions'
+      description: 'Handled by AssignmentController::getSubmissions.'
+      operationId: getAssignmentsAssignmentSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/assignments/{assignment}/unpublish':
+    post:
+      tags:
+        - Assignments
+      summary: Unpublish
+      description: 'Handled by AssignmentController::unpublish.'
+      operationId: postAssignmentsAssignmentUnpublish
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/email/resend:
+    post:
+      tags:
+        - Auth
+      summary: 'Resend Verification Email'
+      description: 'Handled by AuthController::resendVerificationEmail.'
+      operationId: postAuthEmailResend
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/email/verification-status:
+    get:
+      tags:
+        - Auth
+      summary: 'Check Email Verification'
+      description: 'Handled by AuthController::checkEmailVerification.'
+      operationId: getAuthEmailVerificationStatus
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /auth/email/verify:
+    post:
+      tags:
+        - Auth
+      summary: 'Verify Email'
+      description: 'Handled by AuthController::verifyEmail.'
+      operationId: postAuthEmailVerify
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: 'Forgot Password'
+      description: 'Handled by AuthController::forgotPassword.'
+      operationId: postAuthForgotPassword
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login
+      description: 'Handled by AuthController::login.'
+      operationId: postAuthLogin
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout
+      description: 'Handled by AuthController::logout.'
+      operationId: postAuthLogout
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: 'App\ Http\ Controllers\ Auth\ Me Controller'
+      description: 'Handled by App\Http\Controllers\Auth\MeController.'
+      operationId: getAuthMe
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh
+      description: 'Handled by AuthController::refresh.'
+      operationId: postAuthRefresh
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register
+      description: 'Handled by AuthController::register.'
+      operationId: postAuthRegister
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/reset-password:
+    post:
+      tags:
+        - Auth
+      summary: 'Reset Password'
+      description: 'Handled by AuthController::resetPassword.'
+      operationId: postAuthResetPassword
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /auth/user:
+    get:
+      tags:
+        - Auth
+      summary: User
+      description: 'Handled by AuthController::user.'
+      operationId: getAuthUser
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /broadcasting/auth:
+    post:
+      tags:
+        - Broadcasting
+      summary: Closure
+      description: 'Handled by inline closure.'
+      operationId: postBroadcastingAuth
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /classes:
+    get:
+      tags:
+        - Classes
+      summary: 'List resources'
+      description: 'Handled by ClassController::index.'
+      operationId: getClasses
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Classes
+      summary: 'Create resource'
+      description: 'Handled by ClassController::store.'
+      operationId: postClasses
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/classes/{class}':
+    get:
+      tags:
+        - Classes
+      summary: 'Get resource'
+      description: 'Handled by ClassController::show.'
+      operationId: getClassesClass
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    put:
+      tags:
+        - Classes
+      summary: 'Update resource'
+      description: 'Handled by ClassController::update.'
+      operationId: putClassesClass
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    patch:
+      tags:
+        - Classes
+      summary: 'Update resource'
+      description: 'Handled by ClassController::update.'
+      operationId: patchClassesClass
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Classes
+      summary: 'Delete resource'
+      description: 'Handled by ClassController::destroy.'
+      operationId: deleteClassesClass
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/classes/{class}/invite':
+    post:
+      tags:
+        - Classes
+      summary: 'Invite Student'
+      description: 'Handled by ClassController::inviteStudent.'
+      operationId: postClassesClassInvite
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/classes/{class}/members':
+    get:
+      tags:
+        - Classes
+      summary: 'Get Members'
+      description: 'Handled by ClassController::getMembers.'
+      operationId: getClassesClassMembers
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Classes
+      summary: 'Add Member'
+      description: 'Handled by ClassController::addMember.'
+      operationId: postClassesClassMembers
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/classes/{class}/members/{user}':
+    delete:
+      tags:
+        - Classes
+      summary: 'Remove Member'
+      description: 'Handled by ClassController::removeMember.'
+      operationId: deleteClassesClassMembersUser
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/classes/{class}/stats':
+    get:
+      tags:
+        - Classes
+      summary: 'Get Stats'
+      description: 'Handled by ClassController::getStats.'
+      operationId: getClassesClassStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /feedback:
+    get:
+      tags:
+        - Feedback
+      summary: 'Student Feedback'
+      description: 'Handled by FeedbackController::studentFeedback.'
+      operationId: getFeedback
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/feedback/submissions/{submission}':
+    post:
+      tags:
+        - Feedback
+      summary: 'Create resource'
+      description: 'Handled by FeedbackController::store.'
+      operationId: postFeedbackSubmissionsSubmission
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/feedback/{feedback}':
+    put:
+      tags:
+        - Feedback
+      summary: 'Update resource'
+      description: 'Handled by FeedbackController::update.'
+      operationId: putFeedbackFeedback
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Feedback
+      summary: 'Delete resource'
+      description: 'Handled by FeedbackController::destroy.'
+      operationId: deleteFeedbackFeedback
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/feedback/{feedback}/audio':
+    post:
+      tags:
+        - Feedback
+      summary: 'Upload Audio'
+      description: 'Handled by FeedbackController::uploadAudio.'
+      operationId: postFeedbackFeedbackAudio
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /hasanat/achievements:
+    get:
+      tags:
+        - Hasanat
+      summary: 'Get Achievements'
+      description: 'Handled by HasanatController::getAchievements.'
+      operationId: getHasanatAchievements
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /hasanat/award:
+    post:
+      tags:
+        - Hasanat
+      summary: 'Award Hasanat'
+      description: 'Handled by HasanatController::awardHasanat.'
+      operationId: postHasanatAward
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /hasanat/capabilities:
+    get:
+      tags:
+        - Hasanat
+      summary: 'Get Capabilities'
+      description: 'Handled by HasanatController::getCapabilities.'
+      operationId: getHasanatCapabilities
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /hasanat/history:
+    get:
+      tags:
+        - Hasanat
+      summary: 'Get History'
+      description: 'Handled by HasanatController::getHistory.'
+      operationId: getHasanatHistory
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /hasanat/leaderboard:
+    get:
+      tags:
+        - Hasanat
+      summary: 'Get Leaderboard'
+      description: 'Handled by HasanatController::getLeaderboard.'
+      operationId: getHasanatLeaderboard
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /hasanat/progress:
+    get:
+      tags:
+        - Hasanat
+      summary: 'Get Progress'
+      description: 'Handled by HasanatController::getProgress.'
+      operationId: getHasanatProgress
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /hasanat/redeem:
+    post:
+      tags:
+        - Hasanat
+      summary: 'Redeem Reward'
+      description: 'Handled by HasanatController::redeemReward.'
+      operationId: postHasanatRedeem
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /hasanat/rewards:
+    get:
+      tags:
+        - Hasanat
+      summary: 'Get Rewards'
+      description: 'Handled by HasanatController::getRewards.'
+      operationId: getHasanatRewards
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Closure
+      description: 'Handled by inline closure.'
+      operationId: getHealth
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+  '/hotspots/{hotspot}':
+    get:
+      tags:
+        - Hotspots
+      summary: 'Get resource'
+      description: 'Handled by HotspotController::show.'
+      operationId: getHotspotsHotspot
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    put:
+      tags:
+        - Hotspots
+      summary: 'Update resource'
+      description: 'Handled by HotspotController::update.'
+      operationId: putHotspotsHotspot
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    patch:
+      tags:
+        - Hotspots
+      summary: 'Update resource'
+      description: 'Handled by HotspotController::update.'
+      operationId: patchHotspotsHotspot
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Hotspots
+      summary: 'Delete resource'
+      description: 'Handled by HotspotController::destroy.'
+      operationId: deleteHotspotsHotspot
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/hotspots/{hotspot}/interact':
+    post:
+      tags:
+        - Hotspots
+      summary: 'Record Interaction'
+      description: 'Handled by HotspotController::recordInteraction.'
+      operationId: postHotspotsHotspotInteract
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/hotspots/{hotspot}/interactions':
+    get:
+      tags:
+        - Hotspots
+      summary: 'Get Interactions'
+      description: 'Handled by HotspotController::getInteractions.'
+      operationId: getHotspotsHotspotInteractions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/hotspots/{hotspot}/stats':
+    get:
+      tags:
+        - Hotspots
+      summary: 'Get Stats'
+      description: 'Handled by HotspotController::getStats.'
+      operationId: getHotspotsHotspotStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /leaderboard:
+    get:
+      tags:
+        - Leaderboard
+      summary: 'List resources'
+      description: 'Handled by LeaderboardController::index.'
+      operationId: getLeaderboard
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/leaderboard/class/{class}':
+    get:
+      tags:
+        - Leaderboard
+      summary: 'Class Leaderboard'
+      description: 'Handled by LeaderboardController::classLeaderboard.'
+      operationId: getLeaderboardClassClass
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /leaderboard/global:
+    get:
+      tags:
+        - Leaderboard
+      summary: 'Global Leaderboard'
+      description: 'Handled by LeaderboardController::globalLeaderboard.'
+      operationId: getLeaderboardGlobal
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /leaderboard/hasanat-history:
+    get:
+      tags:
+        - Leaderboard
+      summary: 'Hasanat History'
+      description: 'Handled by LeaderboardController::hasanatHistory.'
+      operationId: getLeaderboardHasanatHistory
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /leaderboard/monthly:
+    get:
+      tags:
+        - Leaderboard
+      summary: 'Monthly Leaderboard'
+      description: 'Handled by LeaderboardController::monthlyLeaderboard.'
+      operationId: getLeaderboardMonthly
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /leaderboard/weekly:
+    get:
+      tags:
+        - Leaderboard
+      summary: 'Weekly Leaderboard'
+      description: 'Handled by LeaderboardController::weeklyLeaderboard.'
+      operationId: getLeaderboardWeekly
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /me:
+    get:
+      tags:
+        - Me
+      summary: Me
+      description: 'Handled by ProfileController::me.'
+      operationId: getMe
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /media/signed-get:
+    get:
+      tags:
+        - Media
+      summary: 'Signed Get'
+      description: 'Handled by MediaController::signedGet.'
+      operationId: getMediaSignedGet
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /media/signed-put:
+    get:
+      tags:
+        - Media
+      summary: 'Signed Put'
+      description: 'Handled by MediaController::signedPut.'
+      operationId: getMediaSignedPut
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /memorization/due-reviews:
+    get:
+      tags:
+        - Memorization
+      summary: 'Get Due Reviews'
+      description: 'Handled by MemorizationController::getDueReviews.'
+      operationId: getMemorizationDueReviews
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /memorization/plans:
+    get:
+      tags:
+        - Memorization
+      summary: 'List resources'
+      description: 'Handled by MemorizationController::index.'
+      operationId: getMemorizationPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Memorization
+      summary: 'Create resource'
+      description: 'Handled by MemorizationController::store.'
+      operationId: postMemorizationPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/memorization/plans/{plan}/stats':
+    get:
+      tags:
+        - Memorization
+      summary: 'Plan Stats'
+      description: 'Handled by MemorizationController::planStats.'
+      operationId: getMemorizationPlansPlanStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /memorization/review:
+    post:
+      tags:
+        - Memorization
+      summary: 'Review Ayah'
+      description: 'Handled by MemorizationController::reviewAyah.'
+      operationId: postMemorizationReview
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: 'List resources'
+      description: 'Handled by NotificationController::index.'
+      operationId: getNotifications
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /notifications/mark-all-read:
+    post:
+      tags:
+        - Notifications
+      summary: 'Mark All As Read'
+      description: 'Handled by NotificationController::markAllAsRead.'
+      operationId: postNotificationsMarkAllRead
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /notifications/mark-read:
+    post:
+      tags:
+        - Notifications
+      summary: 'Mark As Read'
+      description: 'Handled by NotificationController::markAsRead.'
+      operationId: postNotificationsMarkRead
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /notifications/preferences:
+    get:
+      tags:
+        - Notifications
+      summary: 'Get Preferences'
+      description: 'Handled by NotificationController::getPreferences.'
+      operationId: getNotificationsPreferences
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Notifications
+      summary: 'Update Preferences'
+      description: 'Handled by NotificationController::updatePreferences.'
+      operationId: postNotificationsPreferences
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /notifications/read/all:
+    delete:
+      tags:
+        - Notifications
+      summary: 'Delete All Read'
+      description: 'Handled by NotificationController::deleteAllRead.'
+      operationId: deleteNotificationsReadAll
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /notifications/unread-count:
+    get:
+      tags:
+        - Notifications
+      summary: 'Unread Count'
+      description: 'Handled by NotificationController::unreadCount.'
+      operationId: getNotificationsUnreadCount
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/notifications/{notification}':
+    get:
+      tags:
+        - Notifications
+      summary: 'Get resource'
+      description: 'Handled by NotificationController::show.'
+      operationId: getNotificationsNotification
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    delete:
+      tags:
+        - Notifications
+      summary: 'Delete resource'
+      description: 'Handled by NotificationController::destroy.'
+      operationId: deleteNotificationsNotification
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /payments/cancel-subscription:
+    post:
+      tags:
+        - Payments
+      summary: 'Cancel Subscription'
+      description: 'Handled by PaymentController::cancelSubscription.'
+      operationId: postPaymentsCancelSubscription
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /payments/history:
+    get:
+      tags:
+        - Payments
+      summary: History
+      description: 'Handled by PaymentController::history.'
+      operationId: getPaymentsHistory
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /payments/initialize:
+    post:
+      tags:
+        - Payments
+      summary: Initialize
+      description: 'Handled by PaymentController::initialize.'
+      operationId: postPaymentsInitialize
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /payments/plans:
+    get:
+      tags:
+        - Payments
+      summary: Plans
+      description: 'Handled by PaymentController::plans.'
+      operationId: getPaymentsPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /payments/subscription:
+    get:
+      tags:
+        - Payments
+      summary: Subscription
+      description: 'Handled by PaymentController::subscription.'
+      operationId: getPaymentsSubscription
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /profile/avatar:
+    post:
+      tags:
+        - Profile
+      summary: 'Upload Avatar'
+      description: 'Handled by ProfileController::uploadAvatar.'
+      operationId: postProfileAvatar
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Profile
+      summary: 'Remove Avatar'
+      description: 'Handled by ProfileController::removeAvatar.'
+      operationId: deleteProfileAvatar
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /profile/me:
+    get:
+      tags:
+        - Profile
+      summary: Me
+      description: 'Handled by ProfileController::me.'
+      operationId: getProfileMe
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    put:
+      tags:
+        - Profile
+      summary: 'Update resource'
+      description: 'Handled by ProfileController::update.'
+      operationId: putProfileMe
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /profile/my-students:
+    get:
+      tags:
+        - Profile
+      summary: 'My Students'
+      description: 'Handled by ProfileController::myStudents.'
+      operationId: getProfileMyStudents
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /profile/my-teachers:
+    get:
+      tags:
+        - Profile
+      summary: 'My Teachers'
+      description: 'Handled by ProfileController::myTeachers.'
+      operationId: getProfileMyTeachers
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /profile/stats:
+    get:
+      tags:
+        - Profile
+      summary: Stats
+      description: 'Handled by ProfileController::stats.'
+      operationId: getProfileStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /quran/recitations:
+    get:
+      tags:
+        - Quran
+      summary: Recitations
+      description: 'Handled by SurahController::recitations.'
+      operationId: getQuranRecitations
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /quran/surahs:
+    get:
+      tags:
+        - Quran
+      summary: 'List resources'
+      description: 'Handled by SurahController::index.'
+      operationId: getQuranSurahs
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/quran/surahs/{id}':
+    get:
+      tags:
+        - Quran
+      summary: 'Get resource'
+      description: 'Handled by SurahController::show.'
+      operationId: getQuranSurahsId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/quran/surahs/{id}/ayahs':
+    get:
+      tags:
+        - Quran
+      summary: Ayahs
+      description: 'Handled by SurahController::ayahs.'
+      operationId: getQuranSurahsIdAyahs
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/quran/surahs/{surahId}/ayahs/{ayahId}':
+    get:
+      tags:
+        - Quran
+      summary: 'Get Ayah'
+      description: 'Handled by SurahController::getAyah.'
+      operationId: getQuranSurahsSurahIdAyahsAyahId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /reader/reciters:
+    get:
+      tags:
+        - Reader
+      summary: 'Get Reciters'
+      description: 'Handled by ReaderController::getReciters.'
+      operationId: getReaderReciters
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /reader/state:
+    get:
+      tags:
+        - Reader
+      summary: 'Get State'
+      description: 'Handled by ReaderController::getState.'
+      operationId: getReaderState
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Reader
+      summary: 'Save State'
+      description: 'Handled by ReaderController::saveState.'
+      operationId: postReaderState
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/recitations/status/{id}':
+    get:
+      tags:
+        - Recitations
+      summary: Status
+      description: 'Handled by RecitationController::status.'
+      operationId: getRecitationsStatusId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /recitations/submit:
+    post:
+      tags:
+        - Recitations
+      summary: Submit
+      description: 'Handled by RecitationController::submit.'
+      operationId: postRecitationsSubmit
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /recitations/upload-url:
+    post:
+      tags:
+        - Recitations
+      summary: 'Upload Url'
+      description: 'Handled by RecitationController::uploadUrl.'
+      operationId: postRecitationsUploadUrl
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /resources:
+    get:
+      tags:
+        - Resources
+      summary: 'List resources'
+      description: 'Handled by ResourceController::index.'
+      operationId: getResources
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Resources
+      summary: 'Create resource'
+      description: 'Handled by ResourceController::store.'
+      operationId: postResources
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/resources/{id}/download':
+    get:
+      tags:
+        - Resources
+      summary: Download
+      description: 'Handled by ResourceController::download.'
+      operationId: getResourcesIdDownload
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/resources/{resource}':
+    get:
+      tags:
+        - Resources
+      summary: 'Get resource'
+      description: 'Handled by ResourceController::show.'
+      operationId: getResourcesResource
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    put:
+      tags:
+        - Resources
+      summary: 'Update resource'
+      description: 'Handled by ResourceController::update.'
+      operationId: putResourcesResource
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    patch:
+      tags:
+        - Resources
+      summary: 'Update resource'
+      description: 'Handled by ResourceController::update.'
+      operationId: patchResourcesResource
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Resources
+      summary: 'Delete resource'
+      description: 'Handled by ResourceController::destroy.'
+      operationId: deleteResourcesResource
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/resources/{resource}/download':
+    get:
+      tags:
+        - Resources
+      summary: Download
+      description: 'Handled by ResourceController::download.'
+      operationId: getResourcesResourceDownload
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /srs/add:
+    post:
+      tags:
+        - Srs
+      summary: 'Add To Queue'
+      description: 'Handled by SrsController::addToQueue.'
+      operationId: postSrsAdd
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /srs/due:
+    get:
+      tags:
+        - Srs
+      summary: 'Get Due Items'
+      description: 'Handled by SrsController::getDueItems.'
+      operationId: getSrsDue
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /srs/queue:
+    get:
+      tags:
+        - Srs
+      summary: 'Get Queue'
+      description: 'Handled by SrsController::getQueue.'
+      operationId: getSrsQueue
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /srs/review:
+    post:
+      tags:
+        - Srs
+      summary: 'Submit Review'
+      description: 'Handled by SrsController::submitReview.'
+      operationId: postSrsReview
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /srs/stats:
+    get:
+      tags:
+        - Srs
+      summary: 'Get Stats'
+      description: 'Handled by SrsController::getStats.'
+      operationId: getSrsStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/srs/{id}':
+    delete:
+      tags:
+        - Srs
+      summary: 'Remove From Queue'
+      description: 'Handled by SrsController::removeFromQueue.'
+      operationId: deleteSrsId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/srs/{id}/reset':
+    post:
+      tags:
+        - Srs
+      summary: 'Reset Item'
+      description: 'Handled by SrsController::resetItem.'
+      operationId: postSrsIdReset
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/admin/memorization-analytics:
+    get:
+      tags:
+        - Student
+      summary: 'Get Memorization Analytics'
+      description: 'Handled by MemorizationController::getMemorizationAnalytics.'
+      operationId: getStudentAdminMemorizationAnalytics
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/assignments:
+    get:
+      tags:
+        - Student
+      summary: 'Student Assignments'
+      description: 'Handled by AssignmentController::studentAssignments.'
+      operationId: getStudentAssignments
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/ayah-of-day:
+    get:
+      tags:
+        - Student
+      summary: 'Ayah Of Day'
+      description: 'Handled by ProfileController::ayahOfDay.'
+      operationId: getStudentAyahOfDay
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/classes:
+    get:
+      tags:
+        - Student
+      summary: 'Student Classes'
+      description: 'Handled by ClassController::studentClasses.'
+      operationId: getStudentClasses
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/dashboard:
+    get:
+      tags:
+        - Student
+      summary: 'Get Dashboard'
+      description: 'Handled by StudentController::getDashboard.'
+      operationId: getStudentDashboard
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/leaderboard:
+    get:
+      tags:
+        - Student
+      summary: 'Student Leaderboard'
+      description: 'Handled by LeaderboardController::studentLeaderboard.'
+      operationId: getStudentLeaderboard
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/leaderboard/friends:
+    get:
+      tags:
+        - Student
+      summary: 'Get Leaderboard Friends'
+      description: 'Handled by StudentController::getLeaderboardFriends.'
+      operationId: getStudentLeaderboardFriends
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/leaderboard/invite:
+    post:
+      tags:
+        - Student
+      summary: 'Send Leaderboard Invite'
+      description: 'Handled by StudentController::sendLeaderboardInvite.'
+      operationId: postStudentLeaderboardInvite
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/leaderboard/invites:
+    get:
+      tags:
+        - Student
+      summary: 'Get Leaderboard Invites'
+      description: 'Handled by StudentController::getLeaderboardInvites.'
+      operationId: getStudentLeaderboardInvites
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/student/leaderboard/invites/{invite}/respond':
+    post:
+      tags:
+        - Student
+      summary: 'Respond To Leaderboard Invite'
+      description: 'Handled by StudentController::respondToLeaderboardInvite.'
+      operationId: postStudentLeaderboardInvitesInviteRespond
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/leaderboard/preferences:
+    put:
+      tags:
+        - Student
+      summary: 'Update Leaderboard Preferences'
+      description: 'Handled by StudentController::updateLeaderboardPreferences.'
+      operationId: putStudentLeaderboardPreferences
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/leaderboard/reminder:
+    post:
+      tags:
+        - Student
+      summary: 'Send Quran Reminder'
+      description: 'Handled by StudentController::sendQuranReminder.'
+      operationId: postStudentLeaderboardReminder
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/memorization-plan:
+    get:
+      tags:
+        - Student
+      summary: 'Get Memorization Plan'
+      description: 'Handled by ProfileController::getMemorizationPlan.'
+      operationId: getStudentMemorizationPlan
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Student
+      summary: 'Update Memorization Plan'
+      description: 'Handled by ProfileController::updateMemorizationPlan.'
+      operationId: postStudentMemorizationPlan
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/memorization/due-reviews:
+    get:
+      tags:
+        - Student
+      summary: 'Get Due Reviews'
+      description: 'Handled by MemorizationController::getDueReviews.'
+      operationId: getStudentMemorizationDueReviews
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/memorization/plans:
+    get:
+      tags:
+        - Student
+      summary: 'List resources'
+      description: 'Handled by MemorizationController::index.'
+      operationId: getStudentMemorizationPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Student
+      summary: 'Create resource'
+      description: 'Handled by MemorizationController::store.'
+      operationId: postStudentMemorizationPlans
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/student/memorization/plans/{plan}/stats':
+    get:
+      tags:
+        - Student
+      summary: 'Plan Stats'
+      description: 'Handled by MemorizationController::planStats.'
+      operationId: getStudentMemorizationPlansPlanStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/memorization/review:
+    post:
+      tags:
+        - Student
+      summary: 'Review Ayah'
+      description: 'Handled by MemorizationController::reviewAyah.'
+      operationId: postStudentMemorizationReview
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/preferences:
+    get:
+      tags:
+        - Student
+      summary: 'Get Preferences'
+      description: 'Handled by ProfileController::getPreferences.'
+      operationId: getStudentPreferences
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Student
+      summary: 'Update Preferences'
+      description: 'Handled by ProfileController::updatePreferences.'
+      operationId: postStudentPreferences
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/progress:
+    get:
+      tags:
+        - Student
+      summary: 'Student Progress'
+      description: 'Handled by ProfileController::studentProgress.'
+      operationId: getStudentProgress
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/reader/bookmarks:
+    get:
+      tags:
+        - Student
+      summary: 'Get Bookmarks'
+      description: 'Handled by ProfileController::getBookmarks.'
+      operationId: getStudentReaderBookmarks
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Student
+      summary: 'Add Bookmark'
+      description: 'Handled by ProfileController::addBookmark.'
+      operationId: postStudentReaderBookmarks
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/student/reader/bookmarks/{id}':
+    delete:
+      tags:
+        - Student
+      summary: 'Remove Bookmark'
+      description: 'Handled by ProfileController::removeBookmark.'
+      operationId: deleteStudentReaderBookmarksId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/reader/mark-read:
+    post:
+      tags:
+        - Student
+      summary: 'Mark Ayah Read'
+      description: 'Handled by ProfileController::markAyahRead.'
+      operationId: postStudentReaderMarkRead
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/reader/state:
+    get:
+      tags:
+        - Student
+      summary: 'Get Reader State'
+      description: 'Handled by ProfileController::getReaderState.'
+      operationId: getStudentReaderState
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Student
+      summary: 'Save Reader State'
+      description: 'Handled by ProfileController::saveReaderState.'
+      operationId: postStudentReaderState
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/recent-reads:
+    get:
+      tags:
+        - Student
+      summary: 'Recent Reads'
+      description: 'Handled by ProfileController::recentReads.'
+      operationId: getStudentRecentReads
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/recitation:
+    post:
+      tags:
+        - Student
+      summary: 'Update Recitation'
+      description: 'Handled by StudentController::updateRecitation.'
+      operationId: postStudentRecitation
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/recite:
+    post:
+      tags:
+        - Student
+      summary: 'Update Recitation'
+      description: 'Handled by StudentController::updateRecitation.'
+      operationId: postStudentRecite
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/recommendations:
+    get:
+      tags:
+        - Student
+      summary: 'Get Recommendations'
+      description: 'Handled by StudentController::getRecommendations.'
+      operationId: getStudentRecommendations
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/srs-queue:
+    get:
+      tags:
+        - Student
+      summary: 'Get Queue'
+      description: 'Handled by SrsController::getQueue.'
+      operationId: getStudentSrsQueue
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/srs-review:
+    post:
+      tags:
+        - Student
+      summary: 'Submit Review'
+      description: 'Handled by SrsController::submitReview.'
+      operationId: postStudentSrsReview
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/stats:
+    get:
+      tags:
+        - Student
+      summary: 'Student Stats'
+      description: 'Handled by ProfileController::studentStats.'
+      operationId: getStudentStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/submissions:
+    get:
+      tags:
+        - Student
+      summary: 'Student Submissions'
+      description: 'Handled by SubmissionController::studentSubmissions.'
+      operationId: getStudentSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Student
+      summary: 'Create resource'
+      description: 'Handled by SubmissionController::store.'
+      operationId: postStudentSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/teacher/memorization-progress:
+    get:
+      tags:
+        - Student
+      summary: 'Get Student Progress'
+      description: 'Handled by MemorizationController::getStudentProgress.'
+      operationId: getStudentTeacherMemorizationProgress
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/teacher/memorization-stats:
+    get:
+      tags:
+        - Student
+      summary: 'Get Student Stats'
+      description: 'Handled by MemorizationController::getStudentStats.'
+      operationId: getStudentTeacherMemorizationStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/teacher/memorization/analytics:
+    get:
+      tags:
+        - Student
+      summary: 'Get Memorization Analytics'
+      description: 'Handled by StudentController::getMemorizationAnalytics.'
+      operationId: getStudentTeacherMemorizationAnalytics
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/teacher/memorization/audio-reviews:
+    get:
+      tags:
+        - Student
+      summary: 'Get Audio Reviews'
+      description: 'Handled by StudentController::getAudioReviews.'
+      operationId: getStudentTeacherMemorizationAudioReviews
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/student/teacher/memorization/reviews/{reviewId}/{action}':
+    post:
+      tags:
+        - Student
+      summary: 'Review Audio Submission'
+      description: 'Handled by StudentController::reviewAudioSubmission.'
+      operationId: postStudentTeacherMemorizationReviewsReviewIdAction
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /student/teacher/memorization/students:
+    get:
+      tags:
+        - Student
+      summary: 'Get Memorization Students'
+      description: 'Handled by StudentController::getMemorizationStudents.'
+      operationId: getStudentTeacherMemorizationStudents
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /student/weekly-progress:
+    get:
+      tags:
+        - Student
+      summary: 'Get Weekly Progress'
+      description: 'Handled by StudentController::getWeeklyProgress.'
+      operationId: getStudentWeeklyProgress
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /submissions:
+    get:
+      tags:
+        - Submissions
+      summary: 'List resources'
+      description: 'Handled by SubmissionController::index.'
+      operationId: getSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Submissions
+      summary: 'Create resource'
+      description: 'Handled by SubmissionController::store.'
+      operationId: postSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /submissions/ai-feedback:
+    post:
+      tags:
+        - Submissions
+      summary: 'Generate Feedback'
+      description: 'Handled by AIFeedbackController::generateFeedback.'
+      operationId: postSubmissionsAiFeedback
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/submissions/{submission}':
+    get:
+      tags:
+        - Submissions
+      summary: 'Get resource'
+      description: 'Handled by SubmissionController::show.'
+      operationId: getSubmissionsSubmission
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    put:
+      tags:
+        - Submissions
+      summary: 'Update resource'
+      description: 'Handled by SubmissionController::update.'
+      operationId: putSubmissionsSubmission
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    patch:
+      tags:
+        - Submissions
+      summary: 'Update resource'
+      description: 'Handled by SubmissionController::update.'
+      operationId: patchSubmissionsSubmission
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/submissions/{submission}/ai-feedback':
+    get:
+      tags:
+        - Submissions
+      summary: 'Get Feedback History'
+      description: 'Handled by AIFeedbackController::getFeedbackHistory.'
+      operationId: getSubmissionsSubmissionAiFeedback
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/submissions/{submission}/ai-feedback/regenerate':
+    post:
+      tags:
+        - Submissions
+      summary: 'Regenerate Feedback'
+      description: 'Handled by AIFeedbackController::regenerateFeedback.'
+      operationId: postSubmissionsSubmissionAiFeedbackRegenerate
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/submissions/{submission}/audio':
+    post:
+      tags:
+        - Submissions
+      summary: 'Upload Audio'
+      description: 'Handled by SubmissionController::uploadAudio.'
+      operationId: postSubmissionsSubmissionAudio
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+    delete:
+      tags:
+        - Submissions
+      summary: 'Delete Audio'
+      description: 'Handled by SubmissionController::deleteAudio.'
+      operationId: deleteSubmissionsSubmissionAudio
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/submissions/{submission}/resubmit':
+    post:
+      tags:
+        - Submissions
+      summary: Resubmit
+      description: 'Handled by SubmissionController::resubmit.'
+      operationId: postSubmissionsSubmissionResubmit
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/submissions/{submission}/submit':
+    post:
+      tags:
+        - Submissions
+      summary: 'Submit For Grading'
+      description: 'Handled by SubmissionController::submitForGrading.'
+      operationId: postSubmissionsSubmissionSubmit
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /tajweed/analytics:
+    get:
+      tags:
+        - Tajweed
+      summary: 'Get Analytics'
+      description: 'Handled by TajweedController::getAnalytics. Requires ability `teacher-or-admin`.'
+      operationId: getTajweedAnalytics
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /tajweed/analyze:
+    post:
+      tags:
+        - Tajweed
+      summary: 'Analyze Recitation'
+      description: 'Handled by TajweedController::analyzeRecitation.'
+      operationId: postTajweedAnalyze
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /tajweed/history:
+    get:
+      tags:
+        - Tajweed
+      summary: 'Get Analysis History'
+      description: 'Handled by TajweedController::getAnalysisHistory.'
+      operationId: getTajweedHistory
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  '/tajweed/reprocess/{jobId}':
+    post:
+      tags:
+        - Tajweed
+      summary: 'Reprocess Analysis'
+      description: 'Handled by TajweedController::reprocessAnalysis. Requires ability `teacher-or-admin`.'
+      operationId: postTajweedReprocessJobId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /tajweed/settings:
+    get:
+      tags:
+        - Tajweed
+      summary: 'Get Settings'
+      description: 'Handled by TajweedController::getSettings.'
+      operationId: getTajweedSettings
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+    post:
+      tags:
+        - Tajweed
+      summary: 'Update Settings'
+      description: 'Handled by TajweedController::updateSettings. Requires ability `admin`.'
+      operationId: postTajweedSettings
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/tajweed/status/{jobId}':
+    get:
+      tags:
+        - Tajweed
+      summary: 'Get Analysis Status'
+      description: 'Handled by TajweedController::getAnalysisStatus.'
+      operationId: getTajweedStatusJobId
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/analytics:
+    get:
+      tags:
+        - Teacher
+      summary: 'List resources'
+      description: 'Handled by TeacherAnalyticsController::index. Requires role `teacher`.'
+      operationId: getTeacherAnalytics
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/analytics/update:
+    post:
+      tags:
+        - Teacher
+      summary: 'Update Analytics'
+      description: 'Handled by TeacherController::updateAnalytics. Requires role `teacher`.'
+      operationId: postTeacherAnalyticsUpdate
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /teacher/broadcast:
+    post:
+      tags:
+        - Teacher
+      summary: 'Broadcast Message'
+      description: 'Handled by ProfileController::broadcastMessage. Requires role `teacher`.'
+      operationId: postTeacherBroadcast
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /teacher/classes:
+    get:
+      tags:
+        - Teacher
+      summary: 'Teacher Classes'
+      description: 'Handled by ProfileController::teacherClasses. Requires role `teacher`.'
+      operationId: getTeacherClasses
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/classes-overview:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Classes Overview'
+      description: 'Handled by TeacherController::getClassesOverview. Requires role `teacher`.'
+      operationId: getTeacherClassesOverview
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/dashboard:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Dashboard Data'
+      description: 'Handled by TeacherController::getDashboardData. Requires role `teacher`.'
+      operationId: getTeacherDashboard
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/dashboard/notifications:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Notifications'
+      description: 'Handled by TeacherController::getNotifications. Requires role `teacher`.'
+      operationId: getTeacherDashboardNotifications
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/game-analytics:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Game Analytics'
+      description: 'Handled by TeacherController::getGameAnalytics. Requires role `teacher`.'
+      operationId: getTeacherGameAnalytics
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/notifications:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Notifications'
+      description: 'Handled by TeacherController::getNotifications. Requires role `teacher`.'
+      operationId: getTeacherNotifications
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  '/teacher/notifications/{notificationId}/read':
+    post:
+      tags:
+        - Teacher
+      summary: 'Mark Notification As Read'
+      description: 'Handled by TeacherController::markNotificationAsRead. Requires role `teacher`.'
+      operationId: postTeacherNotificationsNotificationIdRead
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /teacher/recent-submissions:
+    get:
+      tags:
+        - Teacher
+      summary: 'Recent Submissions'
+      description: 'Handled by ProfileController::recentSubmissions. Requires role `teacher`.'
+      operationId: getTeacherRecentSubmissions
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/schedule:
+    get:
+      tags:
+        - Teacher
+      summary: 'Today Schedule'
+      description: 'Handled by ProfileController::todaySchedule. Requires role `teacher`.'
+      operationId: getTeacherSchedule
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/stats:
+    get:
+      tags:
+        - Teacher
+      summary: 'Teacher Stats'
+      description: 'Handled by ProfileController::teacherStats. Requires role `teacher`.'
+      operationId: getTeacherStats
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/student-progress:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Student Progress'
+      description: 'Handled by TeacherController::getStudentProgress. Requires role `teacher`.'
+      operationId: getTeacherStudentProgress
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/students:
+    get:
+      tags:
+        - Teacher
+      summary: 'Teacher Students'
+      description: 'Handled by ProfileController::teacherStudents. Requires role `teacher`.'
+      operationId: getTeacherStudents
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/students-progress:
+    get:
+      tags:
+        - Teacher
+      summary: 'Get Students Progress'
+      description: 'Handled by TeacherController::getStudentsProgress. Requires role `teacher`.'
+      operationId: getTeacherStudentsProgress
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+      security:
+        -
+          Sanctum: {  }
+  /teacher/students/move-level:
+    post:
+      tags:
+        - Teacher
+      summary: 'Move Students Level'
+      description: 'Handled by ProfileController::moveStudentsLevel. Requires role `teacher`.'
+      operationId: postTeacherStudentsMoveLevel
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/teacher/submissions/{submission}/grade':
+    post:
+      tags:
+        - Teacher
+      summary: 'Grade Submission'
+      description: 'Handled by TeacherController::gradeSubmission. Requires role `teacher`.'
+      operationId: postTeacherSubmissionsSubmissionGrade
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /test-auth:
+    get:
+      tags:
+        - 'Test Auth'
+      summary: Closure
+      description: 'Handled by inline closure.'
+      operationId: getTestAuth
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /upload/audio:
+    post:
+      tags:
+        - Upload
+      summary: 'Upload Audio'
+      description: 'Handled by FileUploadController::uploadAudio.'
+      operationId: postUploadAudio
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /upload/file:
+    delete:
+      tags:
+        - Upload
+      summary: 'Delete File'
+      description: 'Handled by FileUploadController::deleteFile.'
+      operationId: deleteUploadFile
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /upload/image:
+    post:
+      tags:
+        - Upload
+      summary: 'Upload Image'
+      description: 'Handled by FileUploadController::uploadImage.'
+      operationId: postUploadImage
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /uploads/audio:
+    post:
+      tags:
+        - Uploads
+      summary: 'Upload Audio'
+      description: 'Handled by SubmissionController::uploadAudio.'
+      operationId: postUploadsAudio
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  '/uploads/file/{file}':
+    delete:
+      tags:
+        - Uploads
+      summary: 'Delete File'
+      description: 'Handled by AssignmentController::deleteFile.'
+      operationId: deleteUploadsFileFile
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+      security:
+        -
+          Sanctum: {  }
+  /uploads/image:
+    post:
+      tags:
+        - Uploads
+      summary: 'Upload Image'
+      description: 'Handled by AssignmentController::uploadImage.'
+      operationId: postUploadsImage
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        401:
+          $ref: '#/components/responses/Unauthenticated'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      security:
+        -
+          Sanctum: {  }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+  /webhooks/paystack:
+    post:
+      tags:
+        - Webhooks
+      summary: 'Paystack Webhook'
+      description: 'Handled by PaymentController::paystackWebhook.'
+      operationId: postWebhooksPaystack
+      responses:
+        200:
+          description: 'Successful response.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericResponse'
+        422:
+          $ref: '#/components/responses/ValidationError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericPayload'
+components:
+  securitySchemes:
+    Sanctum:
+      type: http
+      scheme: bearer
+      bearerFormat: Token
+      description: 'Laravel Sanctum personal access token.'
+  schemas:
+    GenericPayload:
+      type: object
+      description: 'Generic JSON payload accepted by write operations.'
+      additionalProperties: true
+    GenericResponse:
+      type: object
+      description: 'Standard JSON envelope returned by the API.'
+      properties:
+        success:
+          type: boolean
+          default: true
+        message:
+          type: string
+          nullable: true
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        errors:
+          type: object
+          nullable: true
+          additionalProperties: true
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          nullable: true
+          additionalProperties: true
+    ValidationErrors:
+      type: object
+      additionalProperties:
+        type: array
+        items:
+          type: string
+  responses:
+    Unauthenticated:
+      description: 'Authentication required.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 'The user is not allowed to access this resource.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: 'Validation failed for the supplied payload.'
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+              errors:
+                $ref: '#/components/schemas/ValidationErrors'

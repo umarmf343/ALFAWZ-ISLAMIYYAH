@@ -127,7 +127,6 @@ coverage/
 # Composer
 vendor/
 composer.phar
-composer.lock
 
 # PHPUnit
 .phpunit.result.cache

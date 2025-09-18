@@ -21,7 +21,6 @@ use App\Http\Controllers\Core\FileUploadController;
 use App\Http\Controllers\Core\SrsController;
 use App\Http\Controllers\Core\MediaController;
 use App\Http\Controllers\Core\ResourceController;
-use App\Http\Controllers\MemorizationController;
 use App\Http\Controllers\Admin\AdminOverviewController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminClassController;

@@ -129,7 +129,7 @@ class FeedbackController extends Controller
 
             // Handle AI-generated feedback
             if ($validated['is_ai_generated'] ?? false) {
-                $aiFeedback = $this->generateAIFeedback($submission, $validated['area']);
+                $aiFeedback = $this->generateFeedbackAnalysis($submission, $validated['area']);
                 $feedbackData['content'] = $aiFeedback['content'];
                 $feedbackData['ai_analysis'] = json_encode($aiFeedback['analysis']);
                 $feedbackData['score'] = $aiFeedback['analysis']['accuracy_score'] ?? null;
@@ -458,13 +458,13 @@ class FeedbackController extends Controller
     }
 
     /**
-     * Generate AI feedback for a submission area.
+     * Generate structured AI feedback for a submission area.
      *
      * @param Submission $submission The submission to analyze
      * @param string $area The feedback area to focus on
      * @return array AI-generated feedback content and analysis
      */
-    private function generateAIFeedback(Submission $submission, string $area): array
+    private function generateFeedbackAnalysis(Submission $submission, string $area): array
     {
         try {
             // Use WhisperService to analyze the submission audio
@@ -474,7 +474,7 @@ class FeedbackController extends Controller
                 'verses' => $submission->assignment->verses ?? []
             ]);
 
-            $content = $this->generateFeedbackContent($analysis, $area);
+                $content = $this->generateFeedbackContent($analysis, $area);
 
             return [
                 'content' => $content,
