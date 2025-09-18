@@ -27,6 +27,13 @@
 - 🏆 Leaderboards and achievement system
 - 💳 Payment integration with Paystack
 
+## Community & Policies
+
+- [Contributing Guide](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Documentation Portal](docs/README.md)
+
 ---
 
 *Built with Laravel + Next.js for AlFawz Qur'an Institute*
