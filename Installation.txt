@@ -1,0 +1,153 @@
+AlFawz Qur'an Institute — cPanel Installation Guide
+==================================================
+
+Overview
+--------
+This repository contains two applications that must be deployed together for a live environment:
+
+* **Laravel API backend** located in `apps/api` — serves the core application, database, queues, and authentication.
+* **Next.js frontend** located in `apps/web` — compiled into static assets that the Laravel app serves from `public/app`.
+
+The steps below assume a typical cPanel host with SSH access, PHP 8.2+, Composer, MySQL, and the ability to run scheduled cron jobs.
+
+Prerequisites
+-------------
+1. **Domain & document root**: Point your desired domain or subdomain to `/home/USERNAME/apps/api/public`. (Replace `USERNAME` with your cPanel username.)
+2. **PHP version**: Ensure PHP 8.2 or newer is selected for the domain (cPanel → Software → MultiPHP Manager).
+3. **Database**: Create a MySQL database, user, and grant privileges (cPanel → Databases → MySQL® Databases). Record the credentials.
+4. **Node.js build environment**: Install Node.js 20.x and npm on your local machine or a build server. You will build the frontend there and upload the exported files to cPanel.
+5. **SSH/Terminal access**: Enable SSH access so you can run Composer and Artisan commands from the cPanel terminal or an SSH client.
+6. **Storage directories**: Plan to use `/home/USERNAME/apps/api/storage` and `/home/USERNAME/apps/api/bootstrap/cache` with write permissions for the web server.
+
+Upload the Project
+------------------
+1. **Connect via SSH** to your cPanel account:
+   ```bash
+   ssh USERNAME@YOUR_DOMAIN
+   cd ~
+   ```
+2. **Clone or upload the repository** into your home directory. With Git installed on the server you can run:
+   ```bash
+   git clone https://github.com/<your-org>/ALFAWZ-ISLAMIYYAH.git
+   mv ALFAWZ-ISLAMIYYAH apps
+   ```
+   If Git is not available, upload a ZIP through the File Manager, extract it, and move the contents so that the Laravel backend resides in `/home/USERNAME/apps/api` and the frontend in `/home/USERNAME/apps/web`.
+
+Laravel Backend Setup (`apps/api`)
+----------------------------------
+1. **Install PHP dependencies**:
+   ```bash
+   cd ~/apps/api
+   composer install --no-dev --prefer-dist --optimize-autoloader
+   ```
+2. **Copy the environment file** and edit it with your production settings:
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+   Key values to update:
+   * `APP_URL=https://yourdomain.com`
+   * Database settings (`DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`)
+   * Mailer credentials, queue driver, third-party keys (Paystack, Pusher, AWS S3, etc.)
+   * `SANCTUM_STATEFUL_DOMAINS` set to your primary domain
+3. **Generate the application key**:
+   ```bash
+   php artisan key:generate --force
+   ```
+4. **Create the storage symlink** so uploaded files are served correctly:
+   ```bash
+   php artisan storage:link
+   ```
+5. **Run database migrations** (and seeders if needed):
+   ```bash
+   php artisan migrate --force
+   # Optional: php artisan db:seed --force
+   ```
+6. **Optimise the application for production**:
+   ```bash
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+7. **Set file permissions** so the web server can write to storage and cache directories:
+   ```bash
+   find storage -type d -exec chmod 775 {} \;
+   find bootstrap/cache -type d -exec chmod 775 {} \;
+   ```
+   If needed, adjust ownership (e.g., `chown -R USERNAME:USERNAME storage bootstrap/cache`).
+
+Next.js Frontend Build (`apps/web`)
+-----------------------------------
+> cPanel rarely provides a recent Node.js build environment. Perform these steps on your local machine or a CI runner, then upload the output.
+
+1. **Install dependencies** locally:
+   ```bash
+   cd apps/web
+   npm install
+   ```
+2. **Configure frontend environment variables**:
+   ```bash
+   cp .env.example .env.local
+   ```
+   Edit `.env.local` and set at least `NEXT_PUBLIC_API_BASE=https://yourdomain.com/api`. Enable or disable any `NEXT_PUBLIC_FEATURE_*` flags required in production.
+3. **Build and export the static site**:
+   ```bash
+   npm run build
+   npm run export
+   ```
+   The exported assets will appear in `apps/web/out`.
+4. **Upload the exported files** to the Laravel public directory:
+   * Compress the contents of `apps/web/out` and upload the archive to cPanel (File Manager → Upload).
+   * Extract the archive into `/home/USERNAME/apps/api/public/app`.
+   * Ensure `index.html` is located at `/home/USERNAME/apps/api/public/app/index.html` and that the `/app` directory is world-readable.
+5. **Clear old assets** on subsequent deployments to avoid stale files:
+   ```bash
+   rsync -a --delete out/ /path/to/deployment/apps/api/public/app/
+   ```
+   (Replace the destination with your cPanel path when running from a local terminal.)
+
+Web Server Configuration
+------------------------
+1. **Document root**: In cPanel → Domains, set the document root of your domain to `apps/api/public`.
+2. **.htaccess**: The repository provides Laravel's default `.htaccess` file inside `public/`. Ensure it remains intact so that requests are routed to `public/index.php`.
+3. **SSL certificate**: Use cPanel → SSL/TLS → Manage SSL Sites to install or auto-provision Let's Encrypt so that `APP_URL` can remain HTTPS.
+
+Queue & Scheduler
+-----------------
+Laravel uses queued jobs and scheduled tasks. Set up the required cron jobs via cPanel → Advanced → Cron Jobs (replace `USERNAME` with your account):
+
+* **Scheduler (every minute):**
+  ```
+  * * * * * php /home/USERNAME/apps/api/artisan schedule:run >> /home/USERNAME/logs/schedule.log 2>&1
+  ```
+* **Queue worker (every 5 minutes):**
+  ```
+  */5 * * * * php /home/USERNAME/apps/api/artisan queue:work --stop-when-empty >> /home/USERNAME/logs/queue.log 2>&1
+  ```
+* **Queue restart (daily 2 AM):**
+  ```
+  0 2 * * * php /home/USERNAME/apps/api/artisan queue:restart >> /home/USERNAME/logs/queue-restart.log 2>&1
+  ```
+Create the `/home/USERNAME/logs` directory beforehand and review the log files to confirm the jobs are running.
+
+Post-Deployment Checklist
+-------------------------
+1. Visit `https://yourdomain.com` and ensure the frontend loads from `/app` and can communicate with the Laravel API (`/api/*`).
+2. Verify that authentication, file uploads, and payment integrations succeed in production mode.
+3. Confirm that queued jobs are processing by checking the `jobs` and `failed_jobs` tables in MySQL.
+4. Monitor `storage/logs/laravel.log` for runtime errors. Rotate or archive logs regularly.
+5. When releasing updates:
+   * Pull the latest Git changes or upload the new code.
+   * Re-run `composer install`, `php artisan migrate --force`, and the optimisation commands.
+   * Rebuild the Next.js frontend and re-upload `/public/app`.
+   * Clear caches if configuration or routes change: `php artisan config:clear && php artisan cache:clear` (then re-run optimisation commands).
+
+Troubleshooting Tips
+--------------------
+* **White screen/500 error**: Check `storage/logs/laravel.log` for stack traces. Ensure the PHP version matches the requirement and extensions like `pdo_mysql`, `openssl`, `mbstring`, `tokenizer`, `xml`, and `fileinfo` are enabled.
+* **CSS/JS not loading**: Confirm the `/app` directory exists inside `public/` and contains the latest export. Set correct permissions (`chmod 755` for directories, `644` for files).
+* **API 419/CSRF issues**: Verify `SESSION_DOMAIN` and `SANCTUM_STATEFUL_DOMAINS` include your base domain without protocol.
+* **Queue jobs stuck**: Ensure the queue cron job is running and that the `QUEUE_CONNECTION` in `.env` is set to `database`. Run `php artisan queue:work` manually to test.
+* **File uploads fail**: Confirm `storage` is writable and that the `FILESYSTEM_DISK` configuration points to local or S3 with valid credentials.
+
+By following this guide, the AlFawz Qur'an Institute platform will run fully on a cPanel host with the Laravel backend powering the API and the statically exported Next.js frontend served alongside it.
