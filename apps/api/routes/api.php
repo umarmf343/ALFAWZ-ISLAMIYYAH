@@ -70,14 +70,15 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-    
+    Route::post('/refresh', [AuthController::class, 'refresh'])
+        ->middleware('throttle:api');
+
     // Protected auth routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', MeController::class);
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/user', [AuthController::class, 'user']);
-        Route::post('/refresh', [AuthController::class, 'refresh']);
-        
+
         // Email verification routes
         Route::post('/email/verify', [AuthController::class, 'verifyEmail']);
         Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail']);

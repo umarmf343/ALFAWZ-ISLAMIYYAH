@@ -31,6 +31,8 @@ export interface RegisterData {
 export interface AuthResponse {
   user: User;
   token: string;
+  token_expires_at?: string | null;
+  refresh_expires_at?: string | null;
 }
 
 export interface AuthContextType {
@@ -39,7 +41,10 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refreshSession: () => Promise<boolean>;
+  tokenExpiresAt: string | null;
+  refreshExpiresAt: string | null;
   isAuthenticated: boolean;
   isTeacher: boolean;
   isStudent: boolean;
