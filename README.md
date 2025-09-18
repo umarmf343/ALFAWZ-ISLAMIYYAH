@@ -18,6 +18,10 @@
 2. Set up Next.js web: `cd apps/web && npm install`
 3. Build and deploy: `./scripts/build-web.ps1`
 
+## Documentation
+
+- [Next.js web frontend setup and deployment](apps/web/README.md)
+
 ## Features
 
 - 🎯 Interactive Qur'an assignments with hotspots
