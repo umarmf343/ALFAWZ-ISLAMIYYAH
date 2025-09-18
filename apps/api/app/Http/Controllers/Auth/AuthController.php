@@ -54,6 +54,8 @@ class AuthController extends Controller
             'token' => $tokenPayload['token'],
             'token_expires_at' => $tokenPayload['token_expires_at'],
             'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
         ], 201);
     }
 
@@ -111,7 +113,7 @@ class AuthController extends Controller
             'token' => $newToken->plainTextToken,
             'token_expires_at' => $accessTokenExpiry?->toISOString(),
             'refresh_expires_at' => $refreshExpiry->toISOString(),
-            'access_token' => $newToken->accessToken,
+            'token_id' => optional($newToken->accessToken)->getKey(),
         ];
     }
 
@@ -164,7 +166,7 @@ class AuthController extends Controller
         Log::info('auth.refresh.success', [
             'user_id' => $user->id,
             'old_token_id' => $storedToken->id,
-            'new_token_id' => $tokenPayload['access_token']->id,
+            'new_token_id' => $tokenPayload['token_id'],
             'ip' => $request->ip(),
             'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
         ]);
