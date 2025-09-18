@@ -98,6 +98,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         \App\Console\Commands\SendDailyProgressSummaries::class,
+        \App\Console\Commands\OpenApiSyncCommand::class,
     ];
 
     /**

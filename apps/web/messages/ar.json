@@ -21,6 +21,7 @@
   },
   "navigation": {
     "dashboard": "لوحة التحكم",
+    "docs": "الوثائق",
     "teacherOversight": "مراقبة المعلم",
     "login": "تسجيل الدخول",
     "register": "إنشاء حساب",

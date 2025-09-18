@@ -4,15 +4,17 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\DataTransferObjects\Auth\LoginRequestData;
+use App\DataTransferObjects\Auth\RegisterRequestData;
+use App\DataTransferObjects\Shared\ApiResponse;
+use App\DataTransferObjects\Shared\UserData;
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
-use Spatie\Permission\Models\Role;
+use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
@@ -33,25 +35,27 @@ class AuthController extends Controller
             'level' => ['nullable', 'integer', 'min:1', 'max:3'],
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
-            'phone' => $validated['phone'] ?? null,
-            'level' => $validated['level'] ?? 1,
-        ]);
+        $payload = RegisterRequestData::fromArray($validated);
+
+        $user = User::create(array_merge(
+            $payload->toUserAttributes(),
+            ['password' => Hash::make($payload->password)],
+        ));
 
         // Assign role using Spatie Permission
-        $user->assignRole($validated['role']);
+        $user->assignRole($payload->role);
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user->makeHidden(['password']),
-            'token' => $token,
-        ], 201);
+        return response()->json(
+            ApiResponse::data([
+                'user' => UserData::fromModel($user),
+                'token' => $token,
+                'roles' => $user->getRoleNames()->toArray(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+            ], 'User registered successfully'),
+            201
+        );
     }
 
     /**
@@ -67,9 +71,11 @@ class AuthController extends Controller
             'password' => ['required'],
         ]);
 
-        $user = User::where('email', $validated['email'])->first();
+        $payload = LoginRequestData::fromArray($validated);
 
-        if (!$user || !Hash::check($validated['password'], $user->password)) {
+        $user = User::where('email', $payload->email)->first();
+
+        if (!$user || !Hash::check($payload->password, $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
@@ -83,13 +89,14 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
-        return response()->json([
-            'message' => 'Login successful',
-            'user' => $user->makeHidden(['password']),
-            'token' => $token,
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
+        return response()->json(
+            ApiResponse::data([
+                'user' => UserData::fromModel($user),
+                'token' => $token,
+                'roles' => $user->getRoleNames()->toArray(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+            ], 'Login successful')
+        );
     }
 
     /**
@@ -102,9 +109,7 @@ class AuthController extends Controller
     {
         $request->user()->currentAccessToken()->delete();
 
-        return response()->json([
-            'message' => 'Logout successful',
-        ]);
+        return response()->json(ApiResponse::message('Logout successful'));
     }
 
     /**
@@ -115,9 +120,11 @@ class AuthController extends Controller
      */
     public function me(Request $request): JsonResponse
     {
-        return response()->json([
-            'user' => $request->user()->makeHidden(['password']),
-        ]);
+        return response()->json(
+            ApiResponse::data([
+                'user' => UserData::fromModel($request->user()),
+            ])
+        );
     }
 
     /**
@@ -138,10 +145,11 @@ class AuthController extends Controller
 
         $user->update($validated);
 
-        return response()->json([
-            'message' => 'Profile updated successfully',
-            'user' => $user->makeHidden(['password']),
-        ]);
+        return response()->json(
+            ApiResponse::data([
+                'user' => UserData::fromModel($user, includeAccess: false),
+            ], 'Profile updated successfully')
+        );
     }
 
     /**
@@ -172,9 +180,9 @@ class AuthController extends Controller
         // Revoke all tokens to force re-login
         $user->tokens()->delete();
 
-        return response()->json([
-            'message' => 'Password changed successfully. Please login again.',
-        ]);
+        return response()->json(
+            ApiResponse::message('Password changed successfully. Please login again.')
+        );
     }
 
     /**
@@ -187,10 +195,12 @@ class AuthController extends Controller
     {
         $user = $request->user();
         
-        return response()->json([
-            'is_admin' => $user->hasRole('admin'),
-            'roles' => $user->getRoleNames(),
-        ]);
+        return response()->json(
+            ApiResponse::data([
+                'is_admin' => $user->hasRole('admin'),
+                'roles' => $user->getRoleNames()->toArray(),
+            ])
+        );
     }
 
     /**
@@ -203,10 +213,12 @@ class AuthController extends Controller
     {
         $user = $request->user();
         
-        return response()->json([
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-            'direct_permissions' => $user->getDirectPermissions()->pluck('name'),
-        ]);
+        return response()->json(
+            ApiResponse::data([
+                'roles' => $user->getRoleNames()->toArray(),
+                'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+                'direct_permissions' => $user->getDirectPermissions()->pluck('name')->toArray(),
+            ])
+        );
     }
 }

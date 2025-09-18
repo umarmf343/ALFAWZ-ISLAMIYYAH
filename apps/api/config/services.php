@@ -47,11 +47,6 @@ return [
         'payment_url' => env('PAYSTACK_PAYMENT_URL', 'https://api.paystack.co'),
     ],
 
-    'openai' => [
-        'api_key' => env('OPENAI_API_KEY'),
-        'organization' => env('OPENAI_ORGANIZATION'),
-    ]
-
     'quran' => [
         'base' => env('QURAN_API_BASE', 'https://api.quran.com/api/v4'),
         'timeout' => env('QURAN_API_TIMEOUT', 30),

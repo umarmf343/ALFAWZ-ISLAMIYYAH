@@ -58,6 +58,12 @@ export default function Layout({ children }: LayoutProps) {
             {isAuthenticated && (
               <nav id="navigation" className="hidden md:flex space-x-8" role="navigation" aria-label="Main navigation">
                 <Link
+                  href="/docs"
+                  className="text-gray-700 hover:text-green-600 px-3 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                >
+                  {t('docs')}
+                </Link>
+                <Link
                   href="/dashboard"
                   className="text-gray-700 hover:text-green-600 px-3 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
@@ -153,6 +159,12 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               ) : (
                 <div className="flex items-center space-x-4" role="group" aria-label="Authentication options">
+                  <Link
+                    href="/docs"
+                    className="text-gray-700 hover:text-green-600 px-3 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  >
+                    {t('docs')}
+                  </Link>
                   <Link
                     href="/login"
                     className="text-gray-700 hover:text-green-600 px-3 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
