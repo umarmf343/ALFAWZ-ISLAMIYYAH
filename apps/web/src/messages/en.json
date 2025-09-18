@@ -1,4 +1,6 @@
 {
+  "greeting": "Hello",
+  "welcome": "Welcome to AlFawz Qur'an Institute",
   "common": {
     "loading": "Loading...",
     "error": "Error",

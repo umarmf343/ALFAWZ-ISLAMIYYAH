@@ -3,31 +3,23 @@
 
 const createNextIntlPlugin = require('next-intl/plugin');
 
+// Wrap your Next.js config with Next Intl plugin
 const withNextIntl = createNextIntlPlugin();
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
+  output: 'export', // For static export
+  trailingSlash: true, // Ensure all routes end with a slash
   images: {
-    unoptimized: true
+    unoptimized: true, // Disable Next.js image optimization for static export
   },
-  // Disable server-side features for static export
-  experimental: {
-    esmExternals: 'loose'
-  },
-  // Enable internationalization
-  i18n: {
-    locales: ['en', 'ar'],
-    defaultLocale: 'en',
-    localeDetection: true
-  },
-  // Configure webpack for better performance
+
+  // Configure webpack for better performance and static export compatibility
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
-        fs: false,
+        fs: false, // Avoid issues with fs module in client-side code
       };
     }
     return config;
