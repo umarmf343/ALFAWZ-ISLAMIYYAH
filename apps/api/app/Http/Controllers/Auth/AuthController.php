@@ -8,11 +8,12 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
-use Spatie\Permission\Models\Role;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -45,12 +46,14 @@ class AuthController extends Controller
         // Assign role using Spatie Permission
         $user->assignRole($validated['role']);
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $tokenPayload = $this->issueTokenFor($user);
 
         return response()->json([
             'message' => 'User registered successfully',
             'user' => $user->makeHidden(['password']),
-            'token' => $token,
+            'token' => $tokenPayload['token'],
+            'token_expires_at' => $tokenPayload['token_expires_at'],
+            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
         ], 201);
     }
 
@@ -81,15 +84,146 @@ class AuthController extends Controller
         // Revoke existing tokens for security
         $user->tokens()->delete();
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $tokenPayload = $this->issueTokenFor($user);
 
         return response()->json([
             'message' => 'Login successful',
             'user' => $user->makeHidden(['password']),
-            'token' => $token,
+            'token' => $tokenPayload['token'],
+            'token_expires_at' => $tokenPayload['token_expires_at'],
+            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
             'roles' => $user->getRoleNames(),
             'permissions' => $user->getAllPermissions()->pluck('name'),
         ]);
+    }
+
+    /**
+     * Issue a fresh access token for the user with rotation metadata.
+     */
+    protected function issueTokenFor(User $user): array
+    {
+        $accessTokenExpiry = $this->accessTokenExpiry();
+        $refreshExpiry = $this->refreshExpiry();
+
+        $newToken = $user->createToken('auth-token', ['*'], $accessTokenExpiry);
+
+        return [
+            'token' => $newToken->plainTextToken,
+            'token_expires_at' => $accessTokenExpiry?->toISOString(),
+            'refresh_expires_at' => $refreshExpiry->toISOString(),
+            'access_token' => $newToken->accessToken,
+        ];
+    }
+
+    /**
+     * Refresh an access token using the current bearer token.
+     */
+    public function refresh(Request $request): JsonResponse
+    {
+        $incomingToken = $request->bearerToken();
+
+        if (!$incomingToken) {
+            Log::warning('auth.refresh.missing_token', ['ip' => $request->ip()]);
+
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        $storedToken = PersonalAccessToken::findToken($incomingToken);
+
+        if (!$storedToken || $storedToken->tokenable_type !== User::class) {
+            Log::warning('auth.refresh.token_not_found', ['ip' => $request->ip()]);
+
+            return response()->json([
+                'message' => 'Unauthenticated.',
+            ], 401);
+        }
+
+        /** @var User $user */
+        $user = $storedToken->tokenable;
+        $refreshExpiry = $this->refreshExpiryForToken($storedToken);
+
+        if (Carbon::now()->greaterThan($refreshExpiry)) {
+            Log::warning('auth.refresh.expired', [
+                'user_id' => $user->id,
+                'token_id' => $storedToken->id,
+            ]);
+
+            $storedToken->delete();
+
+            return response()->json([
+                'message' => 'Refresh window has expired. Please login again.',
+            ], 401);
+        }
+
+        $storedToken->delete();
+
+        $tokenPayload = $this->issueTokenFor($user);
+
+        Log::info('auth.refresh.success', [
+            'user_id' => $user->id,
+            'old_token_id' => $storedToken->id,
+            'new_token_id' => $tokenPayload['access_token']->id,
+            'ip' => $request->ip(),
+            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
+        ]);
+
+        return response()->json([
+            'message' => 'Token refreshed successfully.',
+            'user' => $user->makeHidden(['password']),
+            'token' => $tokenPayload['token'],
+            'token_expires_at' => $tokenPayload['token_expires_at'],
+            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
+            'roles' => $user->getRoleNames(),
+            'permissions' => $user->getAllPermissions()->pluck('name'),
+        ]);
+    }
+
+    /**
+     * Determine when an access token should expire.
+     */
+    protected function accessTokenExpiry(): ?Carbon
+    {
+        $ttl = config('sanctum.access_token_ttl');
+
+        if ($ttl === null) {
+            $ttl = config('sanctum.expiration');
+        }
+
+        if (!$ttl) {
+            return null;
+        }
+
+        return Carbon::now()->addMinutes((int) $ttl);
+    }
+
+    /**
+     * Determine when a refresh window should expire.
+     */
+    protected function refreshExpiry(): Carbon
+    {
+        return Carbon::now()->addMinutes($this->refreshTtlMinutes());
+    }
+
+    /**
+     * Calculate refresh expiry for an existing token instance.
+     */
+    protected function refreshExpiryForToken(PersonalAccessToken $token): Carbon
+    {
+        $createdAt = $token->created_at instanceof Carbon
+            ? $token->created_at
+            : Carbon::parse($token->created_at ?? Carbon::now());
+
+        return $createdAt->copy()->addMinutes($this->refreshTtlMinutes());
+    }
+
+    /**
+     * Refresh window length in minutes.
+     */
+    protected function refreshTtlMinutes(): int
+    {
+        return (int) config('sanctum.refresh_ttl', 60 * 24 * 7);
     }
 
     /**

@@ -51,6 +51,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Access Token Lifetime
+    |--------------------------------------------------------------------------
+    |
+    | This value controls the number of minutes until an issued access token
+    | should be considered expired. It is used in conjunction with the
+    | dedicated refresh endpoint to rotate credentials.
+    |
+    */
+
+    'access_token_ttl' => env('SANCTUM_ACCESS_TOKEN_TTL', 60),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Refresh Token Lifetime
+    |--------------------------------------------------------------------------
+    |
+    | After this many minutes a token can no longer be refreshed and the user
+    | will be required to authenticate again.
+    |
+    */
+
+    'refresh_ttl' => env('SANCTUM_REFRESH_TTL', 60 * 24 * 7),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |
