@@ -2,22 +2,26 @@
 /* Author: Auto-scaffold (review required) */
 
 import React from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  BookOpen, 
-  Calendar, 
-  Clock, 
-  Star, 
+import {
+  BookOpen,
+  Calendar,
+  Clock,
+  Star,
   TrendingUp, 
   Users, 
   Award,
   Target,
   Brain,
   Flame,
-  Trophy
+  Trophy,
+  Headphones
 } from 'lucide-react';
 import MemorizationSection from '@/components/MemorizationSection';
 import LeaderboardPanel from '@/components/LeaderboardPanel';
@@ -123,6 +127,18 @@ export default function StudentDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              asChild
+              className={cn(
+                'bg-gradient-to-r from-indigo-500 to-purple-600 text-white',
+                'shadow-lg shadow-purple-200 hover:from-indigo-600 hover:to-purple-700'
+              )}
+            >
+              <Link href="/audio-player" className="flex items-center gap-2">
+                <Headphones className="h-4 w-4" />
+                Audio Player
+              </Link>
+            </Button>
             <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-2">
               <Flame className="h-4 w-4 mr-1" />
               {studentStats.weeklyStreak} Day Streak
