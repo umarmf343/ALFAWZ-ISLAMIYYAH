@@ -1,0 +1,203 @@
+AlFawz Qur'an Institute – Comprehensive cPanel Deployment Guide
+==============================================================
+
+This document walks you through deploying the full ALFAWZ-ISLAMIYYAH stack — a Laravel API backend (apps/api) and a static Next.js frontend (apps/web) — on a shared hosting account that uses cPanel. The steps assume you have SSH access and are comfortable using the cPanel graphical tools.
+
+1. Prepare Your Hosting Account
+-------------------------------
+1. **Gather account details**
+   * cPanel username and primary domain.
+   * SSH hostname (usually the same as your domain) and port.
+   * Desired production domain or subdomain for the application.
+2. **Confirm software versions**
+   * PHP 8.2 or newer with required extensions enabled: `pdo_mysql`, `openssl`, `mbstring`, `tokenizer`, `xml`, `fileinfo`, `curl`, `json`.
+   * Composer 2.x available via the cPanel terminal or installed manually.
+   * MySQL 5.7+/MariaDB 10.3+ (default on most cPanel hosts).
+3. **Request shell access if disabled** — open a support ticket or enable SSH from cPanel → Security → SSH Access.
+4. **Set the PHP version**
+   * cPanel → Software → MultiPHP Manager.
+   * Select your target domain and assign PHP 8.2.
+5. **Create the database**
+   * cPanel → Databases → MySQL® Databases.
+   * Create a database (e.g., `username_alfawz`).
+   * Create a user (e.g., `username_alfawz`).
+   * Add the user to the database with *All Privileges*.
+   * Record the database name, username, and password.
+6. **Create directories** (via File Manager or SSH) for a clean layout:
+   ```bash
+   mkdir -p ~/apps
+   ```
+
+2. Upload the Repository
+------------------------
+1. **Option A – Using Git (recommended)**
+   ```bash
+   ssh USERNAME@YOUR_DOMAIN
+   cd ~
+   git clone https://github.com/<your-org>/ALFAWZ-ISLAMIYYAH.git
+   mv ALFAWZ-ISLAMIYYAH apps
+   ```
+   *Result:* Backend resides in `~/apps/api` and frontend source in `~/apps/web`.
+2. **Option B – ZIP upload**
+   * Download the repository ZIP from GitHub to your local machine.
+   * cPanel → Files → File Manager → Upload to `/home/USERNAME`.
+   * Extract the archive; move `apps/api` and `apps/web` into `/home/USERNAME/apps/`.
+   * Delete the leftover compressed file to save space.
+3. **Set the document root** for your production domain:
+   * cPanel → Domains → Manage.
+   * Change Document Root to `/home/USERNAME/apps/api/public`.
+   * Allow a few minutes for propagation.
+
+3. Configure the Laravel Backend (`apps/api`)
+-------------------------------------------
+1. **Install Composer dependencies**
+   ```bash
+   cd ~/apps/api
+   composer install --no-dev --prefer-dist --optimize-autoloader
+   ```
+   If Composer is not present, install it locally and upload the generated `vendor` directory (less ideal) or request Composer be enabled by your host.
+2. **Create the environment file**
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+   Update at minimum:
+   * `APP_NAME="AlFawz Qur'an Institute"`
+   * `APP_ENV=production`
+   * `APP_URL=https://yourdomain.com`
+   * Database credentials (`DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`)
+   * `SESSION_DOMAIN` and `SANCTUM_STATEFUL_DOMAINS` to your root domain (without protocol).
+   * Configure mail (SMTP) and any third-party integrations (Paystack, Pusher, AWS, etc.).
+3. **Generate the application key**
+   ```bash
+   php artisan key:generate --force
+   ```
+4. **Run database migrations and optional seeders**
+   ```bash
+   php artisan migrate --force
+   # php artisan db:seed --force   # only if you need seed data
+   ```
+5. **Optimise the Laravel install**
+   ```bash
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+6. **Link storage and set permissions**
+   ```bash
+   php artisan storage:link
+   find storage -type d -exec chmod 775 {} \;
+   find storage -type f -exec chmod 664 {} \;
+   find bootstrap/cache -type d -exec chmod 775 {} \;
+   ```
+   If the host uses `nobody` or `apache` groups, run `chown -R USERNAME:USERNAME storage bootstrap/cache` (or contact support to adjust ownership).
+
+4. Build the Next.js Frontend (`apps/web`)
+-----------------------------------------
+> Shared cPanel hosts rarely provide a recent Node.js toolchain. Build locally or in CI, then deploy static assets.
+
+1. **Local setup**
+   ```bash
+   cd apps/web
+   npm install
+   cp .env.example .env.local
+   ```
+   Configure `.env.local` with production-ready values, e.g.:
+   ```env
+   NEXT_PUBLIC_API_BASE=https://yourdomain.com/api
+   NEXT_PUBLIC_APP_URL=https://yourdomain.com
+   ```
+2. **Build and export**
+   ```bash
+   npm run build
+   npm run export
+   ```
+   The static export is produced in `apps/web/out`.
+3. **Upload the static assets to cPanel**
+   * Compress the `out` directory contents into `alfawz-web.zip`.
+   * File Manager → Upload the ZIP to `/home/USERNAME/apps/api/public/`.
+   * Extract the archive; rename the extracted folder to `app` so the final path is `/home/USERNAME/apps/api/public/app` with an `index.html` inside.
+   * Remove the ZIP archive to conserve quota.
+4. **Optional: Deploy via rsync** (if SSH with rsync is allowed)
+   ```bash
+   rsync -az --delete out/ USERNAME@YOUR_DOMAIN:/home/USERNAME/apps/api/public/app/
+   ```
+
+5. Configure Web Server & HTTPS
+-------------------------------
+1. **Verify `.htaccess`** — ensure `apps/api/public/.htaccess` is intact so Laravel routes function.
+2. **SSL certificate**
+   * cPanel → Security → SSL/TLS Status → Run AutoSSL, or install a purchased certificate.
+   * After issuance, confirm `APP_URL` uses `https://` and update `.env` if necessary.
+3. **Force HTTPS** by ensuring the default Laravel middleware (`\App\Http\Middleware\TrustProxies`) has the correct proxy configuration. On shared hosts this usually works automatically; if not, set `TRUSTED_PROXIES=*` in `.env`.
+4. **Optional subdomain redirect** — if using a subdomain (e.g., `portal.example.com`), add redirects in cPanel → Domains → Redirects or handle it via DNS.
+
+6. Schedule Background Tasks
+----------------------------
+Laravel needs cron jobs for scheduled commands and queue workers.
+
+1. **Create log directory**
+   ```bash
+   mkdir -p ~/logs
+   ```
+2. **Add cron jobs** (cPanel → Advanced → Cron Jobs):
+   *Every minute – Scheduler*
+   ```
+   * * * * * php /home/USERNAME/apps/api/artisan schedule:run >> /home/USERNAME/logs/schedule.log 2>&1
+   ```
+   *Every 5 minutes – Queue Worker*
+   ```
+   */5 * * * * php /home/USERNAME/apps/api/artisan queue:work --stop-when-empty >> /home/USERNAME/logs/queue.log 2>&1
+   ```
+   *Daily at 2 AM – Queue Restart*
+   ```
+   0 2 * * * php /home/USERNAME/apps/api/artisan queue:restart >> /home/USERNAME/logs/queue-restart.log 2>&1
+   ```
+3. **Monitor logs** via File Manager or `tail -f` over SSH to confirm commands execute correctly.
+
+7. Post-Deployment Validation
+-----------------------------
+1. **Visit the site** at `https://yourdomain.com` — confirm the frontend loads and the browser network tab shows successful API calls to `/api/...`.
+2. **Test authentication** workflows (login, password reset) and any payment integrations in production mode.
+3. **Check storage** by uploading a test file or image; ensure it appears in `storage/app/public` and is accessible from the browser under `/storage/...`.
+4. **Verify database migrations** by inspecting tables through phpMyAdmin.
+5. **Inspect logs**
+   * `storage/logs/laravel.log` for runtime errors.
+   * Cron logs in `/home/USERNAME/logs/`.
+
+8. Routine Maintenance & Updates
+--------------------------------
+1. **Pull new code**
+   ```bash
+   cd ~/apps
+   git pull origin main    # or fetch ZIP updates and replace files
+   ```
+2. **Re-run backend steps**
+   ```bash
+   cd ~/apps/api
+   composer install --no-dev --prefer-dist --optimize-autoloader
+   php artisan migrate --force
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+3. **Rebuild the frontend** locally and deploy the new `/app` directory as described earlier.
+4. **Clear caches when configuration changes**
+   ```bash
+   php artisan config:clear
+   php artisan cache:clear
+   php artisan config:cache
+   ```
+5. **Database backups** — schedule backups through cPanel (Backup Wizard) or run periodic `mysqldump` commands downloaded to local storage.
+6. **Monitor disk usage** using cPanel → Files → Disk Usage, especially after multiple deployments.
+
+9. Troubleshooting Guide
+------------------------
+* **HTTP 500 errors** — check `storage/logs/laravel.log`; confirm correct PHP version and extensions.
+* **Blank frontend** — ensure `/public/app/index.html` exists and contains the latest export. Clear the browser cache or re-upload assets.
+* **API 419/CSRF issues** — ensure `SESSION_DOMAIN` and `SANCTUM_STATEFUL_DOMAINS` are set to the bare domain (no protocol or trailing slash).
+* **Queue jobs stuck** — manually run `php artisan queue:work` over SSH and inspect `/home/USERNAME/logs/queue.log`.
+* **Permission denied** — confirm `storage` and `bootstrap/cache` allow web server write access (775 directories, 664 files).
+* **Slow performance** — enable opcache in MultiPHP INI Editor, and keep caches warmed with the optimisation commands above.
+
+Following these steps will deploy the Laravel API and static Next.js frontend on cPanel with HTTPS, queues, and cron jobs functioning correctly. Keep credentials secure, run regular backups, and monitor logs for ongoing stability.
