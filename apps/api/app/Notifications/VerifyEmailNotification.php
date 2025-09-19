@@ -5,6 +5,7 @@ namespace App\Notifications;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\URL;
 
 class VerifyEmailNotification extends Notification
 {
@@ -24,19 +25,26 @@ class VerifyEmailNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $appName = config('app.name', 'AlFawz Qur\'an Institute');
-        $frontendBase = rtrim((string) config('app.frontend_url', config('app.url')), '/');
-        $verificationUrl = $frontendBase ? $frontendBase . '/verify-email' : null;
+        $verificationUrl = $this->verificationUrl($notifiable);
 
-        $mail = (new MailMessage())
+        return (new MailMessage())
             ->subject("Verify your email for {$appName}")
             ->greeting("As-salaamu alaykum {$notifiable->name}!")
             ->line("Thank you for joining {$appName}.")
-            ->line('To complete your registration, please verify your email address from within your account.');
+            ->line('To complete your registration, please verify your email address by clicking the button below.')
+            ->action('Verify Email', $verificationUrl)
+            ->line('If you did not create an account, no further action is required.');
+    }
 
-        if ($verificationUrl) {
-            $mail->action('Verify Email', $verificationUrl);
-        }
-
-        return $mail->line('You can also sign in to the app and choose "Verify Email" from your profile.');
+    protected function verificationUrl(object $notifiable): string
+    {
+        return URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes((int) config('auth.verification.expire', 60)),
+            [
+                'id' => $notifiable->getKey(),
+                'hash' => sha1($notifiable->getEmailForVerification()),
+            ]
+        );
     }
 }

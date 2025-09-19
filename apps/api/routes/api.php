@@ -71,15 +71,18 @@ Route::prefix('auth')->group(function () {
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     
+    Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+        ->middleware(['auth:sanctum', 'signed'])
+        ->name('verification.verify');
+
     // Protected auth routes
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', MeController::class);
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/user', [AuthController::class, 'user']);
         Route::post('/refresh', [AuthController::class, 'refresh']);
-        
+
         // Email verification routes
-        Route::post('/email/verify', [AuthController::class, 'verifyEmail']);
         Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail']);
         Route::get('/email/verification-status', [AuthController::class, 'checkEmailVerification']);
     });

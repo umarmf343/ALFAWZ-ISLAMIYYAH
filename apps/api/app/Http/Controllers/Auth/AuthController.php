@@ -12,7 +12,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Auth\Events\Verified;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -247,8 +247,15 @@ class AuthController extends Controller
     /**
      * Verify the authenticated user's email address.
      */
-    public function verifyEmail(Request $request): JsonResponse
+    public function verifyEmail(EmailVerificationRequest $request): JsonResponse
     {
+        if (!$request->hasValidSignature()) {
+            return response()->json(
+                ApiResponse::message('Invalid or expired verification link.', false),
+                403
+            );
+        }
+
         $user = $request->user();
 
         if ($user->hasVerifiedEmail()) {
@@ -257,9 +264,7 @@ class AuthController extends Controller
             );
         }
 
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-        }
+        $request->fulfill();
 
         return response()->json(
             ApiResponse::message('Email verified successfully.')

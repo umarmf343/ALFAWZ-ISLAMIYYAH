@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -122,17 +123,52 @@ class AuthEndpointsTest extends TestCase
         $this->assertDatabaseHas('personal_access_tokens', ['tokenable_id' => $user->id]);
     }
 
-    public function test_verify_email_marks_user_as_verified(): void
+    public function test_email_verification_requires_signed_url(): void
     {
         $user = User::factory()->unverified()->create();
         $user->assignRole('student');
 
         Sanctum::actingAs($user);
 
-        $response = $this->postJson('/api/auth/email/verify');
+        $hash = sha1($user->getEmailForVerification());
+
+        $response = $this->getJson("/api/auth/email/verify/{$user->getKey()}/{$hash}");
+
+        $response->assertForbidden();
+        $this->assertFalse($user->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_signed_email_verification_marks_user_exactly_once(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $user->assignRole('student');
+
+        Sanctum::actingAs($user);
+
+        $verificationUrl = URL::temporarySignedRoute(
+            'verification.verify',
+            now()->addMinutes(60),
+            [
+                'id' => $user->getKey(),
+                'hash' => sha1($user->getEmailForVerification()),
+            ]
+        );
+
+        $parsedUrl = parse_url($verificationUrl);
+        $relativeUrl = $parsedUrl['path'] . (isset($parsedUrl['query']) ? '?' . $parsedUrl['query'] : '');
+
+        $response = $this->getJson($relativeUrl);
 
         $response->assertOk();
-        $this->assertNotNull($user->fresh()->email_verified_at);
+        $response->assertJsonPath('message', 'Email verified successfully.');
+        $verifiedAt = $user->fresh()->email_verified_at;
+        $this->assertNotNull($verifiedAt);
+
+        $secondResponse = $this->getJson($relativeUrl);
+
+        $secondResponse->assertOk();
+        $secondResponse->assertJsonPath('message', 'Email already verified.');
+        $this->assertEquals($verifiedAt, $user->fresh()->email_verified_at);
     }
 
     public function test_resend_verification_email_dispatches_notification(): void
