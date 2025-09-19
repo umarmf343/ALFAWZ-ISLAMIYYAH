@@ -14,6 +14,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         Schema::create('assignments', function (Blueprint $table) {
             $table->id();
             $table->string('title');

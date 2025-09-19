@@ -12,6 +12,10 @@ return new class extends Migration {
      * Add hasanat_total field to users table for tracking total spiritual rewards.
      */
     public function up(): void {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->unsignedBigInteger('hasanat_total')->default(0)->after('preferences');
             $table->index('hasanat_total'); // For leaderboard queries

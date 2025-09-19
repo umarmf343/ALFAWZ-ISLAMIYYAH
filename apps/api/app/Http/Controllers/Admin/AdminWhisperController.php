@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\WhisperJob;
 
 /**
  * AdminWhisperController monitors Whisper job processing and analytics.
@@ -101,7 +102,7 @@ class AdminWhisperController extends Controller
             
             // Calculate processing time if completed
             $processingTime = null;
-            if ($job->status === 'completed' && isset($meta['started_at'])) {
+            if ($job->status === WhisperJob::STATUS_DONE && isset($meta['started_at'])) {
                 $startTime = \Carbon\Carbon::parse($meta['started_at']);
                 $endTime = \Carbon\Carbon::parse($job->updated_at);
                 $processingTime = $startTime->diffInSeconds($endTime);
@@ -209,10 +210,10 @@ class AdminWhisperController extends Controller
         
         // Overall metrics
         $totalJobs = $query->count();
-        $completedJobs = (clone $query)->where('status', 'completed')->count();
-        $failedJobs = (clone $query)->where('status', 'failed')->count();
-        $pendingJobs = (clone $query)->where('status', 'pending')->count();
-        $processingJobs = (clone $query)->where('status', 'processing')->count();
+        $completedJobs = (clone $query)->where('status', WhisperJob::STATUS_DONE)->count();
+        $failedJobs = (clone $query)->where('status', WhisperJob::STATUS_FAILED)->count();
+        $pendingJobs = (clone $query)->where('status', WhisperJob::STATUS_QUEUED)->count();
+        $processingJobs = (clone $query)->where('status', WhisperJob::STATUS_PROCESSING)->count();
         
         // Success rate
         $successRate = $totalJobs > 0 ? round(($completedJobs / $totalJobs) * 100, 1) : 0;
@@ -229,7 +230,7 @@ class AdminWhisperController extends Controller
             $dayQuery = clone $query;
             $total = $dayQuery->whereDate('created_at', $date)->count();
             $completed = $dayQuery->whereDate('created_at', $date)
-                                 ->where('status', 'completed')->count();
+                                 ->where('status', WhisperJob::STATUS_DONE)->count();
             
             return [
                 'date' => $date,
@@ -349,7 +350,7 @@ class AdminWhisperController extends Controller
         $metrics = [];
         
         // Processing time
-        if ($job->status === 'completed' && isset($meta['started_at'])) {
+        if ($job->status === WhisperJob::STATUS_DONE && isset($meta['started_at'])) {
             $startTime = \Carbon\Carbon::parse($meta['started_at']);
             $endTime = \Carbon\Carbon::parse($job->updated_at);
             $metrics['processing_time_seconds'] = $startTime->diffInSeconds($endTime);
@@ -380,7 +381,7 @@ class AdminWhisperController extends Controller
     private function calculateAverageProcessingTime($query): ?float
     {
         $completedJobs = (clone $query)
-            ->where('status', 'completed')
+            ->where('status', WhisperJob::STATUS_DONE)
             ->whereNotNull('meta_json')
             ->get(['meta_json', 'created_at', 'updated_at']);
         

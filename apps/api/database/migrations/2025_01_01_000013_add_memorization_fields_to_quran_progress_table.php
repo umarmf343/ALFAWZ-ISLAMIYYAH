@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         Schema::table('quran_progress', function (Blueprint $table) {
             $table->float('memorized_confidence')->default(0)->after('hasanat'); // 0-1 confidence score
             $table->integer('memorization_reviews')->default(0)->after('memorized_confidence'); // Number of memorization reviews

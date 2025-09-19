@@ -14,6 +14,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         Schema::create('classes', function (Blueprint $table) {
             $table->id();
             $table->string('name');

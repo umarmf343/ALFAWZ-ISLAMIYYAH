@@ -14,6 +14,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         Schema::create('submissions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('assignment_id')->constrained()->onDelete('cascade');

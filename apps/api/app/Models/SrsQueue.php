@@ -65,7 +65,7 @@ class SrsQueue extends Model
         return $this->hasOne(QuranProgress::class, function ($query) {
             $query->where('user_id', $this->user_id)
                   ->where('surah_id', $this->surah_id)
-                  ->where('ayah_id', $this->ayah_id);
+                  ->where('ayah_number', $this->ayah_id);
         });
     }
 
@@ -120,36 +120,34 @@ class SrsQueue extends Model
      * @param int $quality Quality score (0-5)
      * @return void
      */
-    public function updateSrs(int $quality): void
+    public function applyReview(float $confidenceScore): void
     {
-        $this->repetitions++;
+        $quality = max(0, min(5, (int) round($confidenceScore * 5)));
+
         $this->review_count++;
 
         if ($quality < 3) {
-            // Reset if quality is poor
             $this->repetitions = 0;
             $this->interval = 1;
         } else {
-            // Update ease factor using SM-2 formula
+            $this->repetitions++;
+
             $this->ease_factor = max(
                 1.3,
                 $this->ease_factor + (0.1 - (5 - $quality) * (0.08 + (5 - $quality) * 0.02))
             );
 
-            // Calculate new interval
-            if ($this->repetitions <= 1) {
+            if ($this->repetitions === 1) {
                 $this->interval = 1;
+            } elseif ($this->repetitions === 2) {
+                $this->interval = 6;
             } else {
-                $this->interval = (int) round($this->interval * $this->ease_factor);
+                $this->interval = max(1, (int) round($this->interval * $this->ease_factor));
             }
         }
 
-        // Update confidence score
-        $confidenceAdjustment = ($quality / 5) * 0.2;
-        $this->confidence_score = min(1.0, $this->confidence_score + $confidenceAdjustment);
-
-        // Set next due date
-        $this->due_at = now()->addDays($this->interval);
+        $this->confidence_score = min(1.0, max(0.0, $confidenceScore));
+        $this->due_at = now()->addDays(max(1, $this->interval));
 
         $this->save();
     }

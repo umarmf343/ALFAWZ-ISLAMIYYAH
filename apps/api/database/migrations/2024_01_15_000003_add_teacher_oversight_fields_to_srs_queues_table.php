@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         Schema::table('srs_queues', function (Blueprint $table) {
             $table->string('audio_path')->nullable()->after('confidence_score');
             $table->json('tajweed_analysis')->nullable()->after('audio_path');

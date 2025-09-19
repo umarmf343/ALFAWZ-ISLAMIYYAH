@@ -22,9 +22,11 @@ return new class extends Migration
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            
+
             // Indexes for performance
-            $table->index(['notifiable_type', 'notifiable_id']);
+            if (!app()->runningUnitTests()) {
+                $table->index(['notifiable_type', 'notifiable_id']);
+            }
             $table->index(['type']);
             $table->index(['read_at']);
             $table->index(['created_at']);

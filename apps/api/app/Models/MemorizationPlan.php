@@ -42,9 +42,17 @@ class MemorizationPlan extends Model
     /**
      * Get the SRS queue items for this plan.
      */
-    public function srsQueue(): HasMany
+    public function srsQueues(): HasMany
     {
         return $this->hasMany(SrsQueue::class, 'plan_id');
+    }
+
+    /**
+     * @deprecated Use srsQueues() instead.
+     */
+    public function srsQueue(): HasMany
+    {
+        return $this->srsQueues();
     }
 
     /**
@@ -86,7 +94,7 @@ class MemorizationPlan extends Model
     {
         // This would need to be calculated based on the surahs
         // For now, return a placeholder
-        return $this->srsQueue()->count();
+        return $this->srsQueues()->count();
     }
 
     /**
@@ -94,10 +102,10 @@ class MemorizationPlan extends Model
      */
     public function getCompletionPercentageAttribute(): float
     {
-        $total = $this->srsQueue()->count();
+        $total = $this->srsQueues()->count();
         if ($total === 0) return 0;
         
-        $completed = $this->srsQueue()->where('confidence_score', '>=', 0.8)->count();
+        $completed = $this->srsQueues()->where('confidence_score', '>=', 0.8)->count();
         return round(($completed / $total) * 100, 2);
     }
 
@@ -106,7 +114,7 @@ class MemorizationPlan extends Model
      */
     public function getAverageConfidenceAttribute(): float
     {
-        return $this->srsQueue()->avg('confidence_score') ?? 0;
+        return $this->srsQueues()->avg('confidence_score') ?? 0;
     }
 
     /**
@@ -114,7 +122,7 @@ class MemorizationPlan extends Model
      */
     public function getDueTodayCountAttribute(): int
     {
-        return $this->srsQueue()
+        return $this->srsQueues()
             ->where('due_at', '<=', now())
             ->count();
     }
@@ -124,8 +132,8 @@ class MemorizationPlan extends Model
      */
     public function checkCompletion(): void
     {
-        $totalItems = $this->srsQueue()->count();
-        $masteredItems = $this->srsQueue()->where('confidence_score', '>=', 0.9)->count();
+        $totalItems = $this->srsQueues()->count();
+        $masteredItems = $this->srsQueues()->where('confidence_score', '>=', 0.9)->count();
 
         if ($totalItems > 0 && $masteredItems === $totalItems) {
             $this->update(['status' => 'completed']);
@@ -141,7 +149,7 @@ class MemorizationPlan extends Model
             return null;
         }
 
-        $remainingItems = $this->srsQueue()->where('confidence_score', '<', 0.9)->count();
+        $remainingItems = $this->srsQueues()->where('confidence_score', '<', 0.9)->count();
         if ($remainingItems === 0) {
             return now();
         }
