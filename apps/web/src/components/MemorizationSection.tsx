@@ -1,3 +1,5 @@
+'use client';
+
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
@@ -69,10 +71,14 @@ export default function MemorizationSection() {
 
   // Handle window resize for confetti
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const handleResize = () => {
       setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     };
-    
+
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
