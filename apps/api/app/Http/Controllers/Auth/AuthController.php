@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -48,15 +49,12 @@ class AuthController extends Controller
 
         $tokenPayload = $this->issueTokenFor($user);
 
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user->makeHidden(['password']),
-            'token' => $tokenPayload['token'],
-            'token_expires_at' => $tokenPayload['token_expires_at'],
-            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ], 201);
+        return $this->buildAuthResponse(
+            $user,
+            $tokenPayload,
+            'User registered successfully',
+            201
+        );
     }
 
     /**
@@ -88,15 +86,11 @@ class AuthController extends Controller
 
         $tokenPayload = $this->issueTokenFor($user);
 
-        return response()->json([
-            'message' => 'Login successful',
-            'user' => $user->makeHidden(['password']),
-            'token' => $tokenPayload['token'],
-            'token_expires_at' => $tokenPayload['token_expires_at'],
-            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
+        return $this->buildAuthResponse(
+            $user,
+            $tokenPayload,
+            'Login successful'
+        );
     }
 
     /**
@@ -159,27 +153,26 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $storedToken->delete();
+        $tokenPayload = DB::transaction(function () use ($user, $storedToken) {
+            $payload = $this->issueTokenFor($user);
+            $storedToken->delete();
 
-        $tokenPayload = $this->issueTokenFor($user);
+            return $payload;
+        });
 
         Log::info('auth.refresh.success', [
             'user_id' => $user->id,
             'old_token_id' => $storedToken->id,
-            'new_token_id' => $tokenPayload['token_id'],
+            'new_token_id' => $tokenPayload['token_id'] ?? null,
             'ip' => $request->ip(),
             'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
         ]);
 
-        return response()->json([
-            'message' => 'Token refreshed successfully.',
-            'user' => $user->makeHidden(['password']),
-            'token' => $tokenPayload['token'],
-            'token_expires_at' => $tokenPayload['token_expires_at'],
-            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
-            'roles' => $user->getRoleNames(),
-            'permissions' => $user->getAllPermissions()->pluck('name'),
-        ]);
+        return $this->buildAuthResponse(
+            $user->fresh(),
+            $tokenPayload,
+            'Token refreshed successfully.'
+        );
     }
 
     /**
@@ -226,6 +219,28 @@ class AuthController extends Controller
     protected function refreshTtlMinutes(): int
     {
         return (int) config('sanctum.refresh_ttl', 60 * 24 * 7);
+    }
+
+    /**
+     * Build a consistent authentication JSON response structure.
+     */
+    protected function buildAuthResponse(
+        User $user,
+        array $tokenPayload,
+        string $message,
+        int $status = 200
+    ): JsonResponse {
+        $userData = $user->makeHidden(['password']);
+
+        return response()->json([
+            'message' => $message,
+            'user' => $userData,
+            'token' => $tokenPayload['token'],
+            'token_expires_at' => $tokenPayload['token_expires_at'],
+            'refresh_expires_at' => $tokenPayload['refresh_expires_at'],
+            'roles' => $user->getRoleNames()->values()->all(),
+            'permissions' => $user->getAllPermissions()->pluck('name')->values()->all(),
+        ], $status);
     }
 
     /**
