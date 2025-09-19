@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginCredentials } from '@/types/auth';
+import { ApiError } from '@/lib/api';
 
 /**
  * Login page component with email/password authentication.
@@ -53,13 +54,23 @@ export default function LoginPage() {
     try {
       await login(credentials);
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login failed:', error);
-      if (error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
-        setErrors({ general: [error.message || 'Login failed. Please try again.'] });
+      if (error instanceof ApiError) {
+        if (error.response?.data?.errors) {
+          setErrors(error.response.data.errors);
+          return;
+        }
+        if (error.data?.errors) {
+          setErrors(error.data.errors);
+          return;
+        }
+        setErrors({ general: [error.message] });
+        return;
       }
+
+      const message = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      setErrors({ general: [message] });
     } finally {
       setIsSubmitting(false);
     }

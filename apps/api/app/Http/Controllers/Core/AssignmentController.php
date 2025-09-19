@@ -11,6 +11,7 @@ use App\Models\Submission;
 use App\Models\Hotspot;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -124,10 +125,19 @@ class AssignmentController extends Controller
             return response()->json(['error' => 'You can only create assignments for your own classes'], 403);
         }
         
-        $validated['teacher_id'] = $user->id;
-        $validated['status'] = 'draft';
-        
-        $assignment = Assignment::create($validated);
+        $payload = array_merge(
+            Arr::except($validated, ['quran_surah', 'quran_ayah_start', 'quran_ayah_end', 'difficulty_level']),
+            [
+                'teacher_id' => $user->id,
+                'status' => 'draft',
+                'surah_id' => $validated['quran_surah'],
+                'ayah_start' => $validated['quran_ayah_start'],
+                'ayah_end' => $validated['quran_ayah_end'],
+                'difficulty' => $validated['difficulty_level'],
+            ]
+        );
+
+        $assignment = Assignment::create($payload);
         
         // Load relationships for response
         $assignment->load(['class', 'teacher', 'hotspots']);
@@ -236,7 +246,25 @@ class AssignmentController extends Controller
             'settings' => 'nullable|array'
         ]);
         
-        $assignment->update($validated);
+        $updatePayload = Arr::except($validated, ['quran_surah', 'quran_ayah_start', 'quran_ayah_end', 'difficulty_level']);
+
+        if (array_key_exists('quran_surah', $validated)) {
+            $updatePayload['surah_id'] = $validated['quran_surah'];
+        }
+
+        if (array_key_exists('quran_ayah_start', $validated)) {
+            $updatePayload['ayah_start'] = $validated['quran_ayah_start'];
+        }
+
+        if (array_key_exists('quran_ayah_end', $validated)) {
+            $updatePayload['ayah_end'] = $validated['quran_ayah_end'];
+        }
+
+        if (array_key_exists('difficulty_level', $validated)) {
+            $updatePayload['difficulty'] = $validated['difficulty_level'];
+        }
+
+        $assignment->update($updatePayload);
         
         $assignment->load(['class', 'teacher', 'hotspots']);
         

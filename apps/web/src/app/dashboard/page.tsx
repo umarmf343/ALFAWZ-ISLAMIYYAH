@@ -85,7 +85,7 @@ interface Recommendation {
  * Displays different content based on user role (student/teacher).
  */
 export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading, isStudent, isTeacher } = useAuth();
+  const { user, token, isAuthenticated, isLoading, isStudent, isTeacher } = useAuth();
   const t = useTranslations('dashboard');
   const [stats, setStats] = useState<DashboardStats>({});
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -110,9 +110,7 @@ export default function DashboardPage() {
         setIsLoadingStats(true);
         
         // Set auth token for offline API
-        if (user?.token) {
-          offlineApi.setToken(user.token);
-        }
+        offlineApi.setToken(token ?? null);
         
         if (isStudent) {
           // Fetch student-specific dashboard data with offline support
@@ -156,7 +154,7 @@ export default function DashboardPage() {
     };
 
     fetchStats();
-  }, [isAuthenticated, user, isStudent, isTeacher]);
+  }, [isAuthenticated, user, isStudent, isTeacher, token]);
 
   /**
    * Handle recitation update

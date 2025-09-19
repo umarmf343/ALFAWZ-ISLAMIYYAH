@@ -23,19 +23,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   useEffect(() => {
     const initAuth = async () => {
+      if (typeof window === 'undefined') {
+        setIsLoading(false);
+        return;
+      }
+
       const storedToken = localStorage.getItem('auth_token');
       if (storedToken) {
         api.setToken(storedToken);
         setToken(storedToken);
-        
+
         try {
           const response = await api.get('/me');
-          setUser(response.data);
+          const profile = response.data?.user ?? response.data ?? response.user;
+          setUser(profile ?? null);
         } catch (error) {
           console.error('Failed to fetch user:', error);
           // Clear invalid token
           api.clearToken();
           setToken(null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('auth_token');
+          }
         }
       }
       setIsLoading(false);
@@ -50,8 +59,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (credentials: LoginCredentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      const { user: userData, token: authToken } = response.data;
-      
+      const payload = response.data ?? {};
+      const userData = payload.user;
+      const authToken = payload.token;
+
+      if (!userData || !authToken) {
+        throw new Error('Invalid authentication response');
+      }
+
       setUser(userData);
       setToken(authToken);
       api.setToken(authToken);
@@ -66,9 +81,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const register = async (data: RegisterData) => {
     try {
-      const response = await api.post('/auth/register', data);
-      const { user: userData, token: authToken } = response.data;
-      
+      const payload = {
+        name: data.name,
+        email: data.email,
+        password: data.password,
+        password_confirmation: data.password_confirmation,
+        ...(data.phone ? { phone: data.phone } : {}),
+        ...(data.level ? { level: data.level } : {}),
+      };
+
+      const response = await api.post('/auth/register', payload);
+      const responseData = response.data ?? {};
+      const userData = responseData.user;
+      const authToken = responseData.token;
+
+      if (!userData || !authToken) {
+        throw new Error('Invalid registration response');
+      }
+
       setUser(userData);
       setToken(authToken);
       api.setToken(authToken);

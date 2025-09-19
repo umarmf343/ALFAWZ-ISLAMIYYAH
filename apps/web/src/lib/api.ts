@@ -17,6 +17,32 @@ export interface ApiResponse<T = any> {
   errors?: Record<string, string[]>;
 }
 
+export class ApiError extends Error {
+  status: number;
+  data: any;
+  response: {
+    status: number;
+    data: any;
+    headers: Record<string, string>;
+  };
+
+  constructor(message: string, status: number, data: any, headers: Headers) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+    const headerObject: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      headerObject[key] = value;
+    });
+    this.response = {
+      status,
+      data,
+      headers: headerObject,
+    };
+  }
+}
+
 /**
  * API client class with authentication support
  */
@@ -86,17 +112,48 @@ class ApiClient {
         headers,
       });
 
-      const data = await response.json();
+      const isJson = response.headers.get('content-type')?.includes('application/json');
+      const isEmptyBody = response.status === 204 || response.status === 205;
+      let parsedBody: any = null;
 
-      if (!response.ok) {
-        throw new Error(data.message || 'API request failed');
+      if (!isEmptyBody) {
+        try {
+          if (isJson) {
+            parsedBody = await response.json();
+          } else {
+            const textBody = await response.text();
+            parsedBody = textBody ? textBody : null;
+          }
+        } catch (parseError) {
+          parsedBody = null;
+        }
       }
 
-      return data;
+      if (!response.ok) {
+        const message =
+          (parsedBody && (parsedBody.message || parsedBody.error)) ||
+          `Request failed with status ${response.status}`;
+        throw new ApiError(message, response.status, parsedBody, response.headers);
+      }
+
+      const normalized = this.normalizeResponse<T>(parsedBody);
+      return normalized;
     } catch (error) {
       console.error('API request failed:', error);
       throw error;
     }
+  }
+
+  private normalizeResponse<T>(body: any): ApiResponse<T> {
+    if (body === null || body === undefined) {
+      return { data: undefined };
+    }
+
+    if (typeof body === 'object' && body !== null && 'data' in body) {
+      return body as ApiResponse<T>;
+    }
+
+    return { data: body };
   }
 
   /**

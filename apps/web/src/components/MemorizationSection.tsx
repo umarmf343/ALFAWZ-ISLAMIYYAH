@@ -14,6 +14,7 @@ import 'react-circular-progressbar/dist/styles.css';
 import Confetti from 'react-confetti';
 import { useMemorization } from '@/hooks/useMemorization';
 import { useAudio } from '@/hooks/useAudio';
+import { api } from '@/lib/api';
 
 interface MemorizationPlan {
   id: number;
@@ -86,10 +87,9 @@ export default function MemorizationSection() {
    */
   const loadAyah = async (surahId: number, ayahId: number) => {
     try {
-      const response = await fetch(`/api/quran/surahs/${surahId}/ayahs/${ayahId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentAyah(data);
+      const response = await api.get(`/quran/surahs/${surahId}/ayahs/${ayahId}`);
+      if (response.data) {
+        setCurrentAyah(response.data as AyahData);
         resetModes();
       }
     } catch (error) {
