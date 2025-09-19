@@ -4,8 +4,9 @@
 'use client';
 
 import React from 'react';
-import { useLocale, useTranslations } from 'next-intl';
-import { useRouter, usePathname } from 'next/navigation';
+import { useLocale } from 'next-intl';
+import { useRouter, usePathname } from 'next-intl/client';
+import { useSearchParams } from 'next/navigation';
 import { locales, type Locale } from '@/i18n';
 
 /**
@@ -13,10 +14,18 @@ import { locales, type Locale } from '@/i18n';
  * Provides a dropdown or toggle interface for language selection.
  */
 const LanguageSwitcher: React.FC = () => {
-  const t = useTranslations('common');
   const locale = useLocale() as Locale;
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const getLocalizedPath = React.useCallback(
+    () => ({
+      pathname,
+      query: Object.fromEntries(searchParams.entries()),
+    }),
+    [pathname, searchParams]
+  );
 
   /**
    * Handle language change by navigating to the same path with new locale.
@@ -24,18 +33,18 @@ const LanguageSwitcher: React.FC = () => {
    */
   const handleLanguageChange = (newLocale: Locale) => {
     if (newLocale === locale) return;
+    const url = getLocalizedPath();
 
-    // Remove current locale from pathname if it exists
-    const pathWithoutLocale = pathname.startsWith(`/${locale}`) 
-      ? pathname.slice(`/${locale}`.length) || '/'
-      : pathname;
+    router.replace(url, { locale: newLocale });
 
-    // Navigate to new locale path
-    const newPath = newLocale === 'en' 
-      ? pathWithoutLocale 
-      : `/${newLocale}${pathWithoutLocale}`;
-    
-    router.push(newPath);
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash) {
+        requestAnimationFrame(() => {
+          window.location.hash = hash;
+        });
+      }
+    }
   };
 
   /**
@@ -101,19 +110,30 @@ export const CompactLanguageSwitcher: React.FC = () => {
   const locale = useLocale() as Locale;
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const getLocalizedPath = React.useCallback(
+    () => ({
+      pathname,
+      query: Object.fromEntries(searchParams.entries()),
+    }),
+    [pathname, searchParams]
+  );
 
   const handleLanguageChange = (newLocale: Locale) => {
     if (newLocale === locale) return;
+    const url = getLocalizedPath();
 
-    const pathWithoutLocale = pathname.startsWith(`/${locale}`) 
-      ? pathname.slice(`/${locale}`.length) || '/'
-      : pathname;
+    router.replace(url, { locale: newLocale });
 
-    const newPath = newLocale === 'en' 
-      ? pathWithoutLocale 
-      : `/${newLocale}${pathWithoutLocale}`;
-    
-    router.push(newPath);
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash) {
+        requestAnimationFrame(() => {
+          window.location.hash = hash;
+        });
+      }
+    }
   };
 
   return (
@@ -149,6 +169,15 @@ export const DropdownLanguageSwitcher: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
+
+  const getLocalizedPath = React.useCallback(
+    () => ({
+      pathname,
+      query: Object.fromEntries(searchParams.entries()),
+    }),
+    [pathname, searchParams]
+  );
 
   // Close dropdown when clicking outside or pressing Escape
   React.useEffect(() => {
@@ -178,15 +207,18 @@ export const DropdownLanguageSwitcher: React.FC = () => {
       return;
     }
 
-    const pathWithoutLocale = pathname.startsWith(`/${locale}`) 
-      ? pathname.slice(`/${locale}`.length) || '/'
-      : pathname;
+    const url = getLocalizedPath();
 
-    const newPath = newLocale === 'en' 
-      ? pathWithoutLocale 
-      : `/${newLocale}${pathWithoutLocale}`;
-    
-    router.push(newPath);
+    router.replace(url, { locale: newLocale });
+
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      if (hash) {
+        requestAnimationFrame(() => {
+          window.location.hash = hash;
+        });
+      }
+    }
     setIsOpen(false);
   };
 

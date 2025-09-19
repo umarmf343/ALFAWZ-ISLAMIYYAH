@@ -166,6 +166,8 @@ const normalizeStudentDashboard = (data: StudentDashboardApiResponse): StudentDa
 export default function DashboardPage() {
   const { user, token, isAuthenticated, isLoading, isStudent, isTeacher } = useAuth();
   const t = useTranslations('dashboard');
+  const tAuth = useTranslations('auth');
+  const tAyah = useTranslations('ayahOfDay');
   const [stats, setStats] = useState<DashboardStats>({});
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   
@@ -281,8 +283,24 @@ export default function DashboardPage() {
       
       // Refresh dashboard data
       const dashboardRes = await api.get('/student/dashboard');
-      setStudentData(dashboardRes.data);
-      
+      const updatedRawData = dashboardRes.data as StudentDashboardApiResponse;
+      const normalizedDashboard = normalizeStudentDashboard(updatedRawData);
+
+      setStudentData(normalizedDashboard);
+      setAyahOfDay(updatedRawData.ayahOfDay ?? null);
+      setRecommendations(updatedRawData.recommendations ?? []);
+      setStats(prevStats => ({
+        ...prevStats,
+        classes_count: updatedRawData.stats?.classes_count ?? prevStats.classes_count,
+        assignments_count: updatedRawData.stats?.assignments_count ?? prevStats.assignments_count,
+        submissions_count: updatedRawData.stats?.submissions_count ?? prevStats.submissions_count,
+        pending_submissions: updatedRawData.stats?.pending_submissions ?? prevStats.pending_submissions,
+        total_hasanat: normalizedDashboard.hasanat_total,
+        recent_classes: updatedRawData.stats?.recent_classes ?? prevStats.recent_classes,
+        recent_assignments: updatedRawData.stats?.recent_assignments ?? prevStats.recent_assignments,
+        recent_submissions: updatedRawData.stats?.recent_submissions ?? prevStats.recent_submissions,
+      }));
+
     } catch (error) {
       console.error('Failed to update recitation:', error);
     } finally {
@@ -296,9 +314,17 @@ export default function DashboardPage() {
   const shareAyah = async () => {
     if (!ayahOfDay) return;
     
+    const shareSummary = tAyah('shareText', {
+      surah: ayahOfDay.surah_name,
+      text: ayahOfDay.text_english,
+    });
+    const shareMessage = ayahOfDay.reference
+      ? `${shareSummary} (${ayahOfDay.reference})`
+      : shareSummary;
+
     const shareData = {
-      title: 'Ayah of the Day',
-      text: `${ayahOfDay.text_english} (${ayahOfDay.reference})`,
+      title: tAyah('title'),
+      text: shareMessage,
       url: window.location.href
     };
     
@@ -308,7 +334,7 @@ export default function DashboardPage() {
       } else {
         // Fallback: copy to clipboard
         await navigator.clipboard.writeText(`${shareData.text} - ${shareData.url}`);
-        alert('Ayah copied to clipboard!');
+        alert(tAyah('copySuccess'));
       }
     } catch (error) {
       console.error('Failed to share ayah:', error);
@@ -327,12 +353,12 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Please log in</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">{tAuth('pleaseLogin')}</h1>
           <Link
             href="/login"
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
           >
-            Go to Login
+            {tAuth('signIn')}
           </Link>
         </div>
       </div>
