@@ -33,14 +33,76 @@ interface DashboardStats {
   recent_submissions?: Submission[];
 }
 
+interface AyahOfDay {
+  surah_id: number;
+  ayah_number: number;
+  surah_name: string;
+  surah_name_arabic: string;
+  text_arabic: string;
+  text_english: string;
+  reference: string;
+}
+
+interface Recommendation {
+  surah_id: number;
+  title: string;
+  reason: string;
+  priority: string;
+}
+
+interface StudentDashboardApiResponse {
+  greeting?: string;
+  hasanat_total?: number;
+  previous_hasanat?: number;
+  daily_progress?: {
+    verses_read?: number;
+    goal?: number;
+    daily_goal?: number;
+    time_spent?: number;
+    streak?: number;
+    streak_days?: number;
+    goal_achieved?: boolean;
+    progress_percentage?: number;
+    hasanat_earned?: number;
+  };
+  weekly_stats?: {
+    verses?: number;
+    hasanat?: number;
+    time_spent?: number;
+    days_active?: number;
+  };
+  recent_surahs?: Array<{
+    surah_id: number;
+    ayah_number: number;
+    last_seen_at: string;
+    hasanat: number;
+  }>;
+  badges?: Array<{
+    name: string;
+    icon: string;
+  }>;
+  stats?: {
+    classes_count?: number;
+    assignments_count?: number;
+    submissions_count?: number;
+    pending_submissions?: number;
+    recent_classes?: Class[];
+    recent_assignments?: Assignment[];
+    recent_submissions?: Submission[];
+  };
+  ayahOfDay?: AyahOfDay;
+  recommendations?: Recommendation[];
+}
+
 interface StudentDashboardData {
   greeting: string;
   hasanat_total: number;
+  previous_hasanat: number;
   daily_progress: {
     verses_read: number;
-    daily_goal: number;
+    goal: number;
     time_spent: number;
-    streak_days: number;
+    streak: number;
     goal_achieved: boolean;
     progress_percentage: number;
     hasanat_earned: number;
@@ -63,22 +125,39 @@ interface StudentDashboardData {
   }>;
 }
 
-interface AyahOfDay {
-  surah_id: number;
-  ayah_number: number;
-  surah_name: string;
-  surah_name_arabic: string;
-  text_arabic: string;
-  text_english: string;
-  reference: string;
-}
+const normalizeStudentDashboard = (data: StudentDashboardApiResponse): StudentDashboardData => {
+  const totalHasanat = Math.max(0, data.hasanat_total ?? 0);
+  const reportedPrevious = data.previous_hasanat;
+  const rawDaily = data.daily_progress ?? {};
+  const rawHasanatEarned = rawDaily.hasanat_earned;
 
-interface Recommendation {
-  surah_id: number;
-  title: string;
-  reason: string;
-  priority: string;
-}
+  const inferredPrevious = reportedPrevious ?? (rawHasanatEarned != null ? totalHasanat - rawHasanatEarned : totalHasanat);
+  const previousHasanat = Math.max(0, inferredPrevious);
+  const normalizedHasanatEarned = rawHasanatEarned ?? Math.max(0, totalHasanat - previousHasanat);
+
+  return {
+    greeting: data.greeting ?? '',
+    hasanat_total: totalHasanat,
+    previous_hasanat: previousHasanat,
+    daily_progress: {
+      verses_read: rawDaily.verses_read ?? 0,
+      goal: rawDaily.goal ?? rawDaily.daily_goal ?? 0,
+      time_spent: rawDaily.time_spent ?? 0,
+      streak: rawDaily.streak ?? rawDaily.streak_days ?? 0,
+      goal_achieved: rawDaily.goal_achieved ?? false,
+      progress_percentage: rawDaily.progress_percentage ?? 0,
+      hasanat_earned: normalizedHasanatEarned,
+    },
+    weekly_stats: {
+      verses: data.weekly_stats?.verses ?? 0,
+      hasanat: data.weekly_stats?.hasanat ?? 0,
+      time_spent: data.weekly_stats?.time_spent ?? 0,
+      days_active: data.weekly_stats?.days_active ?? 0,
+    },
+    recent_surahs: data.recent_surahs ?? [],
+    badges: data.badges ?? [],
+  };
+};
 
 /**
  * Main dashboard page showing user-specific overview and quick actions.
@@ -116,21 +195,26 @@ export default function DashboardPage() {
         if (isStudent) {
           // Fetch student-specific dashboard data with offline support
           const response = await offlineApi.getDashboardData();
-          
-          setStudentData(response.data.studentData);
-          setAyahOfDay(response.data.ayahOfDay);
-          setRecommendations(response.data.recommendations || []);
+          const rawData = response.data as StudentDashboardApiResponse;
+          const normalized = normalizeStudentDashboard(rawData);
+
+          setStudentData(normalized);
+          setAyahOfDay(rawData.ayahOfDay ?? null);
+          setRecommendations(rawData.recommendations ?? []);
           setFromCache(response.fromCache);
           setLastUpdated(response.timestamp);
-          
-          setStats({
-            classes_count: response.data.stats?.classes_count || 0,
-            assignments_count: response.data.stats?.assignments_count || 0,
-            submissions_count: response.data.stats?.submissions_count || 0,
-            recent_classes: response.data.stats?.recent_classes || [],
-            recent_assignments: response.data.stats?.recent_assignments || [],
-            recent_submissions: response.data.stats?.recent_submissions || [],
-          });
+
+          setStats(prevStats => ({
+            ...prevStats,
+            classes_count: rawData.stats?.classes_count ?? 0,
+            assignments_count: rawData.stats?.assignments_count ?? 0,
+            submissions_count: rawData.stats?.submissions_count ?? 0,
+            pending_submissions: rawData.stats?.pending_submissions ?? 0,
+            total_hasanat: normalized.hasanat_total,
+            recent_classes: rawData.stats?.recent_classes ?? [],
+            recent_assignments: rawData.stats?.recent_assignments ?? [],
+            recent_submissions: rawData.stats?.recent_submissions ?? [],
+          }));
         } else if (isTeacher) {
           const [classesRes, assignmentsRes, submissionsRes] = await Promise.all([
             api.get('/classes'),
@@ -138,14 +222,15 @@ export default function DashboardPage() {
             api.get('/submissions?status=pending&limit=5')
           ]);
           
-          setStats({
+          setStats(prevStats => ({
+            ...prevStats,
             classes_count: classesRes.data?.data?.length || 0,
             assignments_count: assignmentsRes.data?.total || 0,
             pending_submissions: submissionsRes.data?.total || 0,
             recent_classes: classesRes.data?.data?.slice(0, 3) || [],
             recent_assignments: assignmentsRes.data?.data || [],
             recent_submissions: submissionsRes.data?.data || [],
-          });
+          }));
         }
       } catch (error) {
         console.error('Failed to fetch dashboard stats:', error);
@@ -255,6 +340,9 @@ export default function DashboardPage() {
   }
 
   const badge = getHasanatBadge(stats.total_hasanat || 0);
+  const todaysHasanat = studentData?.daily_progress.hasanat_earned ?? 0;
+  const recentSurahs: StudentDashboardData['recent_surahs'] = studentData?.recent_surahs ?? [];
+  const hasRecentSurahs = recentSurahs.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -310,14 +398,14 @@ export default function DashboardPage() {
                 <p className="text-emerald-100 text-lg">
                   {t('continueJourney')} • {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
-                {studentData?.daily_progress.streak_days > 0 && (
-                   <div className="mt-4 flex items-center space-x-2">
-                     <FaFire className="text-orange-300" />
-                     <span className="text-emerald-100">
-                       {studentData.daily_progress.streak_days} day streak!
-                     </span>
-                   </div>
-                 )}
+                {studentData?.daily_progress.streak > 0 && (
+                  <div className="mt-4 flex items-center space-x-2">
+                    <FaFire className="text-orange-300" />
+                    <span className="text-emerald-100">
+                      {studentData.daily_progress.streak} day streak!
+                    </span>
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -353,8 +441,8 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-4 text-center">
                   <p className="text-sm text-gray-600">
-                     {t('versesProgress', { read: studentData?.daily_progress.verses_read || 0, goal: studentData?.daily_progress.daily_goal || 10 })}
-                   </p>
+                    {t('versesProgress', { read: studentData?.daily_progress.verses_read || 0, goal: studentData?.daily_progress.goal || 10 })}
+                  </p>
                   {studentData?.daily_progress.goal_achieved && (
                     <p className="text-green-600 font-medium mt-1">🎉 {t('goalAchieved')}</p>
                   )}
@@ -392,9 +480,9 @@ export default function DashboardPage() {
                  <div className="flex items-center justify-between">
                    <div>
                      <p className="text-sm font-medium text-gray-600">{t('todaysHasanat')}</p>
-                     <p className="text-2xl font-bold text-gray-900">
-                       {studentData?.daily_progress.hasanat_earned || 0}
-                     </p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {todaysHasanat}
+                    </p>
                    </div>
                    <div className="h-12 w-12 bg-amber-100 rounded-lg flex items-center justify-center">
                      <FaStar className="h-6 w-6 text-amber-600" />
@@ -412,7 +500,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-sm font-medium text-gray-600">{t('streak')}</p>
                      <p className="text-2xl font-bold text-gray-900">
-                       {studentData?.daily_progress.streak_days || 0}
+                      {studentData?.daily_progress.streak || 0}
                      </p>
                   </div>
                   <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -490,10 +578,10 @@ export default function DashboardPage() {
                 className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
               >
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('recentSurahs')}</h3>
-                {studentData?.recent_surahs && studentData.recent_surahs.length > 0 ? (
+                {hasRecentSurahs ? (
                   <div className="space-y-3">
-                    {studentData.recent_surahs.map((surah: any, index: number) => (
-                      <motion.div 
+                    {recentSurahs.map((surah, index) => (
+                      <motion.div
                         key={index}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
