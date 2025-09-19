@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { useLocale } from 'next-intl';
-import { useRouter, usePathname } from 'next-intl/client';
+import { useRouter, usePathname } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { locales, type Locale } from '@/i18n';
 

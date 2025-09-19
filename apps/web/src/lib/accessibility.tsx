@@ -1,6 +1,8 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+
 /**
  * Accessibility utilities for screen readers and keyboard navigation
  */
@@ -11,6 +13,10 @@
  * @param priority 'polite' (default) or 'assertive'
  */
 export function announceToScreenReader(message: string, priority: 'polite' | 'assertive' = 'polite') {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
   const announcement = document.createElement('div');
   announcement.setAttribute('aria-live', priority);
   announcement.setAttribute('aria-atomic', 'true');
@@ -30,10 +36,7 @@ export function announceToScreenReader(message: string, priority: 'polite' | 'as
  * @param event Keyboard event
  * @param callback Function to execute on Enter/Space
  */
-export function handleKeyboardActivation(
-  event: React.KeyboardEvent,
-  callback: () => void
-) {
+export function handleKeyboardActivation(event: ReactKeyboardEvent, callback: () => void) {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
     callback();
@@ -113,7 +116,7 @@ export const focusManagement = {
  * @param text Text for screen readers only
  * @returns JSX element with sr-only class
  */
-export function ScreenReaderOnly({ children }: { children: React.ReactNode }) {
+export function ScreenReaderOnly({ children }: { children: ReactNode }) {
   return (
     <span className="sr-only">
       {children}
@@ -124,12 +127,12 @@ export function ScreenReaderOnly({ children }: { children: React.ReactNode }) {
 /**
  * ARIA live region component for dynamic announcements
  */
-export function LiveRegion({ 
-  message, 
-  priority = 'polite' 
-}: { 
-  message: string; 
-  priority?: 'polite' | 'assertive' 
+export function LiveRegion({
+  message,
+  priority = 'polite'
+}: {
+  message: string;
+  priority?: 'polite' | 'assertive'
 }) {
   return (
     <div
@@ -145,7 +148,7 @@ export function LiveRegion({
 /**
  * Skip link component for keyboard navigation
  */
-export function SkipLink({ href, children }: { href: string; children: React.ReactNode }) {
+export function SkipLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <a
       href={href}

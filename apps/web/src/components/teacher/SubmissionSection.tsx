@@ -14,22 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Play, 
   Pause, 
@@ -929,39 +914,36 @@ export default function SubmissionSection() {
             />
           </div>
           
-          <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t('filterStatus', { defaultValue: 'All Status' })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('status.all', { defaultValue: 'All Status' })}</SelectItem>
-              <SelectItem value="pending">{t('status.pending', { defaultValue: 'Pending' })}</SelectItem>
-              <SelectItem value="graded">{t('status.graded', { defaultValue: 'Graded' })}</SelectItem>
-              <SelectItem value="reviewed">{t('status.reviewed', { defaultValue: 'Reviewed' })}</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={filters.assignment} onValueChange={(value) => updateFilter('assignment', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t('filterAssignment', { defaultValue: 'All Assignments' })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('assignments.all', { defaultValue: 'All Assignments' })}</SelectItem>
-              {/* Add dynamic assignment options here */}
-            </SelectContent>
-          </Select>
-          
-          <Select value={filters.dateRange} onValueChange={(value) => updateFilter('dateRange', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={t('filterDate', { defaultValue: 'All Time' })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('dateRange.all', { defaultValue: 'All Time' })}</SelectItem>
-              <SelectItem value="today">{t('dateRange.today', { defaultValue: 'Today' })}</SelectItem>
-              <SelectItem value="week">{t('dateRange.week', { defaultValue: 'This Week' })}</SelectItem>
-              <SelectItem value="month">{t('dateRange.month', { defaultValue: 'This Month' })}</SelectItem>
-            </SelectContent>
-          </Select>
+          <select
+            value={filters.status}
+            onChange={(event) => updateFilter('status', event.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+          >
+            <option value="all">{t('status.all', { defaultValue: 'All Status' })}</option>
+            <option value="pending">{t('status.pending', { defaultValue: 'Pending' })}</option>
+            <option value="graded">{t('status.graded', { defaultValue: 'Graded' })}</option>
+            <option value="reviewed">{t('status.reviewed', { defaultValue: 'Reviewed' })}</option>
+          </select>
+
+          <select
+            value={filters.assignment}
+            onChange={(event) => updateFilter('assignment', event.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+          >
+            <option value="all">{t('assignments.all', { defaultValue: 'All Assignments' })}</option>
+            {/* Add dynamic assignment options here */}
+          </select>
+
+          <select
+            value={filters.dateRange}
+            onChange={(event) => updateFilter('dateRange', event.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+          >
+            <option value="all">{t('dateRange.all', { defaultValue: 'All Time' })}</option>
+            <option value="today">{t('dateRange.today', { defaultValue: 'Today' })}</option>
+            <option value="week">{t('dateRange.week', { defaultValue: 'This Week' })}</option>
+            <option value="month">{t('dateRange.month', { defaultValue: 'This Month' })}</option>
+          </select>
         </div>
       </div>
 

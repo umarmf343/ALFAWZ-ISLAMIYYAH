@@ -10,13 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Table,
   TableBody,
   TableCell,
@@ -169,17 +162,16 @@ export default function MemorizationOversightSection() {
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex items-center gap-4">
-          <Select value={selectedClass} onValueChange={setSelectedClass}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder={t('memorization.selectClass', { defaultValue: 'Select Class' })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('memorization.allClasses', { defaultValue: 'All Classes' })}</SelectItem>
-              <SelectItem value="1">{t('memorization.class1', { defaultValue: 'Class 1' })}</SelectItem>
-              <SelectItem value="2">{t('memorization.class2', { defaultValue: 'Class 2' })}</SelectItem>
-              <SelectItem value="3">{t('memorization.class3', { defaultValue: 'Class 3' })}</SelectItem>
-            </SelectContent>
-          </Select>
+          <select
+            value={selectedClass}
+            onChange={(event) => setSelectedClass(event.target.value)}
+            className="w-48 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+          >
+            <option value="all">{t('memorization.allClasses', { defaultValue: 'All Classes' })}</option>
+            <option value="1">{t('memorization.class1', { defaultValue: 'Class 1' })}</option>
+            <option value="2">{t('memorization.class2', { defaultValue: 'Class 2' })}</option>
+            <option value="3">{t('memorization.class3', { defaultValue: 'Class 3' })}</option>
+          </select>
         </div>
 
         <div className="flex gap-2">
