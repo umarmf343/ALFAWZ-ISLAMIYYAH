@@ -4,7 +4,8 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Auth\MustVerifyEmail as MustVerifyEmailTrait;
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,12 +13,13 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\Hasanat;
 use App\Models\Achievement;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmailContract
 {
-    use HasApiTokens, HasFactory, Notifiable, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles, MustVerifyEmailTrait;
 
     /**
      * The attributes that are mass assignable.
@@ -192,9 +194,17 @@ class User extends Authenticatable
      */
     public function memberClasses(): BelongsToMany
     {
-        return $this->belongsToMany(ClassModel::class, 'class_members')
+        return $this->belongsToMany(ClassModel::class, 'class_members', 'user_id', 'class_id')
                     ->withPivot('role_in_class')
                     ->withTimestamps();
+    }
+
+    /**
+     * Get classes where this user participates as a student.
+     */
+    public function studentClasses(): BelongsToMany
+    {
+        return $this->memberClasses()->wherePivot('role_in_class', 'student');
     }
 
     /**
@@ -356,5 +366,13 @@ class User extends Authenticatable
                     ->pluck('members')
                     ->flatten()
                     ->unique('id');
+    }
+
+    /**
+     * Send the custom email verification notification.
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotification());
     }
 }

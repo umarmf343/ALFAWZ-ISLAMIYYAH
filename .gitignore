@@ -132,6 +132,7 @@ composer.phar
 # PHPUnit
 .phpunit.result.cache
 phpunit.xml
+!apps/api/phpunit.xml
 coverage.xml
 
 # PHP CS Fixer

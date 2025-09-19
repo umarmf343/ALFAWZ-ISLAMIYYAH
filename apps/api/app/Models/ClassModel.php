@@ -54,7 +54,7 @@ class ClassModel extends Model
      */
     public function members(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'class_members')
+        return $this->belongsToMany(User::class, 'class_members', 'class_id', 'user_id')
                     ->withPivot('role_in_class')
                     ->withTimestamps();
     }

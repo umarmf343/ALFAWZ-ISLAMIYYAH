@@ -4,6 +4,7 @@
 
 namespace App\Http\Controllers\Core;
 
+use App\DataTransferObjects\Shared\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\ClassModel;
 use App\Models\User;
@@ -220,6 +221,49 @@ class ClassController extends Controller
             'message' => 'Member added successfully',
             'member' => $memberUser->makeHidden(['password']),
         ]);
+    }
+
+    /**
+     * Get classes for the authenticated student.
+     */
+    public function studentClasses(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user->isStudent()) {
+            return response()->json(
+                ApiResponse::error('Only students can access their class list.'),
+                403
+            );
+        }
+
+        $classes = $user->studentClasses()
+            ->with(['teacher:id,name,email'])
+            ->orderBy('classes.title')
+            ->get()
+            ->map(function (ClassModel $class) {
+                return [
+                    'id' => $class->id,
+                    'title' => $class->title,
+                    'description' => $class->description,
+                    'level' => $class->level,
+                    'teacher' => $class->teacher ? [
+                        'id' => $class->teacher->id,
+                        'name' => $class->teacher->name,
+                        'email' => $class->teacher->email,
+                    ] : null,
+                    'role_in_class' => $class->pivot->role_in_class,
+                    'joined_at' => optional($class->pivot->created_at)?->toISOString(),
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        return response()->json(
+            ApiResponse::data([
+                'classes' => $classes,
+            ])
+        );
     }
 
     /**
