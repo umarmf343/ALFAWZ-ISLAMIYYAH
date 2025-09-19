@@ -32,7 +32,14 @@
     "studentOversight": "Student Oversight",
     "teacherOversight": "Teacher Oversight",
     "welcome": "Welcome, {name}",
-    "shareAyah": "Share Ayah"
+    "shareAyah": "Share Ayah",
+    "myClasses": "My Classes",
+    "assignments": "Assignments",
+    "leaderboard": "Leaderboard",
+    "submissions": "Submissions",
+    "openMenu": "Open navigation menu",
+    "closeMenu": "Close navigation menu",
+    "mainNavigation": "Primary navigation"
   },
   "auth": {
     "welcome": "Welcome to AlFawz Qur'an Institute",
@@ -52,7 +59,8 @@
     "signUp": "Sign Up",
     "signIn": "Sign In",
     "loggingIn": "Signing in...",
-    "registering": "Creating account..."
+    "registering": "Creating account...",
+    "pleaseLogin": "Please log in"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -127,7 +135,8 @@
     "listen": "Listen",
     "memorize": "Memorize",
     "shareText": "Today's Ayah from {surah}: {text}",
-    "loading": "Loading today's ayah..."
+    "loading": "Loading today's ayah...",
+    "copySuccess": "Ayah copied to clipboard!"
   },
   "recommendations": {
     "title": "Recommended for You",

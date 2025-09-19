@@ -29,7 +29,14 @@
     "register": "إنشاء حساب",
     "logout": "تسجيل الخروج",
     "welcome": "مرحباً، {name}",
-    "shareAyah": "مشاركة الآية"
+    "shareAyah": "مشاركة الآية",
+    "myClasses": "فصولي",
+    "assignments": "الواجبات",
+    "leaderboard": "لوحة المتصدرين",
+    "submissions": "التسليمات",
+    "openMenu": "فتح قائمة التنقل",
+    "closeMenu": "إغلاق قائمة التنقل",
+    "mainNavigation": "القائمة الرئيسية"
   },
   "auth": {
     "welcome": "مرحباً بكم في معهد الفوز لتعليم القرآن",
@@ -49,7 +56,8 @@
     "signUp": "إنشاء حساب",
     "signIn": "تسجيل الدخول",
     "loggingIn": "جاري تسجيل الدخول...",
-    "registering": "جاري إنشاء الحساب..."
+    "registering": "جاري إنشاء الحساب...",
+    "pleaseLogin": "يرجى تسجيل الدخول"
   },
   "dashboard": {
     "welcome": "مرحباً بعودتك، {name}!",
@@ -108,7 +116,8 @@
     "listen": "استماع",
     "memorize": "حفظ",
     "shareText": "آية اليوم من {surah}: {text}",
-    "loading": "جاري تحميل آية اليوم..."
+    "loading": "جاري تحميل آية اليوم...",
+    "copySuccess": "تم نسخ الآية إلى الحافظة!"
   },
   "recommendations": {
     "title": "موصى لك",
