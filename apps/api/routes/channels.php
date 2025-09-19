@@ -44,13 +44,13 @@ Broadcast::channel('admin.{adminId}', function ($user, $adminId) {
 Broadcast::channel('class.{classId}', function ($user, $classId) {
     // Check if user is teacher of the class or enrolled student
     if ($user->role === 'teacher') {
-        return $user->classes()->where('id', $classId)->exists();
+        return $user->teachingClasses()->where('id', $classId)->exists();
     }
-    
+
     if ($user->role === 'student') {
-        return $user->enrolledClasses()->where('id', $classId)->exists();
+        return $user->studentClasses()->where('id', $classId)->exists();
     }
-    
+
     return false;
 });
 
@@ -60,12 +60,12 @@ Broadcast::channel('class.{classId}', function ($user, $classId) {
  */
 Broadcast::channel('assignment.{assignmentId}', function ($user, $assignmentId) {
     if ($user->role === 'teacher') {
-        return $user->assignments()->where('id', $assignmentId)->exists();
+        return $user->createdAssignments()->where('id', $assignmentId)->exists();
     }
-    
+
     if ($user->role === 'student') {
         // Check if student is enrolled in a class that has this assignment
-        return $user->enrolledClasses()
+        return $user->studentClasses()
             ->whereHas('assignments', function ($query) use ($assignmentId) {
                 $query->where('id', $assignmentId);
             })->exists();

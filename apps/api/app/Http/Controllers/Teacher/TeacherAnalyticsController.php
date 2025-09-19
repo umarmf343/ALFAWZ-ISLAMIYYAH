@@ -30,7 +30,7 @@ class TeacherAnalyticsController extends Controller
         };
         
         // Get teacher's classes
-        $classesQuery = $teacher->classes();
+        $classesQuery = $teacher->teachingClasses();
         if ($classId !== 'all') {
             $classesQuery->where('id', $classId);
         }

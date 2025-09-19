@@ -22,7 +22,7 @@ class ProfileController extends Controller
         $user = $request->user()->load([
             'teachingClasses',
             'memberClasses',
-            'assignments',
+            'createdAssignments',
             'submissions.assignment',
         ]);
 
@@ -149,7 +149,7 @@ class ProfileController extends Controller
             $stats = [
                 'classes_teaching' => $user->teachingClasses()->count(),
                 'total_students' => $user->getStudents()->count(),
-                'assignments_created' => $user->assignments()->count(),
+                'assignments_created' => $user->createdAssignments()->count(),
                 'submissions_to_grade' => \App\Models\Submission::whereHas('assignment', function ($query) use ($user) {
                     $query->where('teacher_id', $user->id);
                 })->where('status', 'pending')->count(),
@@ -191,7 +191,7 @@ class ProfileController extends Controller
             }
         } elseif ($user->isTeacher()) {
             // Recent assignments created
-            $recentAssignments = $user->assignments()
+            $recentAssignments = $user->createdAssignments()
                 ->with('class')
                 ->latest()
                 ->limit(5)

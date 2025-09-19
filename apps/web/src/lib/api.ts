@@ -92,14 +92,17 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
+    const { headers: providedHeaders, ...requestInit } = options;
+    const headers = this.normalizeHeaders(providedHeaders);
+    const isFormData =
+      typeof FormData !== 'undefined' && requestInit.body instanceof FormData;
 
-    // Merge additional headers if provided
-    if (options.headers) {
-      Object.assign(headers, options.headers);
+    if (!this.hasHeader(headers, 'Accept')) {
+      headers['Accept'] = 'application/json';
+    }
+
+    if (!isFormData && !this.hasHeader(headers, 'Content-Type')) {
+      headers['Content-Type'] = 'application/json';
     }
 
     if (this.token) {
@@ -108,7 +111,7 @@ class ApiClient {
 
     try {
       const response = await fetch(url, {
-        ...options,
+        ...requestInit,
         headers,
       });
 
@@ -156,6 +159,34 @@ class ApiClient {
     return { data: body };
   }
 
+  private normalizeHeaders(headers?: HeadersInit): Record<string, string> {
+    if (!headers) {
+      return {};
+    }
+
+    if (headers instanceof Headers) {
+      const normalized: Record<string, string> = {};
+      headers.forEach((value, key) => {
+        normalized[key] = value;
+      });
+      return normalized;
+    }
+
+    if (Array.isArray(headers)) {
+      return headers.reduce<Record<string, string>>((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {});
+    }
+
+    return { ...headers };
+  }
+
+  private hasHeader(headers: Record<string, string>, name: string): boolean {
+    const target = name.toLowerCase();
+    return Object.keys(headers).some((key) => key.toLowerCase() === target);
+  }
+
   /**
    * GET request helper
    */
@@ -170,6 +201,16 @@ class ApiClient {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  /**
+   * POST helper for multipart/form-data requests
+   */
+  async postFormData<T = any>(endpoint: string, data: FormData): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data,
     });
   }
 
@@ -283,26 +324,12 @@ export const getDueReviews = (limit: number = 10) =>
 export const submitReview = async (reviewId: number, submission: ReviewSubmission): Promise<ApiResponse<SrsReview>> => {
   const formData = new FormData();
   formData.append('confidence', submission.confidence.toString());
-  
+
   if (submission.audio_file) {
     formData.append('audio_file', submission.audio_file);
   }
 
-  const token = api['token'] || (typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null);
-  const response = await fetch(`${API_BASE}/student/memorization/reviews/${reviewId}`, {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    throw new Error(`Review submission failed: ${response.status}`);
-  }
-
-  return response.json();
+  return api.postFormData<SrsReview>(`/student/memorization/reviews/${reviewId}`, formData);
 };
 
 /**

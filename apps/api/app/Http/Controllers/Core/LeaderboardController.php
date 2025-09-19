@@ -66,7 +66,7 @@ class LeaderboardController extends Controller
             if ($user->hasRole('teacher')) {
                 $hasAccess = $user->teachingClasses()->where('classes.id', $classId)->exists();
             } else {
-                $hasAccess = $user->enrolledClasses()->where('classes.id', $classId)->exists();
+                $hasAccess = $user->memberClasses()->where('classes.id', $classId)->exists();
             }
 
             if (!$hasAccess) {
@@ -76,12 +76,12 @@ class LeaderboardController extends Controller
                 ], 403);
             }
 
-            $userQuery->whereHas('enrolledClasses', function ($query) use ($classId) {
+            $userQuery->whereHas('memberClasses', function ($query) use ($classId) {
                 $query->where('classes.id', $classId);
             });
         } elseif ($scope === 'class' && !$classId) {
             // If class scope but no class_id, use user's first enrolled class
-            $firstClass = $user->enrolledClasses()->first();
+            $firstClass = $user->memberClasses()->first();
             if (!$firstClass) {
                 return response()->json([
                     'error' => 'No class found',
@@ -89,7 +89,7 @@ class LeaderboardController extends Controller
                 ], 404);
             }
             $classId = $firstClass->id;
-            $userQuery->whereHas('enrolledClasses', function ($query) use ($classId) {
+            $userQuery->whereHas('memberClasses', function ($query) use ($classId) {
                 $query->where('classes.id', $classId);
             });
         }
