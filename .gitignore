@@ -23,6 +23,7 @@
 # Laravel specific
 apps/api/.env
 apps/api/.env.*
+!apps/api/.env.testing
 apps/api/bootstrap/cache/*
 apps/api/storage/app/*
 apps/api/storage/framework/cache/*

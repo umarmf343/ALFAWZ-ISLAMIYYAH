@@ -4,14 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\MemorizationPlan;
-use App\Models\SrsQueue;
 use App\Models\QuranProgress;
+use App\Models\SrsQueue;
+use App\Models\User;
 use App\Notifications\MemorizationProgressUpdated;
 use App\Services\WhisperService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
 class MemorizationController extends Controller
@@ -29,20 +30,33 @@ class MemorizationController extends Controller
      * @param Request $request HTTP request
      * @return \Illuminate\Http\JsonResponse JSON response with plans
      */
-    public function getPlans(Request $request)
+    public function index(Request $request)
     {
-        $student = Auth::user();
-        
-        $plans = MemorizationPlan::where('student_id', $student->id)
-            ->with(['srsQueues' => function($query) {
-                $query->where('due_at', '<=', now())
-                      ->orderBy('due_at', 'asc');
+        $user = $request->user();
+
+        $plans = MemorizationPlan::with(['srsQueues' => function ($query) {
+                $query->orderBy('due_at');
             }])
+            ->where('user_id', $user->id)
+            ->orderByDesc('created_at')
             ->get();
+
+        $payload = $plans->map(function (MemorizationPlan $plan) {
+            return [
+                'id' => $plan->id,
+                'title' => $plan->title,
+                'status' => $plan->status,
+                'surahs' => $plan->surahs,
+                'daily_target' => $plan->daily_target,
+                'start_date' => optional($plan->start_date)->toDateString(),
+                'end_date' => optional($plan->end_date)->toDateString(),
+                'stats' => $this->buildPlanStatsPayload($plan),
+            ];
+        });
 
         return response()->json([
             'success' => true,
-            'data' => $plans
+            'data' => $payload,
         ]);
     }
 
@@ -52,43 +66,63 @@ class MemorizationController extends Controller
      * @param Request $request HTTP request with plan data
      * @return \Illuminate\Http\JsonResponse JSON response with created plan
      */
-    public function createPlan(Request $request)
+    public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'surah_id' => 'required|integer|min:1|max:114',
-            'start_ayah' => 'required|integer|min:1',
-            'end_ayah' => 'required|integer|min:1',
-            'daily_target' => 'required|integer|min:1|max:50'
+            'surahs' => 'required|array|min:1',
+            'surahs.*' => 'integer|min:1|max:114',
+            'daily_target' => 'required|integer|min:1|max:50',
+            'start_date' => 'required|date|after_or_equal:today',
+            'end_date' => 'nullable|date|after:start_date',
+            'is_teacher_visible' => 'sometimes|boolean',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
-        }
+        $user = $request->user();
 
-        $student = Auth::user();
-        
         $plan = MemorizationPlan::create([
-            'student_id' => $student->id,
-            'title' => $request->title,
-            'surah_id' => $request->surah_id,
-            'start_ayah' => $request->start_ayah,
-            'end_ayah' => $request->end_ayah,
-            'daily_target' => $request->daily_target,
+            'user_id' => $user->id,
+            'title' => $validated['title'],
+            'surahs' => $validated['surahs'],
+            'daily_target' => $validated['daily_target'],
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'] ?? null,
+            'is_teacher_visible' => $validated['is_teacher_visible'] ?? true,
             'status' => 'active',
-            'created_at' => now()
         ]);
 
-        // Create initial SRS queue entries
-        $this->createInitialSrsEntries($plan);
+        $this->initializeSrsQueue($plan);
+        $plan->load('srsQueues');
 
         return response()->json([
             'success' => true,
-            'data' => $plan->load('srsQueues')
+            'data' => [
+                'plan' => $plan,
+                'stats' => $this->buildPlanStatsPayload($plan),
+            ],
         ], 201);
+    }
+
+    public function planStats(Request $request, MemorizationPlan $plan)
+    {
+        $user = $request->user();
+
+        if ($plan->user_id !== $user->id && !$user->hasAnyRole(['teacher', 'admin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access to plan stats',
+            ], 403);
+        }
+
+        $plan->load('srsQueues');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'plan' => $plan,
+                'stats' => $this->buildPlanStatsPayload($plan),
+            ],
+        ]);
     }
 
     /**
@@ -99,18 +133,36 @@ class MemorizationController extends Controller
      */
     public function getDueReviews(Request $request)
     {
-        $student = Auth::user();
-        
-        $dueReviews = SrsQueue::where('student_id', $student->id)
+        $user = $request->user();
+
+        $dueReviews = SrsQueue::with('plan')
+            ->where('user_id', $user->id)
             ->where('due_at', '<=', now())
-            ->with('memorizationPlan')
-            ->orderBy('due_at', 'asc')
+            ->orderBy('due_at')
             ->limit(20)
             ->get();
 
+        $data = $dueReviews->map(function (SrsQueue $queue) {
+            $overdueHours = $queue->due_at && $queue->due_at->isPast()
+                ? $queue->due_at->diffInHours(now())
+                : 0;
+
+            return [
+                'id' => $queue->id,
+                'plan_id' => $queue->plan_id,
+                'plan_title' => optional($queue->plan)->title,
+                'surah_id' => $queue->surah_id,
+                'ayah_id' => $queue->ayah_id,
+                'confidence_score' => $queue->confidence_score,
+                'repetitions' => $queue->repetitions,
+                'due_at' => optional($queue->due_at)->toISOString(),
+                'overdue_hours' => $overdueHours,
+            ];
+        });
+
         return response()->json([
             'success' => true,
-            'data' => $dueReviews
+            'data' => $data,
         ]);
     }
 
@@ -120,94 +172,96 @@ class MemorizationController extends Controller
      * @param Request $request HTTP request with review data and audio
      * @return \Illuminate\Http\JsonResponse JSON response with analysis results
      */
-    public function submitReview(Request $request)
+    public function reviewAyah(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'plan_id' => 'required|exists:memorization_plans,id',
-            'surah_id' => 'required|integer|min:1|max:114',
-            'ayah_id' => 'required|integer|min:1',
-            'confidence_score' => 'required|numeric|min:0|max:1',
-            'time_spent' => 'required|integer|min:1',
-            'audio_file' => 'nullable|file|mimes:wav,mp3,m4a|max:10240' // 10MB max
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+        if ($request->missing('ayah_number') && $request->has('ayah_id')) {
+            $request->merge(['ayah_number' => (int) $request->input('ayah_id')]);
         }
 
-        $student = Auth::user();
-        $plan = MemorizationPlan::findOrFail($request->plan_id);
-        
-        // Verify plan belongs to student
-        if ($plan->student_id !== $student->id) {
+        $validated = $request->validate([
+            'plan_id' => 'required|exists:memorization_plans,id',
+            'surah_id' => 'required|integer|min:1|max:114',
+            'ayah_number' => 'required|integer|min:1',
+            'confidence_score' => 'required|numeric|min:0|max:1',
+            'time_spent' => 'nullable|integer|min:1',
+            'audio_file' => 'nullable|file|mimes:wav,mp3,m4a,ogg|max:10240',
+        ]);
+
+        $user = $request->user();
+        $plan = MemorizationPlan::findOrFail($validated['plan_id']);
+
+        if ($plan->user_id !== $user->id) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unauthorized access to plan'
+                'message' => 'Unauthorized access to plan',
             ], 403);
         }
 
         $tajweedAnalysis = null;
-        
-        // Process audio if provided
+
         if ($request->hasFile('audio_file')) {
             try {
                 $audioFile = $request->file('audio_file');
-                $audioPath = $audioFile->store('memorization/audio', 'public');
-                
-                // Get expected Quranic text for the ayah
-                $expectedText = $this->getAyahText($request->surah_id, $request->ayah_id);
-                
-                // Analyze with Whisper service
+                $disk = config('filesystems.default', 'public');
+                $audioPath = $audioFile->store('memorization/audio/' . $user->id, $disk);
+
+                $expectedText = $this->getAyahText($validated['surah_id'], $validated['ayah_number']);
+
                 $tajweedAnalysis = $this->whisperService->analyzeRecitation(
-                    Storage::url($audioPath),
+                    Storage::disk($disk)->url($audioPath),
                     [
-                        'verses' => [$expectedText],
+                        'verses' => array_filter([$expectedText]),
                         'area' => 'tajweed',
-                        'assignment_type' => 'memorization'
+                        'assignment_type' => 'memorization',
                     ]
                 );
-                
             } catch (\Exception $e) {
                 \Log::error('Audio analysis failed', [
                     'error' => $e->getMessage(),
-                    'student_id' => $student->id,
-                    'plan_id' => $request->plan_id
+                    'user_id' => $user->id,
+                    'plan_id' => $plan->id,
                 ]);
-                
-                // Continue without audio analysis
+
                 $tajweedAnalysis = [
-                    'accuracy_score' => 75,
-                    'feedback_sections' => [
-                        'specific_feedback' => 'Audio analysis temporarily unavailable. Review recorded successfully.'
-                    ]
+                    'success' => false,
+                    'message' => 'Audio analysis temporarily unavailable. Review recorded successfully.',
                 ];
             }
         }
 
-        // Update SRS queue entry
-        $srsEntry = SrsQueue::where('student_id', $student->id)
-            ->where('memorization_plan_id', $plan->id)
-            ->where('surah_id', $request->surah_id)
-            ->where('ayah_id', $request->ayah_id)
-            ->first();
+        $srsEntry = SrsQueue::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'plan_id' => $plan->id,
+                'surah_id' => $validated['surah_id'],
+                'ayah_id' => $validated['ayah_number'],
+            ],
+            [
+                'ease_factor' => 2.5,
+                'interval' => 1,
+                'repetitions' => 0,
+                'confidence_score' => 0,
+                'due_at' => now(),
+            ]
+        );
 
-        if ($srsEntry) {
-            $this->updateSrsEntry($srsEntry, $request->confidence_score);
-        }
+        $srsEntry->applyReview((float) $validated['confidence_score']);
 
-        // Update progress tracking
-        $this->updateQuranProgress($student->id, $request->surah_id, $request->ayah_id, $request->confidence_score);
+        $ayahNumber = (int) $validated['ayah_number'];
 
-        // Send notification to teachers
-        $this->notifyTeachers($student, $plan, $request->surah_id, $request->ayah_id, $request->confidence_score);
+        $this->updateQuranProgress(
+            $user->id,
+            (int) $validated['surah_id'],
+            $ayahNumber,
+            (float) $validated['confidence_score']
+        );
+
+        $this->notifyTeachers($user, $plan, (int) $validated['surah_id'], $ayahNumber, (float) $validated['confidence_score']);
 
         return response()->json([
             'success' => true,
             'message' => 'Review submitted successfully',
-            'tajweed_analysis' => $tajweedAnalysis
+            'tajweed_analysis' => $tajweedAnalysis,
         ]);
     }
 
@@ -217,51 +271,96 @@ class MemorizationController extends Controller
      * @param MemorizationPlan $plan The memorization plan
      * @return void
      */
-    private function createInitialSrsEntries(MemorizationPlan $plan)
+    private function initializeSrsQueue(MemorizationPlan $plan): void
     {
-        for ($ayah = $plan->start_ayah; $ayah <= $plan->end_ayah; $ayah++) {
-            SrsQueue::create([
-                'student_id' => $plan->student_id,
-                'memorization_plan_id' => $plan->id,
-                'surah_id' => $plan->surah_id,
-                'ayah_id' => $ayah,
-                'interval_days' => 1,
-                'repetitions' => 0,
-                'ease_factor' => 2.5,
-                'due_at' => now()->addDay(),
-                'confidence_score' => 0.0
-            ]);
+        $surahs = is_array($plan->surahs) ? $plan->surahs : [];
+
+        if (empty($surahs)) {
+            return;
+        }
+
+        $startDate = $plan->start_date instanceof Carbon ? $plan->start_date : Carbon::parse($plan->start_date);
+
+        foreach ($surahs as $surahId) {
+            $ayahCount = $this->getSurahAyahCount((int) $surahId);
+            $limit = max(1, (int) $plan->daily_target);
+
+            for ($ayah = 1; $ayah <= min($ayahCount, $limit); $ayah++) {
+                SrsQueue::firstOrCreate(
+                    [
+                        'user_id' => $plan->user_id,
+                        'plan_id' => $plan->id,
+                        'surah_id' => $surahId,
+                        'ayah_id' => $ayah,
+                    ],
+                    [
+                        'ease_factor' => 2.5,
+                        'interval' => 1,
+                        'repetitions' => 0,
+                        'confidence_score' => 0,
+                        'due_at' => $startDate,
+                    ]
+                );
+            }
         }
     }
 
-    /**
-     * Update SRS entry based on confidence score.
-     *
-     * @param SrsQueue $srsEntry The SRS queue entry
-     * @param float $confidenceScore Confidence score (0-1)
-     * @return void
-     */
-    private function updateSrsEntry(SrsQueue $srsEntry, float $confidenceScore)
+    private function buildPlanStatsPayload(MemorizationPlan $plan): array
     {
-        $srsEntry->repetitions++;
-        $srsEntry->confidence_score = $confidenceScore;
-        
-        // SRS algorithm implementation
-        if ($confidenceScore >= 0.8) {
-            // Good recall - increase interval
-            $srsEntry->ease_factor = min(2.5, $srsEntry->ease_factor + 0.1);
-            $srsEntry->interval_days = (int) ($srsEntry->interval_days * $srsEntry->ease_factor);
-        } elseif ($confidenceScore >= 0.6) {
-            // Moderate recall - maintain interval
-            $srsEntry->interval_days = max(1, $srsEntry->interval_days);
-        } else {
-            // Poor recall - reset interval
-            $srsEntry->ease_factor = max(1.3, $srsEntry->ease_factor - 0.2);
-            $srsEntry->interval_days = 1;
-        }
-        
-        $srsEntry->due_at = now()->addDays($srsEntry->interval_days);
-        $srsEntry->save();
+        $queueItems = $plan->relationLoaded('srsQueues')
+            ? $plan->srsQueues
+            : $plan->srsQueues()->get();
+
+        $total = $queueItems->count();
+        $dueToday = $queueItems->filter(function (SrsQueue $item) {
+            return $item->due_at && $item->due_at->isBefore(now()->endOfDay());
+        })->count();
+
+        $overdue = $queueItems->filter(function (SrsQueue $item) {
+            return $item->due_at && $item->due_at->isPast();
+        })->count();
+
+        $mastered = $queueItems->filter(function (SrsQueue $item) {
+            return $item->confidence_score >= 0.9 && $item->repetitions >= 3;
+        })->count();
+
+        $averageConfidence = $queueItems->avg('confidence_score') ?? 0;
+
+        $nextReview = $queueItems->filter(fn (SrsQueue $item) => $item->due_at)
+            ->sortBy('due_at')
+            ->first();
+
+        return [
+            'total_items' => $total,
+            'mastered_items' => $mastered,
+            'due_today' => $dueToday,
+            'overdue' => $overdue,
+            'average_confidence' => round($averageConfidence, 2),
+            'completion_percentage' => $total > 0 ? round(($mastered / $total) * 100, 2) : 0.0,
+            'next_review_at' => $nextReview && $nextReview->due_at
+                ? $nextReview->due_at->toISOString()
+                : null,
+        ];
+    }
+
+    private function getSurahAyahCount(int $surahId): int
+    {
+        $ayahCounts = [
+            1 => 7, 2 => 286, 3 => 200, 4 => 176, 5 => 120, 6 => 165, 7 => 206, 8 => 75, 9 => 129, 10 => 109,
+            11 => 123, 12 => 111, 13 => 43, 14 => 52, 15 => 99, 16 => 128, 17 => 111, 18 => 110, 19 => 98, 20 => 135,
+            21 => 112, 22 => 78, 23 => 118, 24 => 64, 25 => 77, 26 => 227, 27 => 93, 28 => 88, 29 => 69, 30 => 60,
+            31 => 34, 32 => 30, 33 => 73, 34 => 54, 35 => 45, 36 => 83, 37 => 182, 38 => 88, 39 => 75, 40 => 85,
+            41 => 54, 42 => 53, 43 => 89, 44 => 59, 45 => 37, 46 => 35, 47 => 38, 48 => 29, 49 => 18, 50 => 45,
+            51 => 60, 52 => 49, 53 => 62, 54 => 55, 55 => 78, 56 => 96, 57 => 29, 58 => 22, 59 => 24, 60 => 13,
+            61 => 14, 62 => 11, 63 => 11, 64 => 18, 65 => 12, 66 => 12, 67 => 30, 68 => 52, 69 => 52, 70 => 44,
+            71 => 28, 72 => 28, 73 => 20, 74 => 56, 75 => 40, 76 => 31, 77 => 50, 78 => 40, 79 => 46, 80 => 42,
+            81 => 29, 82 => 19, 83 => 36, 84 => 25, 85 => 22, 86 => 17, 87 => 19, 88 => 26, 89 => 30, 90 => 20,
+            91 => 15, 92 => 21, 93 => 11, 94 => 8, 95 => 8, 96 => 19, 97 => 5, 98 => 8, 99 => 8, 100 => 11,
+            101 => 11, 102 => 8, 103 => 3, 104 => 9, 105 => 5, 106 => 4, 107 => 7, 108 => 3, 109 => 6, 110 => 3,
+            111 => 5, 112 => 4, 113 => 5, 114 => 6,
+        ];
+
+        return $ayahCounts[$surahId] ?? 10;
     }
 
     /**
@@ -269,23 +368,28 @@ class MemorizationController extends Controller
      *
      * @param int $studentId Student ID
      * @param int $surahId Surah ID
-     * @param int $ayahId Ayah ID
+     * @param int $ayahNumber Ayah number within the surah
      * @param float $confidenceScore Confidence score
      * @return void
      */
-    private function updateQuranProgress(int $studentId, int $surahId, int $ayahId, float $confidenceScore)
+    private function updateQuranProgress(int $studentId, int $surahId, int $ayahNumber, float $confidenceScore)
     {
+        $attributes = [
+            'memorized_confidence' => $confidenceScore,
+            'last_seen_at' => now(),
+        ];
+
+        if (Schema::hasColumn('quran_progress', 'memorization_reviews')) {
+            $attributes['memorization_reviews'] = DB::raw('COALESCE(memorization_reviews, 0) + 1');
+        }
+
         QuranProgress::updateOrCreate(
             [
-                'student_id' => $studentId,
+                'user_id' => $studentId,
                 'surah_id' => $surahId,
-                'ayah_id' => $ayahId
+                'ayah_number' => $ayahNumber,
             ],
-            [
-                'confidence_score' => $confidenceScore,
-                'last_reviewed_at' => now(),
-                'review_count' => \DB::raw('review_count + 1')
-            ]
+            $attributes
         );
     }
 
@@ -293,10 +397,10 @@ class MemorizationController extends Controller
      * Get Quranic text for a specific ayah.
      *
      * @param int $surahId Surah ID
-     * @param int $ayahId Ayah ID
+     * @param int $ayahNumber Ayah number within the surah
      * @return string Arabic text of the ayah
      */
-    private function getAyahText(int $surahId, int $ayahId): string
+    private function getAyahText(int $surahId, int $ayahNumber): string
     {
         // This would typically fetch from your Quran database
         // For now, return a placeholder
@@ -309,21 +413,21 @@ class MemorizationController extends Controller
      * @param \App\Models\User $student The student
      * @param MemorizationPlan $plan The memorization plan
      * @param int $surahId Surah ID
-     * @param int $ayahId Ayah ID
+     * @param int $ayahNumber Ayah number within the surah
      * @param float $confidenceScore Confidence score
      * @return void
      */
-    private function notifyTeachers($student, MemorizationPlan $plan, int $surahId, int $ayahId, float $confidenceScore)
+    private function notifyTeachers($student, MemorizationPlan $plan, int $surahId, int $ayahNumber, float $confidenceScore)
     {
         // Get student's teachers
         $teachers = $student->teachers ?? collect();
-        
+
         foreach ($teachers as $teacher) {
             $teacher->notify(new MemorizationProgressUpdated(
                 $student,
                 $plan,
                 $surahId,
-                $ayahId,
+                $ayahNumber,
                 $confidenceScore
             ));
         }
@@ -346,7 +450,7 @@ class MemorizationController extends Controller
         $classId = $request->query('class_id');
         
         // Build query for memorization plans with student progress
-        $query = MemorizationPlan::with(['user', 'srsQueue'])
+        $query = MemorizationPlan::with(['user', 'srsQueues'])
             ->join('users', 'memorization_plans.user_id', '=', 'users.id');
             
         // Filter by class if specified
@@ -362,16 +466,17 @@ class MemorizationController extends Controller
         $plans = $query->get();
         
         $progressData = $plans->map(function ($plan) {
-            $totalAyahs = $plan->end_ayah - $plan->start_ayah + 1;
-            $memorizedAyahs = $plan->srsQueue->where('confidence', '>=', 0.8)->count();
-            $dueReviews = $plan->srsQueue->where('next_review', '<=', now())->count();
-            $avgConfidence = $plan->srsQueue->avg('confidence') ?? 0;
-            
+            $queue = $plan->srsQueues ?? collect();
+            $totalAyahs = $queue->count();
+            $memorizedAyahs = $queue->where('confidence_score', '>=', 0.8)->count();
+            $dueReviews = $queue->where('due_at', '<=', now())->count();
+            $avgConfidence = $queue->avg('confidence_score') ?? 0;
+
             return [
                 'id' => $plan->id,
                 'student_name' => $plan->user->name,
                 'student_id' => $plan->user->id,
-                'plan_title' => "Surah {$plan->surah_id}: {$plan->start_ayah}-{$plan->end_ayah}",
+                'plan_title' => $plan->title,
                 'total_ayahs' => $totalAyahs,
                 'memorized_ayahs' => $memorizedAyahs,
                 'due_reviews' => $dueReviews,
@@ -411,24 +516,24 @@ class MemorizationController extends Controller
             });
         }
         
-        $students = $studentsQuery->with(['memorizationPlans.srsQueue', 'quranProgress'])->get();
-        
+        $students = $studentsQuery->with(['memorizationPlans.srsQueues', 'quranProgress'])->get();
+
         $statsData = $students->map(function ($student) {
             $activePlans = $student->memorizationPlans->where('status', 'active')->count();
             $totalMemorized = $student->memorizationPlans
                 ->flatMap(function ($plan) {
-                    return $plan->srsQueue->where('confidence', '>=', 0.8);
+                    return $plan->srsQueues->where('confidence_score', '>=', 0.8);
                 })->count();
-            
+
             $weeklyReviews = $student->memorizationPlans
                 ->flatMap(function ($plan) {
-                    return $plan->srsQueue->where('last_reviewed', '>=', now()->subWeek());
+                    return $plan->srsQueues->where('updated_at', '>=', now()->subWeek());
                 })->count();
-            
+
             $avgConfidence = $student->memorizationPlans
                 ->flatMap(function ($plan) {
-                    return $plan->srsQueue;
-                })->avg('confidence') ?? 0;
+                    return $plan->srsQueues;
+                })->avg('confidence_score') ?? 0;
             
             $lastActivity = $student->memorizationPlans->max('updated_at') ?? $student->updated_at;
             
@@ -454,9 +559,9 @@ class MemorizationController extends Controller
     private function calculateStreakDays($userId)
     {
         $recentActivity = SrsQueue::where('user_id', $userId)
-            ->where('last_reviewed', '>=', now()->subDays(30))
-            ->orderBy('last_reviewed', 'desc')
-            ->pluck('last_reviewed')
+            ->where('updated_at', '>=', now()->subDays(30))
+            ->orderBy('updated_at', 'desc')
+            ->pluck('updated_at')
             ->map(function ($date) {
                 return $date->format('Y-m-d');
             })

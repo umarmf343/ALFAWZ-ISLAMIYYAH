@@ -18,20 +18,22 @@ class QuranProgress extends Model
     protected $fillable = [
         'user_id',
         'surah_id',
-        'ayah_id',
+        'ayah_number',
         'recited_count',
         'memorized_confidence',
         'hasanat',
-        'last_seen_at'
+        'last_seen_at',
+        'memorization_reviews',
     ];
 
     protected $casts = [
         'surah_id' => 'integer',
-        'ayah_id' => 'integer',
+        'ayah_number' => 'integer',
         'recited_count' => 'integer',
         'memorized_confidence' => 'float',
         'hasanat' => 'integer',
-        'last_seen_at' => 'datetime'
+        'last_seen_at' => 'datetime',
+        'memorization_reviews' => 'integer',
     ];
 
     /**
@@ -137,7 +139,7 @@ class QuranProgress extends Model
      */
     public function getAyahIdentifier(): string
     {
-        return "{$this->surah_id}:{$this->ayah_id}";
+        return "{$this->surah_id}:{$this->ayah_number}";
     }
 
     /**

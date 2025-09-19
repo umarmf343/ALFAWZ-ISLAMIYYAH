@@ -14,6 +14,7 @@ use App\Http\Controllers\Core\FeedbackController;
 use App\Http\Controllers\Core\LeaderboardController;
 use App\Http\Controllers\Core\ProfileController;
 use App\Http\Controllers\Core\PaymentController;
+use App\Http\Controllers\Core\ReaderController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\TeacherController as MainTeacherController;
@@ -395,11 +396,11 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     
     // Reader endpoints
-     Route::prefix('reader')->group(function () {
-         Route::get('/state', [ReaderController::class, 'getState']);
-         Route::post('/state', [ReaderController::class, 'saveState']);
-         Route::get('/reciters', [ReaderController::class, 'getReciters']);
-     });
+    Route::prefix('reader')->group(function () {
+        Route::get('/state', [ReaderController::class, 'getState']);
+        Route::post('/state', [ReaderController::class, 'saveState']);
+        Route::get('/reciters', [ReaderController::class, 'getReciters']);
+    });
      
      // Feedback endpoints
      Route::get('/feedback', [FeedbackController::class, 'studentFeedback']);

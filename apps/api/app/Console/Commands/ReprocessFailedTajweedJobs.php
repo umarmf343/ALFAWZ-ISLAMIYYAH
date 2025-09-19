@@ -43,7 +43,7 @@ class ReprocessFailedTajweedJobs extends Command
         $this->info('Searching for failed Tajweed jobs...');
 
         // Find failed jobs older than specified hours
-        $failedJobs = WhisperJob::where('status', 'failed')
+        $failedJobs = WhisperJob::where('status', WhisperJob::STATUS_FAILED)
             ->where('created_at', '<', now()->subHours($olderThanHours))
             ->orderBy('created_at', 'desc')
             ->limit($limit)
@@ -64,7 +64,7 @@ class ReprocessFailedTajweedJobs extends Command
                     $job->id,
                     $job->recitation_id,
                     $job->updated_at->format('Y-m-d H:i:s'),
-                    substr($job->error_message ?? 'Unknown error', 0, 50) . '...'
+                    substr($job->error ?? 'Unknown error', 0, 50) . '...'
                 ])->toArray()
             );
             return 0;
@@ -77,14 +77,13 @@ class ReprocessFailedTajweedJobs extends Command
             try {
                 // Reset job status and clear error
                 $job->update([
-                    'status' => 'pending',
-                    'error_message' => null,
-                    'progress' => 0,
+                    'status' => WhisperJob::STATUS_QUEUED,
+                    'error' => null,
                     'updated_at' => now()
                 ]);
 
                 // Dispatch the job again
-                ProcessTajweedAnalysis::dispatch($job->recitation_id, $job->id);
+                ProcessTajweedAnalysis::dispatch($job->id);
                 
                 $this->line("✓ Reprocessed job {$job->id} for recitation {$job->recitation_id}");
                 $reprocessed++;

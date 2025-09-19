@@ -11,12 +11,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Recitation extends Model
 {
     protected $fillable = [
-        'user_id','surah','from_ayah','to_ayah',
-        's3_key','mime','expected_tokens',
+        'user_id',
+        'surah',
+        'from_ayah',
+        'to_ayah',
+        's3_key',
+        'mime',
+        'expected_tokens',
+        'duration_seconds',
+        'tajweed_enabled',
     ];
 
     protected $casts = [
-        'expected_tokens' => 'array'
+        'surah' => 'integer',
+        'from_ayah' => 'integer',
+        'to_ayah' => 'integer',
+        'duration_seconds' => 'integer',
+        'tajweed_enabled' => 'boolean',
+        'expected_tokens' => 'array',
     ];
 
     /**

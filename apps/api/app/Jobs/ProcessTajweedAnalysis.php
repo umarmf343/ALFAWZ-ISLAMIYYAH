@@ -48,7 +48,7 @@ class ProcessTajweedAnalysis implements ShouldQueue
             Log::info("Starting Tajweed analysis for job {$this->jobId}");
             
             // Update job status to processing
-            $job->update(['status' => 'processing']);
+            $job->update(['status' => WhisperJob::STATUS_PROCESSING]);
             
             // Broadcast progress: Starting analysis
             TajweedAnalysisProgress::dispatch(
@@ -115,7 +115,7 @@ class ProcessTajweedAnalysis implements ShouldQueue
             
             // Update job with results
             $job->update([
-                'status' => 'completed',
+                'status' => WhisperJob::STATUS_DONE,
                 'result_json' => $results,
             ]);
             
@@ -130,14 +130,14 @@ class ProcessTajweedAnalysis implements ShouldQueue
             TajweedAnalysisCompleted::dispatch(
                 $job->recitation,
                 $results,
-                'completed'
+                WhisperJob::STATUS_DONE
             );
             
         } catch (Exception $e) {
             Log::error("Failed Tajweed analysis for job {$this->jobId}: " . $e->getMessage());
             
             $job->update([
-                'status' => 'failed',
+                'status' => WhisperJob::STATUS_FAILED,
                 'error' => $e->getMessage(),
             ]);
             

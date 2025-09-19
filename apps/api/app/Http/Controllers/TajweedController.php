@@ -54,23 +54,25 @@ class TajweedController extends Controller
             $s3Key = 'tajweed/' . $user->id . '/' . Str::uuid() . '.' . $audioFile->getClientOriginalExtension();
             $path = Storage::disk('s3')->putFileAs('', $audioFile, $s3Key);
 
-            // Create recitation record
+            // Create recitation record using persisted column names
+            $validated = $request->validated();
+
             $recitation = Recitation::create([
                 'user_id' => $user->id,
-                'surah_id' => $request->surah_id,
-                'ayah_from' => $request->ayah_from,
-                'ayah_to' => $request->ayah_to,
-                'expected_tokens' => $request->expected_tokens,
+                'surah' => (int) $validated['surah_id'],
+                'from_ayah' => (int) $validated['ayah_from'],
+                'to_ayah' => (int) $validated['ayah_to'],
+                'expected_tokens' => $validated['expected_tokens'],
                 's3_key' => $s3Key,
                 'mime' => $audioFile->getMimeType(),
-                'duration_seconds' => $request->duration_seconds,
+                'duration_seconds' => (int) $validated['duration_seconds'],
                 'tajweed_enabled' => true,
             ]);
 
             // Create Whisper job
             $job = WhisperJob::create([
                 'recitation_id' => $recitation->id,
-                'status' => 'pending',
+                'status' => WhisperJob::STATUS_QUEUED,
             ]);
 
             // Dispatch analysis job
@@ -264,7 +266,7 @@ class TajweedController extends Controller
         }
 
         $job->update([
-            'status' => 'pending',
+            'status' => WhisperJob::STATUS_QUEUED,
             'error' => null,
         ]);
 
