@@ -1,3 +1,5 @@
+'use client';
+
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
@@ -74,6 +76,24 @@ const MainDashboardContent: React.FC<MainDashboardProps> = ({
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState(3);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   // Mock user data if not provided
   const currentUser: User = user || {
@@ -152,7 +172,7 @@ const MainDashboardContent: React.FC<MainDashboardProps> = ({
     <div className={`min-h-screen flex ${className}`} style={{ backgroundColor: theme.colors.milk[50] }}>
       {/* Sidebar */}
       <AnimatePresence>
-        {(sidebarOpen || window.innerWidth >= 768) && (
+        {(sidebarOpen || isDesktop) && (
           <motion.aside
             className="fixed md:relative inset-y-0 left-0 z-50 w-64 flex flex-col"
             style={{ backgroundColor: theme.colors.maroon[900] }}

@@ -98,6 +98,7 @@ export default function DashboardPage() {
   const [isReciting, setIsReciting] = useState(false);
   const [fromCache, setFromCache] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   /**
    * Fetch dashboard statistics based on user role with offline support
@@ -155,6 +156,23 @@ export default function DashboardPage() {
 
     fetchStats();
   }, [isAuthenticated, user, isStudent, isTeacher, token]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const updateViewportSize = () => {
+      setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    updateViewportSize();
+    window.addEventListener('resize', updateViewportSize);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportSize);
+    };
+  }, []);
 
   /**
    * Handle recitation update
@@ -269,10 +287,10 @@ export default function DashboardPage() {
         {isStudent && (
           <div className="space-y-6">
             {/* Confetti Animation */}
-            {showConfetti && (
+            {showConfetti && viewportSize.width > 0 && viewportSize.height > 0 && (
               <Confetti
-                width={window.innerWidth}
-                height={window.innerHeight}
+                width={viewportSize.width}
+                height={viewportSize.height}
                 recycle={false}
                 numberOfPieces={200}
               />
