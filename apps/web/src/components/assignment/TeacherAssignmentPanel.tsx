@@ -3,30 +3,7 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, 
-  Edit3, 
-  Trash2, 
-  Eye, 
-  EyeOff, 
-  Upload, 
-  Download,
-  Users,
-  Calendar,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  RotateCcw,
-  Save,
-  Send,
-  BookOpen,
-  Target,
-  Award
-} from 'lucide-react';
+import { Plus, Edit3, Trash2, Clock, Send, BookOpen, Target } from 'lucide-react';
 import { useSpiritualTheme, SpiritualCard, SpiritualButton } from '@/components/providers/SpiritualThemeProvider';
 
 /**
@@ -71,25 +48,6 @@ interface Class {
 }
 
 /**
- * Submission interface for student work review.
- */
-interface Submission {
-  id: string;
-  assignmentId: string;
-  studentId: string;
-  status: 'pending' | 'graded';
-  score?: number;
-  audioUrl?: string;
-  rubricJson?: any;
-  createdAt: string;
-  student?: {
-    id: string;
-    name: string;
-    email: string;
-  };
-}
-
-/**
  * Props for TeacherAssignmentPanel component.
  */
 interface TeacherAssignmentPanelProps {
@@ -113,15 +71,12 @@ export const TeacherAssignmentPanel: React.FC<TeacherAssignmentPanelProps> = ({
   onAssignmentDelete,
   className = ''
 }) => {
-  const { theme, animations, styles } = useSpiritualTheme();
+  const { theme, animations } = useSpiritualTheme();
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [draggedHotspot, setDraggedHotspot] = useState<Hotspot | null>(null);
-  const [imageScale, setImageScale] = useState(1);
-  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+  const [imageScale] = useState(1);
+  const [imageOffset] = useState({ x: 0, y: 0 });
   
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -199,22 +154,6 @@ export const TeacherAssignmentPanel: React.FC<TeacherAssignmentPanelProps> = ({
   }, [isEditing, imageScale, imageOffset, selectedAssignment]);
 
   /**
-   * Handle hotspot drag operations.
-   */
-  const handleHotspotDrag = useCallback((hotspot: Hotspot, newX: number, newY: number) => {
-    if (!selectedAssignment) return;
-    
-    const updatedHotspots = selectedAssignment.hotspots?.map(h => 
-      h.id === hotspot.id ? { ...h, x: newX, y: newY } : h
-    ) || [];
-    
-    setSelectedAssignment({
-      ...selectedAssignment,
-      hotspots: updatedHotspots
-    });
-  }, [selectedAssignment]);
-
-  /**
    * Handle hotspot deletion.
    */
   const handleHotspotDelete = useCallback((hotspotId: string) => {
@@ -263,7 +202,7 @@ export const TeacherAssignmentPanel: React.FC<TeacherAssignmentPanelProps> = ({
               Assignment Management
             </h1>
             <p style={{ color: theme.colors.maroon[600] }}>
-              Create and manage Qur'an recitation assignments for your classes
+              Create and manage Qur&apos;an recitation assignments for your classes
             </p>
           </motion.div>
           <motion.div {...animations.slideInRight}>
@@ -353,8 +292,9 @@ export const TeacherAssignmentPanel: React.FC<TeacherAssignmentPanelProps> = ({
                   {/* Assignment Preview */}
                   {assignment.imageUrl && (
                     <div className="mb-4">
-                      <img 
-                        src={assignment.imageUrl} 
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={assignment.imageUrl}
                         alt={assignment.title}
                         className="w-full h-32 object-cover rounded-lg"
                       />
@@ -625,11 +565,12 @@ export const TeacherAssignmentPanel: React.FC<TeacherAssignmentPanelProps> = ({
                         >
                           Assignment Image & Hotspots
                         </label>
-                        <div 
+                        <div
                           ref={containerRef}
                           className="relative border-2 border-dashed rounded-lg overflow-hidden"
                           style={{ borderColor: theme.colors.gold[300] }}
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             ref={imageRef}
                             src={formData.imageUrl}
@@ -765,15 +706,16 @@ export const TeacherAssignmentPanel: React.FC<TeacherAssignmentPanelProps> = ({
                     {/* Assignment Image */}
                     {selectedAssignment?.imageUrl && (
                       <div>
-                        <h3 
+                        <h3
                           className="text-lg font-semibold mb-2"
                           style={{ color: theme.colors.maroon[800] }}
                         >
                           Assignment Image
                         </h3>
                         <div className="relative">
-                          <img 
-                            src={selectedAssignment.imageUrl} 
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={selectedAssignment.imageUrl}
                             alt={selectedAssignment.title}
                             className="w-full rounded-lg shadow-lg"
                           />

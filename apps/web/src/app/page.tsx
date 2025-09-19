@@ -47,12 +47,12 @@ export default function HomePage() {
           
           {/* Main Heading */}
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-            AlFawz Qur'an Institute
+            AlFawz Qur&apos;an Institute
           </h1>
           
           {/* Subtitle */}
           <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto">
-            Learn, memorize, and perfect your Qur'an recitation with expert guidance 
+            Learn, memorize, and perfect your Qur&apos;an recitation with expert guidance
             and modern technology
           </p>
           
@@ -62,8 +62,8 @@ export default function HomePage() {
               وَلَقَدْ يَسَّرْنَا الْقُرْآنَ لِلذِّكْرِ فَهَلْ مِن مُّدَّكِرٍ
             </p>
             <p className="text-lg text-gray-600 italic">
-              "And We have certainly made the Qur'an easy for remembrance, 
-              so is there any who will remember?" - Surah Al-Qamar (54:17)
+              &ldquo;And We have certainly made the Qur&apos;an easy for remembrance,
+              so is there any who will remember?&rdquo; - Surah Al-Qamar (54:17)
             </p>
           </div>
           
@@ -120,7 +120,7 @@ export default function HomePage() {
               Expert Teachers
             </h3>
             <p className="text-gray-600">
-              Learn from qualified instructors with years of experience in Qur'an education
+            Learn from qualified instructors with years of experience in Qur&apos;an education
             </p>
           </div>
           
@@ -182,10 +182,10 @@ export default function HomePage() {
       <div className="bg-green-600 py-16">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            Ready to Begin Your Qur'an Journey?
+            Ready to Begin Your Qur&apos;an Journey?
           </h2>
           <p className="text-xl text-green-100 mb-8">
-            Join thousands of students who have transformed their relationship with the Qur'an
+            Join thousands of students who have transformed their relationship with the Qur&apos;an
           </p>
           <Link
             href="/register"

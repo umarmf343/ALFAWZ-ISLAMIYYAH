@@ -5,17 +5,13 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Volume2,
-  Play,
   Pause,
   Info,
   CheckCircle,
   XCircle,
   Star,
   Zap,
-  Target,
-  Award,
-  Clock,
-  RotateCcw
+  Target
 } from 'lucide-react';
 import { Hotspot, HotspotInteraction } from '../../types/assignment';
 
@@ -36,6 +32,8 @@ interface QuizData {
   explanation?: string;
 }
 
+type InteractionPayload = Record<string, unknown>;
+
 /**
  * Interactive hotspot component with various interaction types.
  * Supports audio playback, quizzes, tooltips, and interaction tracking.
@@ -52,7 +50,6 @@ const InteractiveHotspot: React.FC<InteractiveHotspotProps> = ({
   // Audio state
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
   
   // Interaction state
   const [isHovered, setIsHovered] = useState(false);
@@ -61,7 +58,6 @@ const InteractiveHotspot: React.FC<InteractiveHotspotProps> = ({
   const [quizAnswer, setQuizAnswer] = useState<number | null>(null);
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [interactionCount, setInteractionCount] = useState(0);
-  const [lastInteraction, setLastInteraction] = useState<Date | null>(null);
   
   // Refs
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -136,7 +132,7 @@ const InteractiveHotspot: React.FC<InteractiveHotspotProps> = ({
    */
   const handleAudioPlayback = useCallback(async () => {
     if (!hotspot.audio_url || !audioRef.current) return;
-    
+
     try {
       if (isPlaying) {
         audioRef.current.pause();
@@ -144,32 +140,31 @@ const InteractiveHotspot: React.FC<InteractiveHotspotProps> = ({
       } else {
         await audioRef.current.play();
         setIsPlaying(true);
-        
+
         // Track interaction
         recordInteraction('audio_play');
       }
     } catch (error) {
       console.error('Audio playback error:', error);
     }
-  }, [isPlaying, hotspot.audio_url]);
+  }, [isPlaying, hotspot.audio_url, recordInteraction]);
 
   /**
    * Record interaction with the hotspot.
    * @param type Type of interaction
    * @param data Additional interaction data
    */
-  const recordInteraction = (type: string, data?: any) => {
+  const recordInteraction = useCallback((type: string, data?: InteractionPayload) => {
     const interaction = {
       hotspot_id: hotspot.id,
       interaction_type: type,
       interaction_data: data,
       timestamp: new Date().toISOString()
     };
-    
+
     onInteraction(interaction);
     setInteractionCount(prev => prev + 1);
-    setLastInteraction(new Date());
-  };
+  }, [hotspot.id, onInteraction]);
 
   /**
    * Handle hotspot click based on type.
@@ -249,10 +244,6 @@ const InteractiveHotspot: React.FC<InteractiveHotspotProps> = ({
     const audio = audioRef.current;
     if (!audio || !hotspot.audio_url) return;
 
-    const handleLoadedMetadata = () => {
-      setAudioDuration(audio.duration);
-    };
-
     const handleTimeUpdate = () => {
       setAudioProgress((audio.currentTime / audio.duration) * 100);
     };
@@ -268,18 +259,16 @@ const InteractiveHotspot: React.FC<InteractiveHotspotProps> = ({
       console.error('Audio loading error');
     };
 
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
 
     return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
-  }, [hotspot.audio_url]);
+  }, [hotspot.audio_url, recordInteraction]);
 
   /**
    * Auto-play audio if enabled.

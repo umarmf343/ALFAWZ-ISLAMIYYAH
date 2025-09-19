@@ -3,25 +3,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BookOpen, 
-  Mic, 
-  MicOff, 
-  Play, 
-  Pause, 
-  Square, 
-  Upload, 
-  Download,
+import {
+  BookOpen,
+  Mic,
+  Play,
+  Pause,
+  Square,
   Clock,
-  CheckCircle,
-  AlertCircle,
-  Volume2,
-  VolumeX,
   RotateCcw,
   Send,
-  Award,
-  Target,
-  TrendingUp
+  Award
 } from 'lucide-react';
 import { useSpiritualTheme, SpiritualCard, SpiritualButton } from '@/components/providers/SpiritualThemeProvider';
 
@@ -54,6 +45,10 @@ interface Hotspot {
   height: number;
 }
 
+type RubricScores = Partial<
+  Record<'tajweed' | 'fluency' | 'memorization' | 'pronunciation', number>
+>;
+
 /**
  * Submission interface for student work.
  */
@@ -64,7 +59,7 @@ interface Submission {
   status: 'pending' | 'graded';
   score?: number;
   audioUrl?: string;
-  rubricJson?: any;
+  rubricJson?: RubricScores;
   createdAt: string;
 }
 
@@ -86,7 +81,7 @@ export const StudentAssignmentDashboard: React.FC<StudentAssignmentDashboardProp
   onSubmissionComplete,
   className = ''
 }) => {
-  const { theme, animations, styles } = useSpiritualTheme();
+  const { theme, animations } = useSpiritualTheme();
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -270,7 +265,7 @@ export const StudentAssignmentDashboard: React.FC<StudentAssignmentDashboardProp
               My Assignments
             </h1>
             <p style={{ color: theme.colors.maroon[600] }}>
-              Complete your Qur'an recitation assignments and earn hasanat
+              Complete your Qur&apos;an recitation assignments and earn hasanat
             </p>
           </motion.div>
           <motion.div 
@@ -375,8 +370,9 @@ export const StudentAssignmentDashboard: React.FC<StudentAssignmentDashboardProp
                   {/* Assignment Preview */}
                   {assignment.imageUrl && (
                     <div className="mb-4">
-                      <img 
-                        src={assignment.imageUrl} 
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={assignment.imageUrl}
                         alt={assignment.title}
                         className="w-full h-32 object-cover rounded-lg"
                       />
@@ -474,8 +470,9 @@ export const StudentAssignmentDashboard: React.FC<StudentAssignmentDashboardProp
                 {/* Assignment Image with Hotspots */}
                 {selectedAssignment.imageUrl && (
                   <div className="relative">
-                    <img 
-                      src={selectedAssignment.imageUrl} 
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedAssignment.imageUrl}
                       alt={selectedAssignment.title}
                       className="w-full rounded-lg shadow-lg"
                     />

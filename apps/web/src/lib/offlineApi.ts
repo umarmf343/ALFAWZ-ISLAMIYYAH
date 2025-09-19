@@ -11,7 +11,7 @@ import { indexedDBService, CACHE_KEYS, cacheDashboardData, getCachedDashboardDat
 const hasWindow = typeof window !== 'undefined';
 const hasNavigator = typeof navigator !== 'undefined';
 
-interface ApiResponse<T = any> {
+interface OfflineApiResponse<T = unknown> {
   data: T;
   fromCache: boolean;
   timestamp: number;
@@ -83,14 +83,14 @@ class OfflineApiService {
    * @param options Request options
    * @param cacheKey Cache key for offline storage
    * @param cacheTTL Cache TTL in minutes
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async request<T = any>(
+  async request<T = unknown>(
     endpoint: string,
     options: RequestInit = {},
     cacheKey?: string,
     cacheTTL: number = 30
-  ): Promise<ApiResponse<T>> {
+  ): Promise<OfflineApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
     
     // Add authentication header
@@ -187,41 +187,41 @@ class OfflineApiService {
 
   /**
    * Get dashboard data with offline support.
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async getDashboardData(): Promise<ApiResponse> {
+  async getDashboardData(): Promise<OfflineApiResponse<unknown>> {
     return this.request('/student/dashboard', {}, CACHE_KEYS.DASHBOARD_STATS, 15);
   }
 
   /**
    * Get recommendations with offline support.
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async getRecommendations(): Promise<ApiResponse> {
+  async getRecommendations(): Promise<OfflineApiResponse<unknown>> {
     return this.request('/student/recommendations', {}, CACHE_KEYS.RECOMMENDATIONS, 60);
   }
 
   /**
    * Get Ayah of the Day with offline support.
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async getAyahOfDay(): Promise<ApiResponse> {
+  async getAyahOfDay(): Promise<OfflineApiResponse<unknown>> {
     return this.request('/student/ayah-of-day', {}, CACHE_KEYS.AYAH_OF_DAY, 1440);
   }
 
   /**
    * Get weekly progress with offline support.
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async getWeeklyProgress(): Promise<ApiResponse> {
+  async getWeeklyProgress(): Promise<OfflineApiResponse<unknown>> {
     return this.request('/student/weekly-progress', {}, CACHE_KEYS.WEEKLY_PROGRESS, 30);
   }
 
   /**
    * Get leaderboard with offline support.
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async getLeaderboard(scope: string = 'global', period: string = 'weekly'): Promise<ApiResponse> {
+  async getLeaderboard(scope: string = 'global', period: string = 'weekly'): Promise<OfflineApiResponse<unknown>> {
     return this.request(
       `/leaderboard?scope=${scope}&period=${period}`,
       {},
@@ -235,9 +235,9 @@ class OfflineApiService {
    * @param surahId Surah ID
    * @param ayahId Ayah ID
    * @param hasanat Hasanat earned
-   * @returns Promise<ApiResponse>
+   * @returns Promise<OfflineApiResponse>
    */
-  async updateRecitation(surahId: number, ayahId: number, hasanat: number): Promise<ApiResponse> {
+  async updateRecitation(surahId: number, ayahId: number, hasanat: number): Promise<OfflineApiResponse<unknown>> {
     return this.request('/student/update-recitation', {
       method: 'POST',
       body: JSON.stringify({ surah_id: surahId, ayah_id: ayahId, hasanat })

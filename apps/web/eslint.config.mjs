@@ -13,7 +13,16 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
-      "max-len": ["warn", { "code": 100 }],
+      "max-len": [
+        "warn",
+        {
+          code: 140,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+          ignoreComments: true
+        }
+      ],
       "no-console": ["warn", { "allow": ["warn", "error"] }]
     },
     ignores: [
@@ -21,6 +30,7 @@ const eslintConfig = [
       ".next/**",
       "out/**",
       "build/**",
+      "public/**",
       "next-env.d.ts",
     ],
   },

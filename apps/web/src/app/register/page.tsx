@@ -118,7 +118,7 @@ export default function RegisterPage() {
             Join AlFawz
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Create your account to start your Qur'an learning journey
+            Create your account to start your Qur&apos;an learning journey
           </p>
         </div>
 

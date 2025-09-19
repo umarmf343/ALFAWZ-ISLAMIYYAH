@@ -96,7 +96,7 @@ export default function LoginPage() {
             Welcome Back
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to your AlFawz Qur'an Institute account
+            Sign in to your AlFawz Qur&apos;an Institute account
           </p>
         </div>
 
@@ -180,7 +180,7 @@ export default function LoginPage() {
           {/* Register Link */}
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link
                 href="/register"
                 className="font-medium text-green-600 hover:text-green-500"

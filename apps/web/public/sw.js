@@ -18,14 +18,6 @@ const STATIC_ASSETS = [
   // Add other critical assets
 ];
 
-// API endpoints to cache
-const API_ENDPOINTS = [
-  '/api/student/dashboard',
-  '/api/student/ayah-of-day',
-  '/api/student/recommendations',
-  '/api/leaderboard'
-];
-
 /**
  * Install event - cache static assets.
  */
@@ -306,8 +298,8 @@ async function removeFromOfflineQueue(ids) {
  * Message event - handle messages from clients.
  */
 self.addEventListener('message', (event) => {
-  const { type, data } = event.data;
-  
+  const { type } = event.data || {};
+
   switch (type) {
     case 'SKIP_WAITING':
       self.skipWaiting();

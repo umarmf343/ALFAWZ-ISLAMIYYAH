@@ -47,6 +47,40 @@ interface NotificationsResponse {
   unreadCount: number;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getStringValue = (record: Record<string, unknown>, keys: string[], fallback = ''): string => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+  }
+
+  return fallback;
+};
+
+const getOptionalString = (
+  record: Record<string, unknown>,
+  keys: string[],
+): string | undefined => {
+  const value = getStringValue(record, keys);
+  return value ? value : undefined;
+};
+
+const toRecordArray = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+
+  return [];
+};
+
 const formatTitle = (raw: string): string => {
   return raw
     .replace(/_/g, ' ')
@@ -69,31 +103,37 @@ const resolveType = (rawType: string): NotificationType => {
   return 'info';
 };
 
-const normalizeNotification = (notification: any): NotificationItemData => {
-  const data = notification.data ?? {};
-  const resolvedType = resolveType(data.type ?? notification.type ?? 'info');
+const normalizeNotification = (notification: unknown): NotificationItemData => {
+  const record = isRecord(notification) ? notification : {};
+  const dataRecord = isRecord(record.data) ? record.data : {};
+  const resolvedType = resolveType(
+    getStringValue(dataRecord, ['type'], getStringValue(record, ['type'], 'info')),
+  );
 
   return {
-    id: String(notification.id),
+    id: getStringValue(record, ['id']),
     type: resolvedType,
-    title: data.title ?? notification.title ?? formatTitle(data.type ?? notification.type ?? 'Notification'),
-    message: data.message ?? notification.message ?? '',
-    isRead: Boolean(notification.read_at),
-    createdAt: notification.created_at ?? new Date().toISOString(),
-    actionUrl: data.action_url ?? notification.action_url ?? undefined,
+    title:
+      getStringValue(dataRecord, ['title']) ||
+      getStringValue(record, ['title']) ||
+      formatTitle(getStringValue(dataRecord, ['type'], getStringValue(record, ['type'], 'Notification'))),
+    message: getStringValue(dataRecord, ['message'], getStringValue(record, ['message'])),
+    isRead: Boolean(record.read_at),
+    createdAt: getStringValue(record, ['created_at'], new Date().toISOString()),
+    actionUrl: getOptionalString(dataRecord, ['action_url']) ?? getOptionalString(record, ['action_url']),
     metadata: {
-      studentName: data.student_name ?? data.studentName,
-      className: data.class_name ?? data.className,
-      submissionId: data.submission_id ? String(data.submission_id) : data.submissionId,
-      assignmentTitle: data.assignment_title ?? data.assignmentTitle,
+      studentName: getOptionalString(dataRecord, ['student_name', 'studentName']),
+      className: getOptionalString(dataRecord, ['class_name', 'className']),
+      submissionId: getOptionalString(dataRecord, ['submission_id', 'submissionId']),
+      assignmentTitle: getOptionalString(dataRecord, ['assignment_title', 'assignmentTitle']),
     },
   };
 };
 
 const fetchNotifications = async (): Promise<NotificationsResponse> => {
-  const response = await api.get('/notifications?per_page=20');
-  const payload = (response as any)?.data ?? {};
-  const notifications = Array.isArray(payload.notifications) ? payload.notifications : [];
+  const response = await api.get<unknown>('/notifications?per_page=20');
+  const payload = isRecord(response.data) ? response.data : {};
+  const notifications = toRecordArray(payload.notifications);
 
   return {
     notifications: notifications.map(normalizeNotification),

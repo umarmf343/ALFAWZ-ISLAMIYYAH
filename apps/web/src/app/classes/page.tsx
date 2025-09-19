@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { Class } from '@/types';
 
 /**
@@ -26,16 +26,28 @@ export default function ClassesPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof ApiError) {
+      return error.message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return fallback;
+  };
+
   /**
    * Fetch classes based on user role
    */
   const fetchClasses = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/classes');
-      setClasses(response.data || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch classes');
+      const response = await api.get<Class[]>('/classes');
+      setClasses(response.data ?? []);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to fetch classes'));
     } finally {
       setLoading(false);
     }
@@ -50,13 +62,16 @@ export default function ClassesPage() {
       setError('');
       setSuccess('');
       
-      const response = await api.post('/classes', formData);
-      setClasses([...classes, response.data]);
+      const response = await api.post<Class>('/classes', formData);
+      const createdClass = response.data;
+      if (createdClass) {
+        setClasses((prev) => [...prev, createdClass]);
+      }
       setFormData({ title: '', description: '', level: 1 });
       setShowCreateForm(false);
       setSuccess('Class created successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to create class');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create class'));
     }
   };
 
@@ -68,10 +83,10 @@ export default function ClassesPage() {
     
     try {
       await api.delete(`/classes/${classId}`);
-      setClasses(classes.filter(c => c.id !== classId));
+      setClasses((prev) => prev.filter((classItem) => classItem.id !== classId));
       setSuccess('Class deleted successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete class');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to delete class'));
     }
   };
 

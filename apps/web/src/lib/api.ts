@@ -11,7 +11,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api'
 /**
  * Generic API response type
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
@@ -19,14 +19,14 @@ export interface ApiResponse<T = any> {
 
 export class ApiError extends Error {
   status: number;
-  data: any;
+  data: unknown;
   response: {
     status: number;
-    data: any;
+    data: unknown;
     headers: Record<string, string>;
   };
 
-  constructor(message: string, status: number, data: any, headers: Headers) {
+  constructor(message: string, status: number, data: unknown, headers: Headers) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -87,7 +87,7 @@ class ApiClient {
   /**
    * Make authenticated API request
    */
-  async request<T = any>(
+  async request<T = unknown>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
@@ -117,7 +117,7 @@ class ApiClient {
 
       const isJson = response.headers.get('content-type')?.includes('application/json');
       const isEmptyBody = response.status === 204 || response.status === 205;
-      let parsedBody: any = null;
+      let parsedBody: unknown = null;
 
       if (!isEmptyBody) {
         try {
@@ -147,16 +147,21 @@ class ApiClient {
     }
   }
 
-  private normalizeResponse<T>(body: any): ApiResponse<T> {
+  private normalizeResponse<T>(body: unknown): ApiResponse<T> {
     if (body === null || body === undefined) {
       return { data: undefined };
     }
 
-    if (typeof body === 'object' && body !== null && 'data' in body) {
+    if (
+      typeof body === 'object' &&
+      body !== null &&
+      'data' in body &&
+      (body as Record<string, unknown>).data !== undefined
+    ) {
       return body as ApiResponse<T>;
     }
 
-    return { data: body };
+    return { data: body as T };
   }
 
   private normalizeHeaders(headers?: HeadersInit): Record<string, string> {
@@ -190,14 +195,14 @@ class ApiClient {
   /**
    * GET request helper
    */
-  async get<T = any>(endpoint: string): Promise<ApiResponse<T>> {
+  async get<T = unknown>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'GET' });
   }
 
   /**
    * POST request helper
    */
-  async post<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T = unknown>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
@@ -207,7 +212,7 @@ class ApiClient {
   /**
    * POST helper for multipart/form-data requests
    */
-  async postFormData<T = any>(endpoint: string, data: FormData): Promise<ApiResponse<T>> {
+  async postFormData<T = unknown>(endpoint: string, data: FormData): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'POST',
       body: data,
@@ -217,7 +222,7 @@ class ApiClient {
   /**
    * PUT request helper
    */
-  async put<T = any>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async put<T = unknown>(endpoint: string, data?: unknown): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
@@ -227,7 +232,7 @@ class ApiClient {
   /**
    * DELETE request helper
    */
-  async delete<T = any>(endpoint: string): Promise<ApiResponse<T>> {
+  async delete<T = unknown>(endpoint: string): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
 }

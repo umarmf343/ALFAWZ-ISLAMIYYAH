@@ -16,7 +16,28 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
-import { CreateHotspotData, Hotspot } from '../../types/assignment';
+import { CreateHotspotData, Hotspot, HotspotAnimation } from '../../types/assignment';
+
+const HOTSPOT_TYPES = ['text', 'audio', 'interactive', 'quiz'] as const;
+type HotspotType = (typeof HOTSPOT_TYPES)[number];
+
+const ANIMATION_TYPES: ReadonlyArray<HotspotAnimation> = [
+  'none',
+  'pulse',
+  'bounce',
+  'fade',
+  'rotate',
+  'glow',
+  'shake'
+];
+
+const isHotspotType = (value: string): value is HotspotType => {
+  return HOTSPOT_TYPES.includes(value as HotspotType);
+};
+
+const isAnimationType = (value: string): value is HotspotAnimation => {
+  return ANIMATION_TYPES.includes(value as HotspotAnimation);
+};
 
 interface HotspotDraft extends Omit<CreateHotspotData, 'audio'> {
   id: string | number;
@@ -416,7 +437,12 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
                   </label>
                   <select
                     value={selectedHotspotData.hotspot_type}
-                    onChange={(e) => updateHotspot(selectedHotspotData.id, { hotspot_type: e.target.value as any })}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      if (isHotspotType(value)) {
+                        updateHotspot(selectedHotspotData.id, { hotspot_type: value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500"
                   >
                     <option value="text">Text</option>
@@ -432,7 +458,12 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
                   </label>
                   <select
                     value={selectedHotspotData.animation_type}
-                    onChange={(e) => updateHotspot(selectedHotspotData.id, { animation_type: e.target.value as any })}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      if (isAnimationType(value)) {
+                        updateHotspot(selectedHotspotData.id, { animation_type: value });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500"
                   >
                     <option value="none">None</option>

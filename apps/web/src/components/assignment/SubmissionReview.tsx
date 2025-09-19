@@ -2,18 +2,13 @@
 /* Author: Auto-scaffold (review required) */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
   Pause,
-  Square,
   Volume2,
   VolumeX,
-  RotateCcw,
   FastForward,
   Rewind,
-  Star,
-  MessageSquare,
   Send,
   Download,
   Clock,
@@ -24,12 +19,17 @@ import {
   Mic,
   Save
 } from 'lucide-react';
-import { Submission, Feedback, User as UserType } from '../../types/assignment';
+import { Submission } from '../../types/assignment';
 
 interface SubmissionReviewProps {
   submission: Submission;
-  onFeedbackSubmit: (feedback: { note?: string; audio?: File; score?: number; rubric?: any }) => Promise<void>;
-  onScoreUpdate: (score: number, rubric?: any) => Promise<void>;
+  onFeedbackSubmit: (feedback: {
+    note?: string;
+    audio?: File;
+    score?: number;
+    rubric?: RubricScores;
+  }) => Promise<void>;
+  onScoreUpdate: (score: number, rubric?: RubricScores) => Promise<void>;
   className?: string;
   showRubric?: boolean;
 }

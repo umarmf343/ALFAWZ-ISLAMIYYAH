@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import type { LucideIcon } from 'lucide-react';
+import {
   BookOpen,
   Users,
   Award,
@@ -46,12 +47,14 @@ interface User {
 /**
  * Navigation item interface for sidebar menu.
  */
+type DashboardSectionComponent = React.ComponentType<{ userId?: string }>;
+
 interface NavItem {
   id: string;
   label: string;
-  icon: React.ComponentType<any>;
-  component: React.ComponentType<any>;
-  roles: ('student' | 'teacher' | 'admin')[];
+  icon: LucideIcon;
+  component: DashboardSectionComponent;
+  roles: Array<User['role']>;
 }
 
 /**
@@ -197,7 +200,7 @@ const MainDashboardContent: React.FC<MainDashboardProps> = ({
                   <div>
                     <h1 className="text-lg font-bold text-white">Al-Fawz</h1>
                     <p className="text-xs" style={{ color: theme.colors.gold[300] }}>
-                      Qur'an Institute
+                      Qur&apos;an Institute
                     </p>
                   </div>
                 </motion.div>
@@ -408,7 +411,7 @@ const DashboardOverview: React.FC<{ userId?: string }> = ({ userId }) => {
                 Assalamu Alaikum
               </h1>
               <p style={{ color: theme.colors.maroon[600] }}>
-                Welcome back to your Qur'an learning journey
+                Welcome back to your Qur&apos;an learning journey
               </p>
             </div>
           </div>
@@ -533,10 +536,10 @@ const QuranStudyView: React.FC<{ userId?: string }> = () => {
     <SpiritualCard className="p-8 text-center">
       <BookOpen className="w-16 h-16 mx-auto mb-4" style={{ color: theme.colors.maroon[400] }} />
       <h3 className="text-xl font-semibold mb-2" style={{ color: theme.colors.maroon[800] }}>
-        Qur'an Study
+        Qur&apos;an Study
       </h3>
       <p style={{ color: theme.colors.maroon[600] }}>
-        Interactive Qur'an study features coming soon...
+        Interactive Qur&apos;an study features coming soon...
       </p>
     </SpiritualCard>
   );

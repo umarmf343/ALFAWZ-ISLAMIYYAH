@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { 
+import type { ComponentType, SVGProps } from 'react';
+import {
   ChartBarIcon,
   TrendingUpIcon,
   UsersIcon,
@@ -62,12 +63,14 @@ interface AnalyticsData {
   scope: string;
 }
 
+type OutlineIcon = ComponentType<SVGProps<SVGSVGElement>>;
+
 interface StatCardProps {
   title: string;
   value: string | number;
   change?: string;
   changeType?: 'increase' | 'decrease' | 'neutral';
-  icon: React.ComponentType<any>;
+  icon: OutlineIcon;
   color: string;
 }
 

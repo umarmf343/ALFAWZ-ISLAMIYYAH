@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import type { LucideIcon } from 'lucide-react';
+import {
   Award,
   Star,
   Trophy,
@@ -78,6 +79,25 @@ interface HasanatTrackerProps {
  * Hasanat tracking and gamification component with spiritual theme.
  * Displays progress, achievements, and rewards for Qur'an recitation.
  */
+type TabId = 'overview' | 'achievements' | 'activities';
+
+const TABS: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
+  { id: 'overview', label: 'Overview', icon: TrendingUp },
+  { id: 'achievements', label: 'Achievements', icon: Trophy },
+  { id: 'activities', label: 'Activities', icon: Clock }
+];
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  BookOpen,
+  Flame,
+  Crown,
+  Trophy,
+  Star,
+  Medal,
+  Award,
+  Target
+};
+
 export const HasanatTracker: React.FC<HasanatTrackerProps> = ({
   userId,
   progress,
@@ -85,7 +105,7 @@ export const HasanatTracker: React.FC<HasanatTrackerProps> = ({
   className = ''
 }) => {
   const { theme, animations, styles } = useSpiritualTheme();
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'achievements' | 'activities'>('overview');
+  const [selectedTab, setSelectedTab] = useState<TabId>('overview');
   const [showLevelUp, setShowLevelUp] = useState(false);
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
 
@@ -166,18 +186,8 @@ export const HasanatTracker: React.FC<HasanatTrackerProps> = ({
   /**
    * Get icon component by name.
    */
-  const getIcon = (iconName: string) => {
-    const icons: { [key: string]: React.ComponentType<any> } = {
-      BookOpen,
-      Flame,
-      Crown,
-      Trophy,
-      Star,
-      Medal,
-      Award,
-      Target
-    };
-    return icons[iconName] || Star;
+  const getIcon = (iconName: string): LucideIcon => {
+    return ICON_MAP[iconName] || Star;
   };
 
   /**
@@ -335,16 +345,12 @@ export const HasanatTracker: React.FC<HasanatTrackerProps> = ({
       {/* Tab Navigation */}
       <SpiritualCard className="p-1">
         <div className="flex space-x-1">
-          {[
-            { id: 'overview', label: 'Overview', icon: TrendingUp },
-            { id: 'achievements', label: 'Achievements', icon: Trophy },
-            { id: 'activities', label: 'Activities', icon: Clock }
-          ].map(tab => {
+          {TABS.map(tab => {
             const IconComponent = tab.icon;
             return (
               <button
                 key={tab.id}
-                onClick={() => setSelectedTab(tab.id as any)}
+                onClick={() => setSelectedTab(tab.id)}
                 className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 rounded-lg font-medium transition-all ${
                   selectedTab === tab.id ? 'shadow-md' : ''
                 }`}
@@ -590,7 +596,7 @@ export const HasanatTracker: React.FC<HasanatTrackerProps> = ({
                 <Crown className="w-16 h-16 mx-auto mb-4" />
               </motion.div>
               <h2 className="text-3xl font-bold mb-2">Level Up!</h2>
-              <p className="text-xl">You've reached Level {currentProgress.level}!</p>
+              <p className="text-xl">You&apos;ve reached Level {currentProgress.level}!</p>
               <motion.div
                 className="flex justify-center mt-4"
                 animate={{ scale: [1, 1.2, 1] }}

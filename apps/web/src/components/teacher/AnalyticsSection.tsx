@@ -45,9 +45,24 @@ interface AnalyticsSummary {
   lastUpdated?: string | null;
 }
 
+type AnalyticsApiPayload = RawAnalytics | { analytics?: RawAnalytics } | null | undefined;
+
+const parseAnalyticsPayload = (payload: AnalyticsApiPayload): RawAnalytics => {
+  if (!payload) {
+    return {};
+  }
+
+  if (typeof payload === 'object' && 'analytics' in payload) {
+    const nested = payload.analytics;
+    return nested ?? {};
+  }
+
+  return payload as RawAnalytics;
+};
+
 const fetchAnalytics = async (): Promise<AnalyticsSummary> => {
-  const response = await api.get('/teacher/dashboard');
-  const payload = ((response as any)?.analytics ?? (response as any)?.data?.analytics ?? {}) as RawAnalytics;
+  const response = await api.get<AnalyticsApiPayload>('/teacher/dashboard');
+  const payload = parseAnalyticsPayload(response.data);
 
   return {
     totalStudents: Number(payload.total_students ?? 0),

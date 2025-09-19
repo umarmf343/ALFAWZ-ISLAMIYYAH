@@ -31,6 +31,8 @@ export interface Assignment {
   completion_rate?: number;
 }
 
+export type HotspotAnimation = 'none' | 'pulse' | 'bounce' | 'fade' | 'rotate' | 'glow' | 'shake';
+
 export interface Hotspot {
   id: number;
   assignment_id: number;
@@ -42,11 +44,11 @@ export interface Hotspot {
   width: number;
   height: number;
   hotspot_type?: 'audio' | 'text' | 'interactive' | 'quiz';
-  animation_type?: 'pulse' | 'bounce' | 'glow' | 'shake';
+  animation_type?: HotspotAnimation;
   is_required?: boolean;
   auto_play?: boolean;
   group_id?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   
@@ -66,7 +68,7 @@ export interface HotspotInteraction {
   interaction_type: 'click' | 'hover' | 'audio_play' | 'audio_complete' | 'quiz_attempt';
   duration?: number; // in seconds
   completion_percentage?: number; // 0-100
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
   
@@ -197,7 +199,7 @@ export interface Notification {
   type: 'assignment_created' | 'assignment_due_soon' | 'assignment_overdue' | 'feedback_received' | 'grade_posted';
   title: string;
   message: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   read_at?: string;
   created_at: string;
   updated_at: string;
@@ -288,12 +290,12 @@ export interface CreateHotspotData {
   width: number;
   height: number;
   hotspot_type?: 'audio' | 'text' | 'interactive' | 'quiz';
-  animation_type?: 'pulse' | 'bounce' | 'glow' | 'shake';
+  animation_type?: HotspotAnimation;
   is_required?: boolean;
   auto_play?: boolean;
   group_id?: string;
   audio?: File;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface CreateSubmissionData {

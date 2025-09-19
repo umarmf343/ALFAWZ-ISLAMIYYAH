@@ -85,6 +85,90 @@ interface SubmissionFilters {
   searchQuery: string;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getNumberValue = (record: Record<string, unknown>, keys: string[]): number => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return 0;
+};
+
+const getStringValue = (record: Record<string, unknown>, keys: string[], fallback = ''): string => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+  }
+
+  return fallback;
+};
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter((item): item is string => typeof item === 'string');
+};
+
+const extractSubmissionArray = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+
+  if (!isRecord(payload)) {
+    return [];
+  }
+
+  if (Array.isArray(payload.data)) {
+    return payload.data;
+  }
+
+  if (isRecord(payload.data) && Array.isArray(payload.data.data)) {
+    return payload.data.data;
+  }
+
+  if (Array.isArray(payload.submissions)) {
+    return payload.submissions;
+  }
+
+  return [];
+};
+
+const extractSubmissionPayload = (payload: unknown): unknown => {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+
+  if (payload.submission !== undefined) {
+    return payload.submission;
+  }
+
+  if (isRecord(payload.data) && payload.data.submission !== undefined) {
+    return payload.data.submission;
+  }
+
+  return payload;
+};
+
 const mapStatus = (status: string | undefined): 'pending' | 'graded' | 'reviewed' => {
   switch ((status ?? '').toLowerCase()) {
     case 'graded':
@@ -96,63 +180,98 @@ const mapStatus = (status: string | undefined): 'pending' | 'graded' | 'reviewed
   }
 };
 
-const mapRubric = (rubric: any): RubricScores | undefined => {
-  if (!rubric || typeof rubric !== 'object') {
+const mapRubric = (rubric: unknown): RubricScores | undefined => {
+  if (!isRecord(rubric)) {
     return undefined;
   }
 
   return {
-    tajweed: Number(rubric.tajweed ?? rubric.tajweedScore ?? 0),
-    fluency: Number(rubric.fluency ?? rubric.fluencyScore ?? 0),
-    memorization: Number(rubric.memorization ?? rubric.memorizationScore ?? 0),
-    pronunciation: Number(rubric.pronunciation ?? rubric.pronunciationScore ?? 0),
+    tajweed: getNumberValue(rubric, ['tajweed', 'tajweedScore']),
+    fluency: getNumberValue(rubric, ['fluency', 'fluencyScore']),
+    memorization: getNumberValue(rubric, ['memorization', 'memorizationScore']),
+    pronunciation: getNumberValue(rubric, ['pronunciation', 'pronunciationScore']),
   };
 };
 
-const mapAnalysis = (analysis: any): AIAnalysis | undefined => {
-  if (!analysis || typeof analysis !== 'object') {
+const mapDetectedError = (error: unknown): ErrorDetection => {
+  if (!isRecord(error)) {
+    return {
+      timestamp: 0,
+      type: 'tajweed',
+      description: '',
+      severity: 'low',
+    };
+  }
+
+  const typeValue = getStringValue(error, ['type'], 'tajweed');
+  const severityValue = getStringValue(error, ['severity'], 'low');
+  const allowedTypes: Array<ErrorDetection['type']> = ['tajweed', 'pronunciation', 'fluency'];
+  const allowedSeverities: Array<ErrorDetection['severity']> = ['low', 'medium', 'high'];
+
+  return {
+    timestamp: getNumberValue(error, ['timestamp', 'time']),
+    type: allowedTypes.includes(typeValue as ErrorDetection['type'])
+      ? (typeValue as ErrorDetection['type'])
+      : 'tajweed',
+    description: getStringValue(error, ['description']),
+    severity: allowedSeverities.includes(severityValue as ErrorDetection['severity'])
+      ? (severityValue as ErrorDetection['severity'])
+      : 'low',
+  };
+};
+
+const mapAnalysis = (analysis: unknown): AIAnalysis | undefined => {
+  if (!isRecord(analysis)) {
     return undefined;
   }
 
-  const detectedErrorsRaw = analysis.detected_errors ?? analysis.detectedErrors ?? [];
-  const detectedErrors: ErrorDetection[] = Array.isArray(detectedErrorsRaw)
-    ? detectedErrorsRaw.map((error: any) => ({
-        timestamp: Number(error.timestamp ?? error.time ?? 0),
-        type: (error.type ?? 'tajweed') as 'tajweed' | 'pronunciation' | 'fluency',
-        description: error.description ?? '',
-        severity: (error.severity ?? 'low') as 'low' | 'medium' | 'high',
-      }))
+  const detectedErrorsSource = analysis.detected_errors ?? analysis.detectedErrors ?? [];
+  const detectedErrors: ErrorDetection[] = Array.isArray(detectedErrorsSource)
+    ? detectedErrorsSource.map((error) => mapDetectedError(error))
     : [];
 
   return {
-    overallScore: Number(analysis.overall_score ?? analysis.overallScore ?? 0),
-    tajweedScore: Number(analysis.tajweed_score ?? analysis.tajweedScore ?? 0),
-    fluencyScore: Number(analysis.fluency_score ?? analysis.fluencyScore ?? 0),
-    pronunciationScore: Number(analysis.pronunciation_score ?? analysis.pronunciationScore ?? 0),
-    suggestions: Array.isArray(analysis.suggestions) ? analysis.suggestions : [],
+    overallScore: getNumberValue(analysis, ['overall_score', 'overallScore']),
+    tajweedScore: getNumberValue(analysis, ['tajweed_score', 'tajweedScore']),
+    fluencyScore: getNumberValue(analysis, ['fluency_score', 'fluencyScore']),
+    pronunciationScore: getNumberValue(analysis, ['pronunciation_score', 'pronunciationScore']),
+    suggestions: toStringArray(analysis.suggestions),
     detectedErrors,
-    confidence: Number(analysis.confidence ?? analysis.confidence_score ?? 0),
+    confidence: getNumberValue(analysis, ['confidence', 'confidence_score']),
   };
 };
 
-const transformSubmission = (submission: any): Submission => {
-  const student = submission.student ?? {};
-  const assignment = submission.assignment ?? {};
-  const feedback = Array.isArray(submission.feedback) && submission.feedback.length > 0 ? submission.feedback[0] : undefined;
+const transformSubmission = (submission: unknown): Submission => {
+  const record = isRecord(submission) ? submission : {};
+  const studentRecord = isRecord(record.student) ? record.student : {};
+  const assignmentRecord = isRecord(record.assignment) ? record.assignment : {};
+  const feedbackArray = Array.isArray(record.feedback) ? record.feedback : [];
+  const firstFeedback = feedbackArray.find(isRecord);
 
   return {
-    id: String(submission.id),
-    studentName: student.name ?? 'Student',
-    studentEmail: student.email ?? '',
-    assignmentTitle: assignment.title ?? 'Assignment',
-    assignmentId: String(submission.assignment_id ?? assignment.id ?? ''),
-    audioUrl: submission.audio_url ?? submission.audio_s3_url ?? '',
-    submittedAt: submission.created_at ?? submission.submitted_at ?? new Date().toISOString(),
-    status: mapStatus(submission.status),
-    score: submission.score ?? submission.overall_score ?? undefined,
-    feedback: submission.teacher_notes ?? feedback?.feedback_text ?? feedback?.note ?? undefined,
-    aiAnalysis: mapAnalysis(submission.ai_analysis ?? feedback?.ai_analysis),
-    rubric: mapRubric(submission.rubric_json ?? feedback?.scores),
+    id: getStringValue(record, ['id', 'submission_id']),
+    studentName: getStringValue(studentRecord, ['name'], 'Student'),
+    studentEmail: getStringValue(studentRecord, ['email']),
+    assignmentTitle: getStringValue(assignmentRecord, ['title'], 'Assignment'),
+    assignmentId:
+      getStringValue(assignmentRecord, ['id']) || getStringValue(record, ['assignment_id']),
+    audioUrl: getStringValue(record, ['audio_url', 'audio_s3_url']),
+    submittedAt:
+      getStringValue(record, ['created_at', 'submitted_at']) || new Date().toISOString(),
+    status: mapStatus(getStringValue(record, ['status'])),
+    score:
+      record.score !== undefined
+        ? Number(record.score)
+        : record.overall_score !== undefined
+        ? Number(record.overall_score)
+        : undefined,
+    feedback:
+      getStringValue(record, ['teacher_notes']) ||
+      (isRecord(firstFeedback)
+        ? getStringValue(firstFeedback, ['feedback_text', 'note'])
+        : undefined),
+    aiAnalysis: mapAnalysis(record.ai_analysis ?? firstFeedback?.ai_analysis),
+    rubric: mapRubric(record.rubric_json ?? firstFeedback?.scores),
   };
 };
 
@@ -170,15 +289,8 @@ const fetchSubmissions = async (filters: SubmissionFilters): Promise<Submission[
   if (filters.searchQuery) params.append('search', filters.searchQuery);
 
   const query = params.toString();
-  const response = await api.get(`/submissions${query ? `?${query}` : ''}`);
-  const payload = response as any;
-  const rawSubmissions = Array.isArray(payload.data)
-    ? payload.data
-    : Array.isArray(payload?.data?.data)
-    ? payload.data.data
-    : Array.isArray(payload?.submissions)
-    ? payload.submissions
-    : [];
+  const response = await api.get<unknown>(`/submissions${query ? `?${query}` : ''}`);
+  const rawSubmissions = extractSubmissionArray(response.data);
 
   return rawSubmissions.map(transformSubmission);
 };
@@ -193,13 +305,13 @@ const gradeSubmission = async (submissionId: string, gradeData: {
   feedback: string;
   rubric: RubricScores;
 }): Promise<Submission> => {
-  const response = await api.post(`/teacher/submissions/${submissionId}/grade`, {
+  const response = await api.post<unknown>(`/teacher/submissions/${submissionId}/grade`, {
     score: gradeData.score,
     feedback: gradeData.feedback,
     rubric: gradeData.rubric,
   });
 
-  const payload = (response as any)?.submission ?? response;
+  const payload = extractSubmissionPayload(response.data);
   return transformSubmission(payload);
 };
 

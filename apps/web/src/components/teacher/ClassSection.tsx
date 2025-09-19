@@ -20,7 +20,7 @@ import {
   Calendar,
   BookOpen,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, type ApiResponse } from '@/lib/api';
 
 interface Student {
   id: string;
@@ -65,62 +65,142 @@ const normalizeLevel = (value: number): 1 | 2 | 3 => {
   return 2;
 };
 
-const transformClass = (classData: any): ClassData => {
-  const members: any[] =
-    Array.isArray(classData.members) ? classData.members : Array.isArray(classData.students) ? classData.students : [];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
-  const students: Student[] = members
-    .filter((member) => {
-      const role = member?.pivot?.role_in_class ?? member?.role_in_class ?? 'student';
-      return role === 'student';
+const extractArray = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+
+  if (isRecord(value) && Array.isArray(value.data)) {
+    return value.data.filter(isRecord);
+  }
+
+  return [];
+};
+
+const extractClassPayload = (response: ApiResponse<unknown>): unknown => {
+  const data = response.data;
+  if (isRecord(data) && 'class' in data) {
+    const nested = (data as { class?: unknown }).class;
+    return nested ?? data;
+  }
+
+  return data;
+};
+
+const getNestedRecord = (
+  record: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined => {
+  const value = record[key];
+  return isRecord(value) ? value : undefined;
+};
+
+const getStringValue = (record: Record<string, unknown>, key: string, fallback = ''): string => {
+  const value = record[key];
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+
+  return fallback;
+};
+
+const getOptionalNumber = (record: Record<string, unknown>, key: string): number | undefined => {
+  const value = record[key];
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+};
+
+const transformClass = (classData: unknown): ClassData => {
+  const record = isRecord(classData) ? classData : {};
+  const memberRecords = extractArray(record.members ?? record.students ?? []);
+
+  const students: Student[] = memberRecords
+    .map((memberRecord) => {
+      const pivotRecord = getNestedRecord(memberRecord, 'pivot');
+      const roleSource = pivotRecord ?? memberRecord;
+      const role = getStringValue(roleSource, 'role_in_class', 'student');
+
+      if (role !== 'student') {
+        return undefined;
+      }
+
+      const joinedAt =
+        (pivotRecord && getStringValue(pivotRecord, 'created_at', '')) ||
+        getStringValue(memberRecord, 'joined_at', '');
+      const progress =
+        (pivotRecord && getOptionalNumber(pivotRecord, 'progress')) ??
+        getOptionalNumber(memberRecord, 'progress');
+
+      return {
+        id: getStringValue(memberRecord, 'id'),
+        name: getStringValue(memberRecord, 'name', 'Student'),
+        email: getStringValue(memberRecord, 'email'),
+        joinedAt: joinedAt || undefined,
+        progress,
+      };
     })
-    .map((member) => ({
-      id: String(member.id),
-      name: member.name ?? 'Student',
-      email: member.email ?? '',
-      joinedAt: member?.pivot?.created_at ?? member?.joined_at ?? undefined,
-      progress: member?.progress ?? member?.pivot?.progress ?? undefined,
-    }));
+    .filter((student): student is Student => Boolean(student));
+
+  const levelValue = getOptionalNumber(record, 'level') ?? 1;
 
   return {
-    id: String(classData.id),
-    title: classData.title ?? classData.name ?? 'Untitled Class',
-    description: classData.description ?? '',
-    level: normalizeLevel(Number(classData.level ?? 1) as 1 | 2 | 3),
+    id: getStringValue(record, 'id'),
+    title: getStringValue(record, 'title', getStringValue(record, 'name', 'Untitled Class')),
+    description: getStringValue(record, 'description'),
+    level: normalizeLevel(levelValue),
     studentCount: students.length,
-    createdAt: classData.created_at ?? new Date().toISOString(),
+    createdAt: getStringValue(record, 'created_at', new Date().toISOString()),
     students,
   };
 };
 
 const fetchClasses = async (): Promise<ClassData[]> => {
-  const response = await api.get('/classes');
-  const payload = response as any;
-  const rawClasses = Array.isArray(payload.data) ? payload.data : Array.isArray(payload?.data?.data) ? payload.data.data : [];
+  const response = await api.get<unknown>('/classes');
+  const rawClasses = extractArray(response.data);
 
   return rawClasses.map(transformClass);
 };
 
 const fetchAvailableStudents = async (): Promise<AvailableStudent[]> => {
-  const response = await api.get('/profile/my-students');
-  const payload = (response as any)?.students ?? (response as any)?.data?.students ?? [];
+  const response = await api.get<unknown>('/profile/my-students');
+  const responseData = response.data;
+  const studentSource =
+    isRecord(responseData) && responseData.students !== undefined
+      ? responseData.students
+      : responseData;
+  const rawStudents = extractArray(studentSource);
 
-  if (!Array.isArray(payload)) {
-    return [];
-  }
-
-  return payload.map((student: any) => ({
-    id: String(student.id),
-    name: student.name ?? 'Student',
-    email: student.email ?? '',
+  return rawStudents.map((studentRecord) => ({
+    id: getStringValue(studentRecord, 'id'),
+    name: getStringValue(studentRecord, 'name', 'Student'),
+    email: getStringValue(studentRecord, 'email'),
   }));
 };
 
 const createClass = async (data: CreateClassData): Promise<ClassData> => {
   const { studentIds, ...classPayload } = data;
-  const response = await api.post('/classes', classPayload);
-  const created = (response as any)?.class ?? (response as any)?.data?.class ?? response;
-  const newClass = transformClass(created);
+  const response = await api.post<unknown>('/classes', classPayload);
+  const createdPayload = isRecord(response.data) && isRecord(response.data.class)
+    ? response.data.class
+    : response.data;
+  const newClass = transformClass(createdPayload);
 
   if (studentIds.length > 0) {
     await Promise.all(
@@ -133,9 +213,11 @@ const createClass = async (data: CreateClassData): Promise<ClassData> => {
     );
   }
 
-  const refreshed = await api.get(`/classes/${newClass.id}`);
-  const refreshedClass = (refreshed as any)?.class ?? (refreshed as any)?.data?.class ?? newClass;
-  return transformClass(refreshedClass);
+  const refreshed = await api.get<unknown>(`/classes/${newClass.id}`);
+  const refreshedClass = isRecord(refreshed.data) && isRecord(refreshed.data.class)
+    ? refreshed.data.class
+    : refreshed.data;
+  return transformClass(refreshedClass ?? newClass);
 };
 
 const updateClass = async (classId: string, data: CreateClassData): Promise<ClassData> => {
@@ -146,8 +228,8 @@ const updateClass = async (classId: string, data: CreateClassData): Promise<Clas
     await api.put(`/classes/${classId}`, classPayload);
   }
 
-  const detailsResponse = await api.get(`/classes/${classId}`);
-  const details = (detailsResponse as any)?.class ?? (detailsResponse as any)?.data?.class ?? detailsResponse;
+  const detailsResponse = await api.get<unknown>(`/classes/${classId}`);
+  const details = extractClassPayload(detailsResponse);
   const currentClass = transformClass(details);
   const existingIds = currentClass.students.map((student) => student.id);
 
@@ -169,9 +251,9 @@ const updateClass = async (classId: string, data: CreateClassData): Promise<Clas
     await api.delete(`/classes/${classId}/members/${studentId}`);
   }
 
-  const refreshed = await api.get(`/classes/${classId}`);
-  const refreshedClass = (refreshed as any)?.class ?? (refreshed as any)?.data?.class ?? details;
-  return transformClass(refreshedClass);
+  const refreshed = await api.get<unknown>(`/classes/${classId}`);
+  const refreshedClass = extractClassPayload(refreshed);
+  return transformClass(refreshedClass ?? details);
 };
 
 const deleteClass = async (classId: string) => {

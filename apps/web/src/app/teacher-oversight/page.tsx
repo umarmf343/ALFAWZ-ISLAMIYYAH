@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { 
   FaUser, 
   FaChartLine, 
@@ -54,6 +54,15 @@ interface ClassOverview {
   pending_submissions: number;
 }
 
+interface OversightNotification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  timestamp: string;
+  read?: boolean;
+}
+
 /**
  * Teacher oversight dashboard for tracking student progress and receiving notifications
  */
@@ -63,8 +72,59 @@ export default function TeacherOversightPage() {
   const [classes, setClasses] = useState<ClassOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState<number | null>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<OversightNotification[]>([]);
   const [error, setError] = useState('');
+
+  const getErrorMessage = (caught: unknown, fallback: string) => {
+    if (caught instanceof ApiError) {
+      return caught.message;
+    }
+
+    if (caught instanceof Error) {
+      return caught.message;
+    }
+
+    return fallback;
+  };
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+  const getStringValue = (record: Record<string, unknown>, keys: string[], fallback = ''): string => {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === 'string') {
+        return value;
+      }
+
+      if (typeof value === 'number') {
+        return value.toString();
+      }
+    }
+
+    return fallback;
+  };
+
+  const toNotificationArray = (value: unknown): OversightNotification[] => {
+    if (Array.isArray(value)) {
+      return value
+        .filter(isRecord)
+        .map((item) => ({
+          id: getStringValue(item, ['id']),
+          type: getStringValue(item, ['type'], 'info'),
+          title: getStringValue(item, ['title'], 'Notification'),
+          message: getStringValue(item, ['message']),
+          timestamp: getStringValue(item, ['timestamp', 'created_at'], new Date().toISOString()),
+          read: Boolean(item.read ?? item.read_at),
+        }));
+    }
+
+    if (isRecord(value) && Array.isArray(value.notifications)) {
+      return toNotificationArray(value.notifications);
+    }
+
+    return [];
+  };
 
   /**
    * Fetch teacher oversight data including student progress and notifications
@@ -75,21 +135,22 @@ export default function TeacherOversightPage() {
       setError('');
       
       // Fetch classes overview
-      const classesResponse = await api.get('/teacher/classes-overview');
-      setClasses(classesResponse.data || []);
-      
+      const classesResponse = await api.get<ClassOverview[]>('/teacher/classes-overview');
+      setClasses(classesResponse.data ?? []);
+
       // Fetch student progress data
-      const studentsResponse = await api.get('/teacher/students-progress', {
-        params: selectedClass ? { class_id: selectedClass } : {}
-      });
-      setStudents(studentsResponse.data || []);
-      
+      const studentsEndpoint = selectedClass
+        ? `/teacher/students-progress?class_id=${selectedClass}`
+        : '/teacher/students-progress';
+      const studentsResponse = await api.get<StudentProgress[]>(studentsEndpoint);
+      setStudents(studentsResponse.data ?? []);
+
       // Fetch notifications
-      const notificationsResponse = await api.get('/teacher/notifications');
-      setNotifications(notificationsResponse.data || []);
-      
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch oversight data');
+      const notificationsResponse = await api.get<unknown>('/teacher/notifications');
+      setNotifications(toNotificationArray(notificationsResponse.data));
+
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to fetch oversight data'));
       // Mock data for development
       setClasses([
         {
@@ -159,21 +220,21 @@ export default function TeacherOversightPage() {
       
       setNotifications([
         {
-          id: 1,
+          id: '1',
           type: 'assignment',
           title: 'New submission from Ahmed Hassan',
           message: 'Surah Al-Fatiha recitation assignment',
           timestamp: '2025-01-13T11:30:00Z',
-          read: false
+          read: false,
         },
         {
-          id: 2,
+          id: '2',
           type: 'alert',
           title: 'Student needs attention',
           message: 'Fatima Ali has missed 2 consecutive daily goals',
           timestamp: '2025-01-13T09:15:00Z',
-          read: false
-        }
+          read: false,
+        },
       ]);
     } finally {
       setLoading(false);
