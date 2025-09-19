@@ -25,7 +25,8 @@ export interface RegisterData {
   email: string;
   password: string;
   password_confirmation: string;
-  role: 'student' | 'teacher';
+  phone?: string;
+  level?: number;
 }
 
 export interface AuthResponse {

@@ -8,6 +8,9 @@
 
 import { indexedDBService, CACHE_KEYS, cacheDashboardData, getCachedDashboardData } from './indexedDB';
 
+const hasWindow = typeof window !== 'undefined';
+const hasNavigator = typeof navigator !== 'undefined';
+
 interface ApiResponse<T = any> {
   data: T;
   fromCache: boolean;
@@ -23,18 +26,20 @@ class OfflineApiService {
   private baseUrl: string;
   private token: string | null = null;
   private networkStatus: NetworkStatus = {
-    online: navigator.onLine,
+    online: hasNavigator ? navigator.onLine : true,
     lastOnline: Date.now()
   };
 
   constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000/api';
-    
-    // Initialize IndexedDB
-    indexedDBService.init().catch(console.error);
-    
-    // Listen for network status changes
-    this.setupNetworkListeners();
+
+    if (hasWindow) {
+      // Initialize IndexedDB
+      indexedDBService.init().catch(console.error);
+
+      // Listen for network status changes
+      this.setupNetworkListeners();
+    }
   }
 
   /**
@@ -49,6 +54,10 @@ class OfflineApiService {
    * Setup network status listeners.
    */
   private setupNetworkListeners(): void {
+    if (!hasWindow) {
+      return;
+    }
+
     window.addEventListener('online', () => {
       this.networkStatus.online = true;
       this.networkStatus.lastOnline = Date.now();

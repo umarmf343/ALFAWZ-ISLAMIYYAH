@@ -8,20 +8,31 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { RegisterData } from '@/types/auth';
+import { ApiError } from '@/lib/api';
+
+interface RegisterFormState {
+  name: string;
+  email: string;
+  password: string;
+  password_confirmation: string;
+  phone: string;
+  level: string;
+}
 
 /**
  * Registration page component for new user signup.
- * Allows users to register as students or teachers.
+ * Collects essential details with optional contact and experience information.
  */
 export default function RegisterPage() {
   const router = useRouter();
   const { register, isAuthenticated, isLoading } = useAuth();
-  const [formData, setFormData] = useState<RegisterData>({
+  const [formData, setFormData] = useState<RegisterFormState>({
     name: '',
     email: '',
     password: '',
     password_confirmation: '',
-    role: 'student',
+    phone: '',
+    level: '',
   });
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,15 +65,34 @@ export default function RegisterPage() {
     setErrors({});
 
     try {
-      await register(formData);
+      const payload: RegisterData = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        password_confirmation: formData.password_confirmation,
+        ...(formData.phone ? { phone: formData.phone } : {}),
+        ...(formData.level ? { level: Number(formData.level) } : {}),
+      };
+
+      await register(payload);
       router.push('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Registration failed:', error);
-      if (error.response?.data?.errors) {
-        setErrors(error.response.data.errors);
-      } else {
-        setErrors({ general: [error.message || 'Registration failed. Please try again.'] });
+      if (error instanceof ApiError) {
+        if (error.response?.data?.errors) {
+          setErrors(error.response.data.errors);
+          return;
+        }
+        if (error.data?.errors) {
+          setErrors(error.data.errors);
+          return;
+        }
+        setErrors({ general: [error.message] });
+        return;
       }
+
+      const message = error instanceof Error ? error.message : 'Registration failed. Please try again.';
+      setErrors({ general: [message] });
     } finally {
       setIsSubmitting(false);
     }
@@ -150,23 +180,46 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* Role Selection */}
+            {/* Phone Field */}
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                I am a...
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                Phone Number (optional)
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={handleChange}
+                className={`mt-1 block w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm ${
+                  errors.phone ? 'border-red-300' : 'border-gray-300'
+                }`}
+                placeholder="Enter your phone number"
+              />
+              {errors.phone && (
+                <p className="mt-1 text-sm text-red-600">{errors.phone[0]}</p>
+              )}
+            </div>
+
+            {/* Level Selection */}
+            <div>
+              <label htmlFor="level" className="block text-sm font-medium text-gray-700">
+                Experience Level (optional)
               </label>
               <select
-                id="role"
-                name="role"
-                value={formData.role}
+                id="level"
+                name="level"
+                value={formData.level}
                 onChange={handleChange}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
               >
-                <option value="student">Student</option>
-                <option value="teacher">Teacher</option>
+                <option value="">Select your level</option>
+                <option value="1">Beginner</option>
+                <option value="2">Intermediate</option>
+                <option value="3">Advanced</option>
               </select>
-              {errors.role && (
-                <p className="mt-1 text-sm text-red-600">{errors.role[0]}</p>
+              {errors.level && (
+                <p className="mt-1 text-sm text-red-600">{errors.level[0]}</p>
               )}
             </div>
 
