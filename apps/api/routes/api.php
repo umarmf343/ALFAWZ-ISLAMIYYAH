@@ -410,7 +410,7 @@ Route::middleware('auth:sanctum')->group(function () {
      
      // Resources endpoints
      Route::get('/resources', [ResourceController::class, 'index']);
-     Route::get('/resources/{id}/download', [ResourceController::class, 'download']);
+    Route::get('/resources/{resource}/download', [ResourceController::class, 'download']);
      
      // Notification management
     Route::prefix('notifications')->group(function () {

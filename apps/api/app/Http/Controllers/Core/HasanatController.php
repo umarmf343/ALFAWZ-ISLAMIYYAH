@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\QuranProgress;
 use App\Models\Submission;
 use App\Models\Assignment;
+use App\Models\Hasanat;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,36 @@ use Carbon\Carbon;
 
 class HasanatController extends Controller
 {
+    private const AVAILABLE_REWARDS = [
+        [
+            'id' => 'profile_badge_bronze',
+            'name' => 'Bronze Profile Badge',
+            'description' => 'Unlock a bronze badge to celebrate your learning streak.',
+            'cost' => 500,
+            'type' => 'badge',
+            'category' => 'profile',
+            'limit_per_user' => 1,
+        ],
+        [
+            'id' => 'virtual_gift_card',
+            'name' => 'Virtual Gift Card',
+            'description' => 'Send a thoughtful virtual gift card to a classmate.',
+            'cost' => 1200,
+            'type' => 'perk',
+            'category' => 'community',
+            'limit_per_user' => 4,
+        ],
+        [
+            'id' => 'one_on_one_session',
+            'name' => '1-on-1 Coaching Session',
+            'description' => 'Book a focused coaching session with your teacher.',
+            'cost' => 2500,
+            'type' => 'experience',
+            'category' => 'mentorship',
+            'limit_per_user' => 2,
+        ],
+    ];
+
     /**
      * Get user's hasanat progress and statistics.
      *
@@ -77,7 +108,7 @@ class HasanatController extends Controller
     {
         $userId = $request->query('user_id', Auth::id());
         $limit = $request->query('limit', 20);
-        
+
         if ($userId != Auth::id() && !Auth::user()->hasRole('teacher')) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
@@ -87,6 +118,61 @@ class HasanatController extends Controller
         return response()->json([
             'success' => true,
             'data' => $activities
+        ]);
+    }
+
+    /**
+     * Get paginated hasanat history for a user.
+     *
+     * @param Request $request HTTP request with optional filters
+     * @return JsonResponse JSON response with hasanat history
+     */
+    public function getHistory(Request $request): JsonResponse
+    {
+        $userId = (int) $request->query('user_id', Auth::id());
+        $perPage = (int) $request->query('per_page', 25);
+
+        if ($userId !== Auth::id() && !Auth::user()->hasAnyRole(['teacher', 'admin'])) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $query = Hasanat::where('user_id', $userId)
+            ->orderByDesc('created_at');
+
+        if ($request->filled('activity_type')) {
+            $query->where('activity_type', $request->query('activity_type'));
+        }
+
+        if ($request->filled('start_date')) {
+            $query->whereDate('created_at', '>=', Carbon::parse($request->query('start_date')));
+        }
+
+        if ($request->filled('end_date')) {
+            $query->whereDate('created_at', '<=', Carbon::parse($request->query('end_date')));
+        }
+
+        $history = $query->paginate(max(1, $perPage));
+
+        $history->getCollection()->transform(function (Hasanat $entry) {
+            return [
+                'id' => $entry->id,
+                'activity_type' => $entry->activity_type,
+                'points' => $entry->points,
+                'description' => $entry->description,
+                'metadata' => $entry->metadata ?? [],
+                'created_at' => $entry->created_at?->toISOString(),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $history->items(),
+            'meta' => [
+                'current_page' => $history->currentPage(),
+                'last_page' => $history->lastPage(),
+                'per_page' => $history->perPage(),
+                'total' => $history->total(),
+            ],
         ]);
     }
 
@@ -130,6 +216,195 @@ class HasanatController extends Controller
                 'new_total' => $this->getUserTotalHasanat($request->user_id),
                 'level_up' => $this->checkLevelUp($request->user_id)
             ]
+        ]);
+    }
+
+    /**
+     * Get available rewards that can be redeemed with hasanat.
+     *
+     * @param Request $request HTTP request
+     * @return JsonResponse JSON response with reward catalog
+     */
+    public function getRewards(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $redemptions = Hasanat::where('user_id', $user->id)
+            ->where('activity_type', 'reward_redemption')
+            ->get()
+            ->groupBy(function (Hasanat $entry) {
+                return $entry->metadata['reward_id'] ?? 'unknown';
+            })
+            ->map(function ($group) {
+                return $group->sum(function (Hasanat $entry) {
+                    return (int) ($entry->metadata['quantity'] ?? 1);
+                });
+            });
+
+        $totalHasanat = $this->getUserTotalHasanat($user->id);
+
+        $rewards = collect(self::AVAILABLE_REWARDS)->map(function (array $reward) use ($redemptions, $totalHasanat) {
+            $redeemed = (int) ($redemptions[$reward['id']] ?? 0);
+            $remainingLimit = isset($reward['limit_per_user'])
+                ? max(0, $reward['limit_per_user'] - $redeemed)
+                : null;
+
+            return array_merge($reward, [
+                'redeemed' => $redeemed,
+                'remaining_limit' => $remainingLimit,
+                'is_redeemable' => $totalHasanat >= $reward['cost'] && ($remainingLimit === null || $remainingLimit > 0),
+            ]);
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'total_hasanat' => $totalHasanat,
+                'rewards' => $rewards,
+            ],
+        ]);
+    }
+
+    /**
+     * Redeem hasanat for a reward.
+     *
+     * @param Request $request HTTP request with reward details
+     * @return JsonResponse JSON response with redemption result
+     */
+    public function redeemReward(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'reward_id' => 'required|string',
+            'quantity' => 'sometimes|integer|min:1',
+        ]);
+
+        $user = $request->user();
+        $reward = collect(self::AVAILABLE_REWARDS)->firstWhere('id', $validated['reward_id']);
+
+        if (!$reward) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid reward selected',
+            ], 422);
+        }
+
+        $quantity = $validated['quantity'] ?? 1;
+        $totalCost = $reward['cost'] * $quantity;
+        $currentHasanat = $this->getUserTotalHasanat($user->id);
+
+        if ($currentHasanat < $totalCost) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Insufficient hasanat to redeem this reward',
+            ], 422);
+        }
+
+        $previousRedemptions = Hasanat::where('user_id', $user->id)
+            ->where('activity_type', 'reward_redemption')
+            ->where('metadata->reward_id', $reward['id'])
+            ->get()
+            ->sum(function (Hasanat $entry) {
+                return (int) ($entry->metadata['quantity'] ?? 1);
+            });
+
+        if (isset($reward['limit_per_user']) && $previousRedemptions + $quantity > $reward['limit_per_user']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Reward redemption limit reached',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            Hasanat::create([
+                'user_id' => $user->id,
+                'activity_type' => 'reward_redemption',
+                'points' => -$totalCost,
+                'description' => 'Redeemed reward: ' . $reward['name'],
+                'metadata' => [
+                    'reward_id' => $reward['id'],
+                    'quantity' => $quantity,
+                    'cost_per_unit' => $reward['cost'],
+                    'total_cost' => $totalCost,
+                ],
+            ]);
+
+            Cache::forget("hasanat_progress_{$user->id}");
+
+            $remainingHasanat = $this->getUserTotalHasanat($user->id);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reward redeemed successfully',
+                'data' => [
+                    'reward_id' => $reward['id'],
+                    'quantity' => $quantity,
+                    'remaining_hasanat' => $remainingHasanat,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to redeem reward: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Describe hasanat capabilities including activities, rewards, and levels.
+     *
+     * @return JsonResponse JSON response with capability metadata
+     */
+    public function getCapabilities(): JsonResponse
+    {
+        $levelThresholds = [];
+        for ($level = 1; $level <= 5; $level++) {
+            $levelThresholds[] = [
+                'level' => $level,
+                'total_hasanat_required' => $this->getLevelThreshold($level),
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'activities' => [
+                    [
+                        'type' => 'recitation',
+                        'description' => 'Earn hasanat for each recorded recitation and memorization review.',
+                        'estimated_range' => [10, 150],
+                    ],
+                    [
+                        'type' => 'assignment',
+                        'description' => 'Complete assignments and receive bonus hasanat for high scores.',
+                        'estimated_range' => [50, 250],
+                    ],
+                    [
+                        'type' => 'streak',
+                        'description' => 'Maintain learning streaks to unlock consistency bonuses.',
+                        'estimated_range' => [25, 200],
+                    ],
+                    [
+                        'type' => 'achievement',
+                        'description' => 'Unlock special achievements and milestone rewards.',
+                        'estimated_range' => [100, 500],
+                    ],
+                ],
+                'reward_catalog' => collect(self::AVAILABLE_REWARDS)->map(function (array $reward) {
+                    return array_merge($reward, [
+                        'requires_level' => max(1, (int) floor($reward['cost'] / 1000) + 1),
+                    ]);
+                })->values(),
+                'levels' => [
+                    'calculation' => 'Every additional 1,000 hasanat increases your level by one.',
+                    'thresholds' => $levelThresholds,
+                ],
+            ],
         ]);
     }
 
@@ -415,15 +690,31 @@ class HasanatController extends Controller
                     'last_seen_at' => now()
                 ]);
             }
-            
+
             // Clear user's hasanat cache
             Cache::forget("hasanat_progress_{$userId}");
-            
+
+            $metadata = array_filter([
+                'reference_id' => $referenceId,
+                'surah_id' => $surahId,
+                'ayah_count' => $ayahCount,
+            ], function ($value) {
+                return $value !== null;
+            });
+
+            Hasanat::create([
+                'user_id' => $userId,
+                'activity_type' => $type,
+                'points' => $hasanat,
+                'description' => $description,
+                'metadata' => $metadata,
+            ]);
+
             // Update leaderboard entry
             $this->updateLeaderboardEntry($userId, $hasanat);
-            
+
             DB::commit();
-            
+
             return $hasanat;
         } catch (\Exception $e) {
             DB::rollBack();
@@ -562,7 +853,10 @@ class HasanatController extends Controller
      */
     private function getUserTotalHasanat(int $userId): int
     {
-        return QuranProgress::where('user_id', $userId)->sum('hasanat');
+        $progressTotal = QuranProgress::where('user_id', $userId)->sum('hasanat');
+        $transactionTotal = Hasanat::where('user_id', $userId)->sum('points');
+
+        return max(0, $progressTotal + $transactionTotal);
     }
 
     /**

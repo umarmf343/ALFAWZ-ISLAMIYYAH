@@ -87,6 +87,65 @@ class FeedbackController extends Controller
     }
 
     /**
+     * Get feedback visible to the authenticated student.
+     *
+     * @param Request $request HTTP request with optional filters
+     * @return JsonResponse JSON response with student feedback data
+     */
+    public function studentFeedback(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user || !$user->hasRole('student')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only students can access this resource'
+            ], 403);
+        }
+
+        $query = Feedback::with(['submission.assignment', 'submission.student', 'teacher'])
+            ->whereHas('submission', function ($q) use ($user) {
+                $q->where('student_id', $user->id);
+            });
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->get('status'));
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->get('type'));
+        }
+
+        if ($request->filled('area')) {
+            $query->where('area', $request->get('area'));
+        }
+
+        if ($request->filled('assignment_id')) {
+            $query->whereHas('submission.assignment', function ($q) use ($request) {
+                $q->where('id', $request->get('assignment_id'));
+            });
+        }
+
+        $feedback = $query->orderBy('created_at', 'desc')
+            ->paginate($request->get('per_page', 15));
+
+        $feedback->getCollection()->transform(function (Feedback $feedback) {
+            return $feedback->toFrontendArray();
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $feedback->items(),
+            'meta' => [
+                'current_page' => $feedback->currentPage(),
+                'last_page' => $feedback->lastPage(),
+                'per_page' => $feedback->perPage(),
+                'total' => $feedback->total()
+            ]
+        ]);
+    }
+
+    /**
      * Store a newly created feedback with AI analysis.
      *
      * @param Request $request HTTP request with feedback data
