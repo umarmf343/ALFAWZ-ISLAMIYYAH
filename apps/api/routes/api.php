@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\MeController;
 use App\Http\Controllers\Quran\SurahController;
 use App\Http\Controllers\Core\ClassController;
 use App\Http\Controllers\Core\AssignmentController;
+use App\Http\Controllers\Core\AudioPlayerController;
 use App\Http\Controllers\Core\HotspotController;
 use App\Http\Controllers\Core\SubmissionController;
 use App\Http\Controllers\Core\FeedbackController;
@@ -181,7 +182,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/ayah-of-day', [StudentController::class, 'getAyahOfDay']);
         Route::get('/recommendations', [StudentController::class, 'getRecommendations']);
         Route::get('/weekly-progress', [StudentController::class, 'getWeeklyProgress']);
-        
+
+        // Quran audio learning experience
+        Route::prefix('audio')->group(function () {
+            Route::get('/surahs', [AudioPlayerController::class, 'surahs']);
+            Route::get('/progress', [AudioPlayerController::class, 'index']);
+            Route::get('/progress/{surah}', [AudioPlayerController::class, 'show'])
+                ->whereNumber('surah');
+            Route::post('/progress', [AudioPlayerController::class, 'store']);
+        });
+
         // Memorization routes (moved to dedicated controller)
         Route::prefix('memorization')->group(function () {
             Route::get('/plans', [MemorizationController::class, 'index']);

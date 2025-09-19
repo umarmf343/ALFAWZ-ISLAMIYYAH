@@ -228,6 +228,28 @@ export interface ReviewSubmission {
   audio_file?: File;
 }
 
+export interface AudioSurah {
+  id: number;
+  name: string;
+  arabic_name?: string;
+  verses?: number;
+  reciter?: string;
+  duration_seconds?: number;
+  audio_url: string;
+  description?: string;
+}
+
+export interface AudioProgressRecord {
+  id: number;
+  user_id: number;
+  surah_id: number;
+  surah_name: string;
+  position_seconds: number;
+  duration_seconds: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Health check endpoint
  */
@@ -311,5 +333,32 @@ export const getAudioReviews = () => api.get('/teacher/memorization/audio-review
 /**
  * Approve or reject audio review submission
  */
-export const reviewAudioSubmission = (reviewId: number, action: 'approve' | 'reject', feedback?: string) => 
+export const reviewAudioSubmission = (reviewId: number, action: 'approve' | 'reject', feedback?: string) =>
   api.post(`/teacher/memorization/reviews/${reviewId}/${action}`, { feedback });
+
+/**
+ * Fetch curated surah audio list.
+ */
+export const getAudioSurahs = () =>
+  api.get<{ surahs: AudioSurah[] }>('/student/audio/surahs');
+
+/**
+ * Fetch saved audio progress for all surahs.
+ */
+export const getAudioProgressList = () =>
+  api.get<{ progress: AudioProgressRecord[] }>('/student/audio/progress');
+
+/**
+ * Fetch saved audio progress for a specific surah.
+ */
+export const getAudioProgress = (surahId: number) =>
+  api.get<AudioProgressRecord | null>(`/student/audio/progress/${surahId}`);
+
+/**
+ * Persist the learner's current listening position.
+ */
+export const saveAudioProgress = (payload: {
+  surah_id: number;
+  position_seconds: number;
+  duration_seconds?: number | null;
+}) => api.post<AudioProgressRecord>('/student/audio/progress', payload);
