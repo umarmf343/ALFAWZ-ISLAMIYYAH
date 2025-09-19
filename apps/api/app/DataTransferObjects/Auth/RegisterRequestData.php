@@ -8,18 +8,18 @@ class RegisterRequestData
         public string $name,
         public string $email,
         public string $password,
-        public string $role,
+        public string $role = 'student',
         public ?string $phone = null,
         public int $level = 1,
     ) {}
 
-    public static function fromArray(array $validated): self
+    public static function fromArray(array $validated, string $defaultRole = 'student'): self
     {
         return new self(
             name: $validated['name'],
             email: $validated['email'],
             password: $validated['password'],
-            role: $validated['role'],
+            role: $defaultRole,
             phone: $validated['phone'] ?? null,
             level: (int) ($validated['level'] ?? 1),
         );
