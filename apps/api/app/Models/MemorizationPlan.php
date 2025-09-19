@@ -60,7 +60,7 @@ class MemorizationPlan extends Model
      */
     public function class()
     {
-        return $this->user->classes()->first();
+        return $this->user->studentClasses()->first();
     }
 
     /**
