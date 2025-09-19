@@ -22,7 +22,7 @@ class PaymentController extends Controller
      * @param Request $request HTTP request with payment data
      * @return \Illuminate\Http\JsonResponse Payment initialization response
      */
-    public function init(Request $request)
+    public function initialize(Request $request)
     {
         $user = $request->user();
         
