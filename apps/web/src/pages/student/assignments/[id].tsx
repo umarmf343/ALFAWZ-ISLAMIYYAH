@@ -422,7 +422,7 @@ const AssignmentDetailPage: React.FC = () => {
                   Submit Assignment
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to submit this assignment for grading? You won't be able to make changes after submission.
+                  Are you sure you want to submit this assignment for grading? You won&apos;t be able to make changes after submission.
                 </p>
                 <div className="flex space-x-3">
                   <button

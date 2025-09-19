@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { computeHasanat, formatHasanat, getHasanatBadge } from '@/lib/hasanat';
 import { LeaderboardEntry } from '@/types';
 
@@ -22,6 +22,18 @@ export default function LeaderboardPage() {
   const [error, setError] = useState('');
   const [userRank, setUserRank] = useState<number | null>(null);
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof ApiError) {
+      return error.message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return fallback;
+  };
+
   /**
    * Fetch leaderboard data based on current filters
    */
@@ -29,23 +41,23 @@ export default function LeaderboardPage() {
     try {
       setLoading(true);
       setError('');
-      
+
       const params = new URLSearchParams({
         scope,
         period
       });
-      
-      const response = await api.get(`/leaderboard?${params}`);
-      const data = response.data || [];
-      
-      setLeaderboard(data);
-      
+
+      const response = await api.get<LeaderboardEntry[]>(`/leaderboard?${params}`);
+      const entries = response.data ?? [];
+
+      setLeaderboard(entries);
+
       // Find current user's rank
-      const currentUserEntry = data.find((entry: LeaderboardEntry) => entry.user_id === user?.id);
+      const currentUserEntry = entries.find((entry) => entry.user_id === user?.id);
       setUserRank(currentUserEntry ? currentUserEntry.rank : null);
-      
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch leaderboard');
+
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to fetch leaderboard'));
     } finally {
       setLoading(false);
     }
@@ -346,7 +358,7 @@ export default function LeaderboardPage() {
             Every ayah you recite, every assignment you complete, brings you closer to Allah and higher on the leaderboard.
           </p>
           <div className="text-sm text-gray-500 italic">
-            "And whoever strives only strives for [the benefit of] himself." - Quran 29:6
+            &ldquo;And whoever strives only strives for [the benefit of] himself.&rdquo; - Quran 29:6
           </div>
         </div>
       </div>

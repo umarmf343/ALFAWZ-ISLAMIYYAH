@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { ApiError, api } from '@/lib/api';
 import { formatHasanat, getHasanatBadge } from '@/lib/hasanat';
 
 interface ProfileStats {
@@ -41,6 +41,18 @@ export default function ProfilePage() {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const getErrorMessage = (caught: unknown, fallback: string) => {
+    if (caught instanceof ApiError) {
+      return caught.message;
+    }
+
+    if (caught instanceof Error) {
+      return caught.message;
+    }
+
+    return fallback;
+  };
 
   /**
    * Fetch user profile data and statistics
@@ -78,8 +90,8 @@ export default function ProfilePage() {
         setConnections(teachersResponse.data || []);
       }
       
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch profile data');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to fetch profile data'));
     } finally {
       setLoading(false);
     }
@@ -98,8 +110,8 @@ export default function ProfilePage() {
       setEditMode(false);
       setSuccess('Profile updated successfully!');
       
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update profile'));
     }
   };
 

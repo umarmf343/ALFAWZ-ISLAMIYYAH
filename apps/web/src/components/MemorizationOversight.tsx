@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import type { IconType } from 'react-icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,12 +97,20 @@ interface AudioReview {
 /**
  * Teacher memorization oversight component for tracking student progress and reviewing submissions
  */
+type TabKey = 'overview' | 'students' | 'reviews';
+
+const TAB_CONFIG: Array<{ key: TabKey; label: string; icon: IconType }> = [
+  { key: 'overview', label: 'Overview', icon: FaChartLine },
+  { key: 'students', label: 'Students', icon: FaUser },
+  { key: 'reviews', label: 'Audio Reviews', icon: FaVolumeUp }
+];
+
 export default function MemorizationOversight() {
   const [students, setStudents] = useState<StudentMemorizationProgress[]>([]);
   const [analytics, setAnalytics] = useState<MemorizationAnalytics | null>(null);
   const [audioReviews, setAudioReviews] = useState<AudioReview[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'students' | 'reviews'>('overview');
+  const [selectedTab, setSelectedTab] = useState<TabKey>('overview');
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [error, setError] = useState('');
 
@@ -193,14 +202,10 @@ export default function MemorizationOversight() {
         
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg p-1 shadow-inner">
-          {[
-            { key: 'overview', label: 'Overview', icon: FaChartLine },
-            { key: 'students', label: 'Students', icon: FaUser },
-            { key: 'reviews', label: 'Audio Reviews', icon: FaVolumeUp }
-          ].map(({ key, label, icon: Icon }, index) => (
+          {TAB_CONFIG.map(({ key, label, icon: Icon }, index) => (
             <button
               key={key}
-              onClick={() => setSelectedTab(key as any)}
+              onClick={() => setSelectedTab(key)}
               className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all duration-300 transform hover:scale-105 ${
                 selectedTab === key
                   ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg animate-pulse'

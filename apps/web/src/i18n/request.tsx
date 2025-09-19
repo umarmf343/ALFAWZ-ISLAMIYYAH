@@ -12,9 +12,13 @@ export type Locale = (typeof locales)[number];
  * Configuration for next-intl internationalization.
  * Loads messages based on the current locale.
  */
+export function isLocale(input: string): input is Locale {
+  return locales.includes(input as Locale);
+}
+
 export default getRequestConfig(async ({ locale }) => {
   // Validate that the incoming `locale` parameter is valid
-  if (!locales.includes(locale as any)) {
+  if (!isLocale(locale)) {
     notFound();
   }
 

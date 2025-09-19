@@ -8,17 +8,17 @@
 
 interface CacheItem {
   id: string;
-  data: any;
+  data: unknown;
   timestamp: number;
   expiresAt?: number;
 }
 
 interface DashboardCache {
-  userStats?: any;
-  recommendations?: any;
-  ayahOfDay?: any;
-  weeklyProgress?: any;
-  leaderboard?: any;
+  userStats?: unknown;
+  recommendations?: unknown;
+  ayahOfDay?: unknown;
+  weeklyProgress?: unknown;
+  leaderboard?: unknown;
 }
 
 interface MemorizationPlan {
@@ -119,7 +119,7 @@ class IndexedDBService {
    * @param ttlMinutes Time to live in minutes (default: 30)
    * @returns Promise<void>
    */
-  async setCache(key: string, data: any, ttlMinutes: number = 30): Promise<void> {
+  async setCache(key: string, data: unknown, ttlMinutes: number = 30): Promise<void> {
     if (!this.db) await this.init();
 
     const transaction = this.db!.transaction(['cache'], 'readwrite');
@@ -144,7 +144,7 @@ class IndexedDBService {
    * @param key Cache key identifier
    * @returns Promise<any | null>
    */
-  async getCache(key: string): Promise<any | null> {
+  async getCache<T = unknown>(key: string): Promise<T | null> {
     if (!this.db) await this.init();
 
     const transaction = this.db!.transaction(['cache'], 'readonly');
@@ -168,7 +168,7 @@ class IndexedDBService {
           return;
         }
 
-        resolve(result.data);
+        resolve(result.data as T);
       };
       
       request.onerror = () => reject(request.error);
@@ -218,13 +218,18 @@ class IndexedDBService {
    * @param headers Request headers
    * @returns Promise<void>
    */
-  async addToOfflineQueue(url: string, method: string, body?: any, headers?: any): Promise<void> {
+  async addToOfflineQueue(
+    url: string,
+    method: string,
+    body?: unknown,
+    headers?: Record<string, string>
+  ): Promise<void> {
     if (!this.db) await this.init();
 
     const transaction = this.db!.transaction(['offlineQueue'], 'readwrite');
     const store = transaction.objectStore('offlineQueue');
     
-    const queueItem = {
+    const queueItem: OfflineQueueItem = {
       url,
       method,
       body,
@@ -243,7 +248,7 @@ class IndexedDBService {
    * Get all pending offline requests.
    * @returns Promise<any[]>
    */
-  async getOfflineQueue(): Promise<any[]> {
+  async getOfflineQueue(): Promise<OfflineQueueItem[]> {
     if (!this.db) await this.init();
 
     const transaction = this.db!.transaction(['offlineQueue'], 'readonly');
@@ -251,7 +256,7 @@ class IndexedDBService {
 
     return new Promise((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => resolve(request.result as OfflineQueueItem[]);
       request.onerror = () => reject(request.error);
     });
   }
@@ -557,7 +562,7 @@ export async function getCachedDashboardData(): Promise<DashboardCache> {
  * @param ayahs Array of ayah data
  * @returns Promise<void>
  */
-export async function cacheQuranAyahs(surahId: number, ayahs: any[]): Promise<void> {
+export async function cacheQuranAyahs(surahId: number, ayahs: unknown[]): Promise<void> {
   const cacheKey = `${CACHE_KEYS.QURAN_AYAHS}-${surahId}`;
   await indexedDBService.setCache(cacheKey, ayahs, 1440); // Cache for 24 hours
 }
@@ -567,9 +572,9 @@ export async function cacheQuranAyahs(surahId: number, ayahs: any[]): Promise<vo
  * @param surahId Surah ID
  * @returns Promise<any[] | null>
  */
-export async function getCachedQuranAyahs(surahId: number): Promise<any[] | null> {
+export async function getCachedQuranAyahs<T = unknown>(surahId: number): Promise<T[] | null> {
   const cacheKey = `${CACHE_KEYS.QURAN_AYAHS}-${surahId}`;
-  return await indexedDBService.getCache(cacheKey);
+  return await indexedDBService.getCache<T[]>(cacheKey);
 }
 
 /**
@@ -676,4 +681,12 @@ export function initializeOfflineSupport(
 
   // Initialize IndexedDB
   indexedDBService.init().catch(console.error);
+}
+interface OfflineQueueItem {
+  id?: number;
+  url: string;
+  method: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+  timestamp: number;
 }

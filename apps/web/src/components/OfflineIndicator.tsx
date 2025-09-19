@@ -210,9 +210,9 @@ export default function OfflineIndicator({ className = '' }: OfflineIndicatorPro
                   <div className="flex items-start space-x-2">
                     <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                     <div className="text-sm text-yellow-800">
-                      <p className="font-medium">You're offline</p>
+                      <p className="font-medium">You&apos;re offline</p>
                       <p className="mt-1">
-                        Showing cached data. Changes will sync when you're back online.
+                        Showing cached data. Changes will sync when you&apos;re back online.
                       </p>
                     </div>
                   </div>

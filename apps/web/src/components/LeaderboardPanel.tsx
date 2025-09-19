@@ -53,6 +53,91 @@ interface LeaderboardPanelProps {
 
 type TimeFrame = 'all_time' | 'monthly' | 'weekly';
 
+interface CommunityStats {
+  total_participants: number;
+  active_this_week: number;
+}
+
+interface LeaderboardApiResponse {
+  leaderboard?: LeaderboardEntry[];
+  user_rank?: number | null;
+  user_entry?: LeaderboardEntry | null;
+}
+
+const isLeaderboardUser = (value: unknown): value is LeaderboardEntry['user'] => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const user = value as Record<string, unknown>;
+  return (
+    typeof user.id === 'number' &&
+    typeof user.name === 'string' &&
+    (user.avatar === undefined || typeof user.avatar === 'string')
+  );
+};
+
+const isLeaderboardEntry = (value: unknown): value is LeaderboardEntry => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.rank === 'number' &&
+    isLeaderboardUser(entry.user) &&
+    typeof entry.hasanat === 'number' &&
+    typeof entry.surahs_completed === 'number' &&
+    typeof entry.total_score === 'number' &&
+    typeof entry.last_active === 'string'
+  );
+};
+
+const isLeaderboardEntryArray = (value: unknown): value is LeaderboardEntry[] => {
+  return Array.isArray(value) && value.every(isLeaderboardEntry);
+};
+
+const isCommunityStats = (value: unknown): value is CommunityStats => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const stats = value as Record<string, unknown>;
+  return (
+    typeof stats.total_participants === 'number' &&
+    typeof stats.active_this_week === 'number'
+  );
+};
+
+const parseLeaderboardResponse = (value: unknown): LeaderboardApiResponse => {
+  if (typeof value !== 'object' || value === null) {
+    return {};
+  }
+
+  const record = value as Record<string, unknown>;
+  const response: LeaderboardApiResponse = {};
+
+  if (isLeaderboardEntryArray(record.leaderboard)) {
+    response.leaderboard = record.leaderboard;
+  }
+
+  if (
+    record.user_rank === null ||
+    typeof record.user_rank === 'number'
+  ) {
+    response.user_rank = record.user_rank ?? null;
+  }
+
+  if (
+    record.user_entry === null ||
+    isLeaderboardEntry(record.user_entry)
+  ) {
+    response.user_entry = (record.user_entry as LeaderboardEntry) ?? null;
+  }
+
+  return response;
+};
+
 /**
  * Comprehensive leaderboard panel with rankings, community features, and gamification.
  */
@@ -62,13 +147,13 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
   const [timeframe, setTimeframe] = useState<TimeFrame>('all_time');
   const [isPublic, setIsPublic] = useState(false);
   const [userRank, setUserRank] = useState<number | null>(null);
-  const [userEntry, setUserEntry] = useState<any>(null);
+  const [userEntry, setUserEntry] = useState<LeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInvites, setShowInvites] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [inviteUserId, setInviteUserId] = useState('');
   const [inviteMessage, setInviteMessage] = useState('');
-  const [communityStats, setCommunityStats] = useState<any>(null);
+  const [communityStats, setCommunityStats] = useState<CommunityStats | null>(null);
 
   /**
    * Fetch leaderboard data from API.
@@ -84,10 +169,10 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
       });
       
       if (response.ok) {
-        const data = await response.json();
-        setLeaderboard(data.leaderboard || []);
-        setUserRank(data.user_rank);
-        setUserEntry(data.user_entry);
+        const data = parseLeaderboardResponse(await response.json());
+        setLeaderboard(data.leaderboard ?? []);
+        setUserRank(data.user_rank ?? null);
+        setUserEntry(data.user_entry ?? null);
       }
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error);
@@ -131,7 +216,7 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
       
       if (response.ok) {
         const data = await response.json();
-        setCommunityStats(data);
+        setCommunityStats(isCommunityStats(data) ? data : null);
       }
     } catch (error) {
       console.error('Failed to fetch community stats:', error);
@@ -195,7 +280,11 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
   /**
    * Update leaderboard preferences.
    */
-  const updatePreferences = async (preferences: any) => {
+  interface LeaderboardPreferences {
+    is_public: boolean;
+  }
+
+  const updatePreferences = async (preferences: LeaderboardPreferences) => {
     try {
       const response = await fetch('/api/student/leaderboard/preferences', {
         method: 'PUT',

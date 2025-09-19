@@ -57,13 +57,66 @@ export interface StudentMessage {
   read_at?: Nullable<string>;
   assignment?: Nullable<MessageAssignment>;
   schedule?: Nullable<MessageSchedule>;
-  metadata?: Record<string, any> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 const MESSAGE_CACHE_TTL_MINUTES = 120;
 const QUERY_KEY = ['student-messages'];
 
-function normalizeMessage(raw: any): StudentMessage {
+interface RawStudentMessage {
+  id?: unknown;
+  message_id?: unknown;
+  title?: Nullable<string>;
+  subtitle?: Nullable<string>;
+  subject?: Nullable<string>;
+  body?: Nullable<string>;
+  content?: Nullable<string>;
+  created_at?: Nullable<string>;
+  sent_at?: Nullable<string>;
+  read_at?: Nullable<string>;
+  is_read?: boolean;
+  updated_at?: Nullable<string>;
+  metadata?: Record<string, unknown> | null;
+  sender?: {
+    id?: unknown;
+    name?: Nullable<string>;
+    avatar_url?: Nullable<string>;
+  } | null;
+  sender_id?: unknown;
+  sender_name?: Nullable<string>;
+  sender_avatar?: Nullable<string>;
+  assignment?: {
+    id?: unknown;
+    title?: Nullable<string>;
+    due_date?: Nullable<string>;
+  } | null;
+  assignment_id?: unknown;
+  assignment_title?: Nullable<string>;
+  assignment_due_date?: Nullable<string>;
+  schedule?: {
+    id?: unknown;
+    title?: Nullable<string>;
+    scheduled_for?: Nullable<string>;
+  } | null;
+  schedule_id?: unknown;
+  schedule_title?: Nullable<string>;
+  schedule_date?: Nullable<string>;
+  data?: RawStudentMessage[];
+}
+
+const isRawMessageArray = (value: unknown): value is RawStudentMessage[] =>
+  Array.isArray(value);
+
+const isRawMessageCollection = (value: unknown): value is { data: RawStudentMessage[] } => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const potential = value as { data?: unknown };
+  return Array.isArray(potential.data);
+};
+
+function normalizeMessage(raw: RawStudentMessage): StudentMessage {
   const sender: MessageSender = {
     id: raw?.sender?.id ?? raw?.sender_id ?? null,
     name: raw?.sender?.name ?? raw?.sender_name ?? 'Teacher',
@@ -106,12 +159,14 @@ function normalizeMessage(raw: any): StudentMessage {
 
 async function fetchStudentMessages(): Promise<StudentMessage[]> {
   try {
-    const response = await api.get<StudentMessage[]>('/student/messages');
-    const payload = (response?.data as any) ?? response;
+    const response = await api.get<RawStudentMessage[] | { data: RawStudentMessage[] }>(
+      '/student/messages',
+    );
+    const payload = response.data;
 
-    const messagesArray: any[] = Array.isArray(payload)
+    const messagesArray: RawStudentMessage[] = isRawMessageArray(payload)
       ? payload
-      : Array.isArray(payload?.data)
+      : isRawMessageCollection(payload)
       ? payload.data
       : [];
 
@@ -123,9 +178,11 @@ async function fetchStudentMessages(): Promise<StudentMessage[]> {
     );
     return normalized;
   } catch (error) {
-    const cached = await indexedDBService.getCache(CACHE_KEYS.STUDENT_MESSAGES);
+    const cached = await indexedDBService.getCache<StudentMessage[]>(
+      CACHE_KEYS.STUDENT_MESSAGES,
+    );
     if (cached) {
-      return (cached as any[]).map(normalizeMessage);
+      return cached;
     }
     throw error;
   }
@@ -184,13 +241,13 @@ function useMessageCacheWarmup() {
 
     (async () => {
       try {
-        const cached = await indexedDBService.getCache(
+        const cached = await indexedDBService.getCache<StudentMessage[]>(
           CACHE_KEYS.STUDENT_MESSAGES,
         );
         if (cached && isMounted) {
           queryClient.setQueryData<StudentMessage[]>(
             QUERY_KEY,
-            (cached as any[]).map(normalizeMessage),
+            cached,
           );
         }
       } catch (error) {
@@ -340,7 +397,7 @@ function MessageSectionContent() {
               Message Center
             </CardTitle>
             <CardDescription className="text-sm text-maroon-600">
-              Guidance and reminders from your teachers, beautifully curated for your Qur'anic journey.
+              Guidance and reminders from your teachers, beautifully curated for your Qur&apos;anic journey.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -375,7 +432,7 @@ function MessageSectionContent() {
             className="mt-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
           >
             <WifiOff className="h-4 w-4" aria-hidden="true" />
-            Offline mode enabled. We will sync once you're connected again.
+            Offline mode enabled. We will sync once you&apos;re connected again.
           </motion.div>
         )}
 

@@ -131,7 +131,7 @@ const StudentAssignmentDashboard: React.FC = () => {
               My Assignments
             </h1>
             <p className="text-maroon-600">
-              Complete your Qur'an recitation assignments and track your progress
+              Complete your Qur&apos;an recitation assignments and track your progress
             </p>
           </div>
 

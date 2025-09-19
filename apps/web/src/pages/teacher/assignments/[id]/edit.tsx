@@ -149,10 +149,13 @@ const EditAssignmentPage: React.FC = () => {
    * @param field Form field name
    * @param value New value
    */
-  const handleInputChange = (field: keyof UpdateAssignmentData, value: any) => {
-    setFormData(prev => ({
+  const handleInputChange = <K extends keyof UpdateAssignmentData>(
+    field: K,
+    value: UpdateAssignmentData[K],
+  ) => {
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -599,7 +602,11 @@ const EditAssignmentPage: React.FC = () => {
                         </label>
                         <select
                           value={selectedHotspotData.hotspot_type}
-                          onChange={(e) => updateHotspot(selectedHotspotData.id, { hotspot_type: e.target.value as any })}
+                          onChange={(e) =>
+                            updateHotspot(selectedHotspotData.id, {
+                              hotspot_type: e.target.value as HotspotDraft['hotspot_type'],
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500"
                         >
                           <option value="text">Text</option>

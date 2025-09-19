@@ -80,13 +80,13 @@ export default function Layout({ children }: LayoutProps) {
             <Link
               href="/"
               className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 rounded-md px-2 py-1"
-              aria-label="AlFawz Qur'an Institute - Go to homepage"
+              aria-label="AlFawz Qur&apos;an Institute - Go to homepage"
             >
               <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">ق</span>
               </div>
               <span className="text-xl font-bold text-gray-900">
-                AlFawz Qur'an Institute
+                AlFawz Qur&apos;an Institute
               </span>
             </Link>
 
@@ -216,7 +216,7 @@ export default function Layout({ children }: LayoutProps) {
       <footer className="bg-white border-t" role="contentinfo">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center text-gray-500 text-sm">
-            <p>&copy; 2025 AlFawz Qur'an Institute. All rights reserved.</p>
+            <p>&copy; 2025 AlFawz Qur&apos;an Institute. All rights reserved.</p>
             <p className="mt-2">
               Built with ❤️ for the Ummah • May Allah accept our efforts
             </p>

@@ -49,6 +49,13 @@ interface User {
   permissions: string[];
 }
 
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  requiredPermissions: string[];
+}
+
 /**
  * Admin layout component with navigation, role guards, and maroon/gold theme.
  * Provides sidebar navigation and role-based access control for admin pages.
@@ -60,7 +67,7 @@ export default function AdminLayout({ children, title = 'Admin Dashboard' }: Adm
   const [loading, setLoading] = useState(true);
 
   // Navigation items with role-based visibility
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     {
       name: 'Dashboard',
       href: '/admin',
@@ -356,7 +363,7 @@ export default function AdminLayout({ children, title = 'Admin Dashboard' }: Adm
  * Sidebar content component with navigation items and user info.
  */
 interface SidebarContentProps {
-  navigationItems: any[];
+  navigationItems: NavigationItem[];
   hasPermission: (permissions: string[]) => boolean;
   currentPath: string;
   user: User;

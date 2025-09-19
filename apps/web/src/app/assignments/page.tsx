@@ -6,8 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
-import { Assignment } from '@/types';
+import { ApiError, api } from '@/lib/api';
+import { Assignment, Class as ClassSummary } from '@/types';
 
 /**
  * Assignments page component that displays different views based on user role:
@@ -19,7 +19,7 @@ export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [classes, setClasses] = useState<any[]>([]);
+  const [classes, setClasses] = useState<ClassSummary[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -29,16 +29,28 @@ export default function AssignmentsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof ApiError) {
+      return error.message;
+    }
+
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return fallback;
+  };
+
   /**
    * Fetch assignments based on user role
    */
   const fetchAssignments = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/assignments');
-      setAssignments(response.data || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch assignments');
+      const response = await api.get<Assignment[]>('/assignments');
+      setAssignments(response.data ?? []);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to fetch assignments'));
     } finally {
       setLoading(false);
     }
@@ -49,9 +61,9 @@ export default function AssignmentsPage() {
    */
   const fetchClasses = async () => {
     try {
-      const response = await api.get('/classes');
-      setClasses(response.data || []);
-    } catch (err: any) {
+      const response = await api.get<ClassSummary[]>('/classes');
+      setClasses(response.data ?? []);
+    } catch (err: unknown) {
       console.error('Failed to fetch classes:', err);
     }
   };
@@ -71,13 +83,16 @@ export default function AssignmentsPage() {
         due_at: formData.due_at || null
       };
       
-      const response = await api.post('/assignments', payload);
-      setAssignments([...assignments, response.data]);
+      const response = await api.post<Assignment>('/assignments', payload);
+      const createdAssignment = response.data;
+      if (createdAssignment) {
+        setAssignments((prev) => [...prev, createdAssignment]);
+      }
       setFormData({ title: '', description: '', class_id: '', due_at: '' });
       setShowCreateForm(false);
       setSuccess('Assignment created successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to create assignment');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to create assignment'));
     }
   };
 
@@ -91,8 +106,8 @@ export default function AssignmentsPage() {
         a.id === assignmentId ? { ...a, status: 'published' } : a
       ));
       setSuccess('Assignment published successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to publish assignment');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to publish assignment'));
     }
   };
 
@@ -106,8 +121,8 @@ export default function AssignmentsPage() {
       await api.delete(`/assignments/${assignmentId}`);
       setAssignments(assignments.filter(a => a.id !== assignmentId));
       setSuccess('Assignment deleted successfully!');
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete assignment');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to delete assignment'));
     }
   };
 

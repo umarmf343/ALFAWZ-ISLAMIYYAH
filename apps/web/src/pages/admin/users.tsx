@@ -34,6 +34,15 @@ interface PaginationMeta {
   total: number;
 }
 
+interface UsersResponse {
+  data?: User[];
+  meta?: PaginationMeta;
+  current_page?: number;
+  last_page?: number;
+  per_page?: number;
+  total?: number;
+}
+
 /**
  * Admin users management page with listing, filtering, and role management.
  * Provides comprehensive user administration functionality.
@@ -74,7 +83,7 @@ export default function AdminUsersPage() {
         throw new Error('Failed to fetch users');
       }
 
-      const data = await response.json() as any;
+      const data: UsersResponse = await response.json();
       const usersData: User[] = Array.isArray(data.data) ? data.data : [];
       const meta: PaginationMeta = data.meta ?? {
         current_page: data.current_page ?? 1,

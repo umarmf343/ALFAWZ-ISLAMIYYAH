@@ -24,6 +24,13 @@ import Layout from '../../../components/Layout';
 import { useAuth } from '../../../hooks/useAuth';
 import { CreateAssignmentData, CreateHotspotData, ClassInfo } from '../../../types/assignment';
 
+const HOTSPOT_TYPES = ['text', 'audio', 'interactive', 'quiz'] as const;
+type HotspotType = (typeof HOTSPOT_TYPES)[number];
+
+const isHotspotType = (value: string): value is HotspotType => {
+  return HOTSPOT_TYPES.includes(value as HotspotType);
+};
+
 interface HotspotDraft extends Omit<CreateHotspotData, 'audio'> {
   id: string;
   audioFile?: File;
@@ -67,10 +74,13 @@ const CreateAssignmentPage: React.FC = () => {
    * @param field Form field name
    * @param value New value
    */
-  const handleInputChange = (field: keyof CreateAssignmentData, value: any) => {
-    setFormData(prev => ({
+  const handleInputChange = <K extends keyof CreateAssignmentData>(
+    field: K,
+    value: CreateAssignmentData[K],
+  ) => {
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -455,7 +465,12 @@ const CreateAssignmentPage: React.FC = () => {
                         </label>
                         <select
                           value={selectedHotspotData.hotspot_type}
-                          onChange={(e) => updateHotspot(selectedHotspotData.id, { hotspot_type: e.target.value as any })}
+                          onChange={(e) => {
+                            const { value } = e.target;
+                            if (isHotspotType(value)) {
+                              updateHotspot(selectedHotspotData.id, { hotspot_type: value });
+                            }
+                          }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maroon-500"
                         >
                           <option value="text">Text</option>

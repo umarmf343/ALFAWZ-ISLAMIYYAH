@@ -47,6 +47,37 @@ interface AyahData {
   ayah_number: number;
 }
 
+interface TajweedAnalysis {
+  tajweed_score: number;
+  pronunciation_accuracy: number;
+  feedback?: string[];
+  suggestions?: string[];
+}
+
+const isTajweedAnalysis = (value: unknown): value is TajweedAnalysis => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const analysis = value as Record<string, unknown>;
+  const feedbackValid =
+    analysis.feedback === undefined ||
+    (Array.isArray(analysis.feedback) &&
+      analysis.feedback.every((item) => typeof item === 'string'));
+
+  const suggestionsValid =
+    analysis.suggestions === undefined ||
+    (Array.isArray(analysis.suggestions) &&
+      analysis.suggestions.every((item) => typeof item === 'string'));
+
+  return (
+    typeof analysis.tajweed_score === 'number' &&
+    typeof analysis.pronunciation_accuracy === 'number' &&
+    feedbackValid &&
+    suggestionsValid
+  );
+};
+
 /**
  * MemorizationSection component with interactive memorization tools.
  * Provides hide words, jumble, quiz modes and progress tracking.
@@ -65,7 +96,7 @@ export default function MemorizationSection() {
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
   const [showResults, setShowResults] = useState(false);
   const [confidenceScore, setConfidenceScore] = useState(0.5);
-  const [tajweedAnalysis, setTajweedAnalysis] = useState<any>(null);
+  const [tajweedAnalysis, setTajweedAnalysis] = useState<TajweedAnalysis | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
@@ -93,9 +124,9 @@ export default function MemorizationSection() {
    */
   const loadAyah = async (surahId: number, ayahId: number) => {
     try {
-      const response = await api.get(`/quran/surahs/${surahId}/ayahs/${ayahId}`);
+      const response = await api.get<AyahData>(`/quran/surahs/${surahId}/ayahs/${ayahId}`);
       if (response.data) {
-        setCurrentAyah(response.data as AyahData);
+        setCurrentAyah(response.data);
         resetModes();
       }
     } catch (error) {
@@ -210,9 +241,16 @@ export default function MemorizationSection() {
       };
 
       const result = await submitReview(reviewData);
-      
-      if (result?.tajweed_analysis) {
-        setTajweedAnalysis(result.tajweed_analysis);
+
+      if (
+        result &&
+        typeof result === 'object' &&
+        'tajweed_analysis' in result &&
+        isTajweedAnalysis((result as Record<string, unknown>).tajweed_analysis)
+      ) {
+        setTajweedAnalysis((result as { tajweed_analysis: TajweedAnalysis }).tajweed_analysis);
+      } else {
+        setTajweedAnalysis(null);
       }
       
       setShowResults(true);
