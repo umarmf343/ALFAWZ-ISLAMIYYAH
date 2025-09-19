@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -12,24 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 import {
   Users,
   Plus,
@@ -320,24 +302,23 @@ function ClassForm({ isOpen, onClose, editingClass }: ClassFormProps) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="class-level">
                 {t('form.level', { defaultValue: 'Level' })}
               </label>
-              <Select
+              <select
+                id="class-level"
                 value={formData.level.toString()}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, level: parseInt(value, 10) as 1 | 2 | 3 }))}
+                onChange={(event) =>
+                  setFormData((prev) => ({ ...prev, level: parseInt(event.target.value, 10) as 1 | 2 | 3 }))
+                }
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {([1, 2, 3] as const).map((level) => (
-                    <SelectItem key={level} value={level.toString()}>
-                      {t(LEVEL_OPTIONS[level], { defaultValue: `Level ${level}` })}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {([1, 2, 3] as const).map((level) => (
+                  <option key={level} value={level.toString()}>
+                    {t(LEVEL_OPTIONS[level], { defaultValue: `Level ${level}` })}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div>
@@ -412,6 +393,18 @@ function ClassCard({ classData, onEdit, onDelete }: ClassCardProps) {
     }
   }, [classData.createdAt]);
 
+  const handleDelete = useCallback(() => {
+    const confirmed = window.confirm(
+      t('deleteDialog.description', {
+        defaultValue: 'Are you sure you want to delete this class? This action cannot be undone.',
+      }),
+    );
+
+    if (confirmed) {
+      onDelete(classData.id);
+    }
+  }, [classData.id, onDelete, t]);
+
   return (
     <motion.div
       layout
@@ -462,31 +455,15 @@ function ClassCard({ classData, onEdit, onDelete }: ClassCardProps) {
               >
                 <Edit className="h-4 w-4" />
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-600 hover:text-red-600">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t('deleteDialog.title', { defaultValue: 'Delete Class' })}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      {t('deleteDialog.description', {
-                        defaultValue: 'Are you sure you want to delete this class? This action cannot be undone.',
-                      })}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>
-                      {t('deleteDialog.cancel', { defaultValue: 'Cancel' })}
-                    </AlertDialogCancel>
-                    <AlertDialogAction onClick={() => onDelete(classData.id)} className="bg-red-600 hover:bg-red-700">
-                      {t('deleteDialog.confirm', { defaultValue: 'Delete' })}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDelete}
+                className="text-gray-600 hover:text-red-600"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">{t('deleteDialog.title', { defaultValue: 'Delete Class' })}</span>
+              </Button>
             </div>
           </div>
         </CardContent>

@@ -2,6 +2,7 @@
 /* Author: Auto-scaffold (review required) */
 
 import { useState, useEffect, createContext, useContext } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 interface User {
   id: number;
@@ -241,21 +242,21 @@ export const useAuthImplementation = (): AuthContextType => {
 /**
  * Auth Provider component to wrap the app.
  */
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const auth = useAuthImplementation();
-  
+
   return (
     <AuthContext.Provider value={auth}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
 /**
  * Higher-order component for protecting routes.
  * Redirects to login if user is not authenticated.
  */
-export const withAuth = <P extends object>(Component: React.ComponentType<P>) => {
+export const withAuth = <P extends object>(Component: ComponentType<P>) => {
   return function AuthenticatedComponent(props: P) {
     const { user, loading } = useAuth();
     
