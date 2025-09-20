@@ -25,11 +25,10 @@ import {
   Heart,
   Sparkles
 } from 'lucide-react';
-import { SpiritualThemeProvider, useSpiritualTheme, SpiritualCard, SpiritualButton } from '@/components/providers/SpiritualThemeProvider';
+import { SpiritualThemeProvider, useSpiritualTheme, SpiritualCard } from '@/components/providers/SpiritualThemeProvider';
 import { StudentAssignmentDashboard } from '@/components/assignment/StudentAssignmentDashboard';
 import { TeacherAssignmentPanel } from '@/components/assignment/TeacherAssignmentPanel';
 import { HasanatTracker } from '@/components/gamification/HasanatTracker';
-import { AIFeedbackPanel } from '@/components/assignment/AIFeedbackPanel';
 
 /**
  * User interface for authentication context.
@@ -47,7 +46,7 @@ interface User {
 /**
  * Navigation item interface for sidebar menu.
  */
-type DashboardSectionComponent = React.ComponentType<{ userId?: string }>;
+type DashboardSectionComponent = React.ComponentType;
 
 interface NavItem {
   id: string;
@@ -75,7 +74,7 @@ const MainDashboardContent: React.FC<MainDashboardProps> = ({
   onLogout,
   className = ''
 }) => {
-  const { theme, animations, styles } = useSpiritualTheme();
+  const { theme, animations } = useSpiritualTheme();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState(3);
@@ -166,9 +165,9 @@ const MainDashboardContent: React.FC<MainDashboardProps> = ({
   const getActiveComponent = () => {
     const activeItem = availableNavItems.find(item => item.id === activeTab);
     if (!activeItem) return <DashboardOverview />;
-    
+
     const Component = activeItem.component;
-    return <Component userId={currentUser.id} />;
+    return <Component />;
   };
 
   return (
@@ -391,7 +390,7 @@ const MainDashboardContent: React.FC<MainDashboardProps> = ({
 /**
  * Dashboard overview component.
  */
-const DashboardOverview: React.FC<{ userId?: string }> = ({ userId }) => {
+const DashboardOverview: React.FC = () => {
   const { theme, animations } = useSpiritualTheme();
   
   return (
@@ -510,7 +509,7 @@ const DashboardOverview: React.FC<{ userId?: string }> = ({ userId }) => {
 /**
  * Placeholder component for classes view.
  */
-const ClassesView: React.FC<{ userId?: string }> = () => {
+const ClassesView: React.FC = () => {
   const { theme } = useSpiritualTheme();
   
   return (
@@ -529,7 +528,7 @@ const ClassesView: React.FC<{ userId?: string }> = () => {
 /**
  * Placeholder component for Quran study view.
  */
-const QuranStudyView: React.FC<{ userId?: string }> = () => {
+const QuranStudyView: React.FC = () => {
   const { theme } = useSpiritualTheme();
   
   return (
