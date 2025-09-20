@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError, api } from '@/lib/api';
 import { Class } from '@/types';
@@ -26,7 +26,7 @@ export default function ClassesPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const getErrorMessage = (error: unknown, fallback: string) => {
+  const getErrorMessage = useCallback((error: unknown, fallback: string) => {
     if (error instanceof ApiError) {
       return error.message;
     }
@@ -36,12 +36,12 @@ export default function ClassesPage() {
     }
 
     return fallback;
-  };
+  }, []);
 
   /**
    * Fetch classes based on user role
    */
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get<Class[]>('/classes');
@@ -51,7 +51,7 @@ export default function ClassesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [api, getErrorMessage, setClasses, setError, setLoading]);
 
   /**
    * Create a new class (teachers only)
@@ -94,7 +94,7 @@ export default function ClassesPage() {
     if (isAuthenticated) {
       fetchClasses();
     }
-  }, [isAuthenticated]);
+  }, [fetchClasses, isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
