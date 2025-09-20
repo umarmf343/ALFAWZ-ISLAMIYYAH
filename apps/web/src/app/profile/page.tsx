@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError, api } from '@/lib/api';
 import { formatHasanat, getHasanatBadge } from '@/lib/hasanat';
@@ -42,7 +42,7 @@ export default function ProfilePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const getErrorMessage = (caught: unknown, fallback: string) => {
+  const getErrorMessage = useCallback((caught: unknown, fallback: string) => {
     if (caught instanceof ApiError) {
       return caught.message;
     }
@@ -52,12 +52,12 @@ export default function ProfilePage() {
     }
 
     return fallback;
-  };
+  }, []);
 
   /**
    * Fetch user profile data and statistics
    */
-  const fetchProfileData = async () => {
+  const fetchProfileData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -95,7 +95,7 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getErrorMessage, user]);
 
   /**
    * Update user profile
@@ -140,7 +140,7 @@ export default function ProfilePage() {
     if (isAuthenticated && user) {
       fetchProfileData();
     }
-  }, [isAuthenticated, user]);
+  }, [fetchProfileData, isAuthenticated, user]);
 
   if (!isAuthenticated) {
     return (
