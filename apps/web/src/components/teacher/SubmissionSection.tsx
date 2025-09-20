@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -11,30 +11,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { 
-  Play, 
-  Pause, 
-  Volume2, 
+import {
+  Play,
+  Pause,
+  Volume2,
   VolumeX,
-  Clock,
-  User,
   Calendar,
   FileAudio,
   CheckCircle,
-  XCircle,
   MessageSquare,
   Star,
-  BookOpen,
   Filter,
   Search,
   Download,
   Eye,
   RotateCcw,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -545,21 +540,21 @@ function GradingDialog({ submission, isOpen, onClose }: GradingDialogProps) {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     gradeMutation.mutate({
       submissionId: submission.id,
       gradeData: { score, feedback, rubric },
     });
   };
 
-  const calculateOverallScore = () => {
+  const calculateOverallScore = useCallback(() => {
     return Math.round((rubric.tajweed + rubric.fluency + rubric.memorization + rubric.pronunciation) / 4);
-  };
+  }, [rubric]);
 
   useEffect(() => {
     setScore(calculateOverallScore());
-  }, [rubric]);
+  }, [calculateOverallScore]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

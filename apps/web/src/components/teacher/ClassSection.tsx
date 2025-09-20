@@ -470,7 +470,7 @@ function ClassCard({ classData, onEdit, onDelete }: ClassCardProps) {
         month: 'short',
         day: 'numeric',
       });
-    } catch (error) {
+    } catch (_error) {
       return classData.createdAt;
     }
   }, [classData.createdAt]);
