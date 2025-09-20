@@ -14,30 +14,12 @@ import { FaMicrophone, FaMicrophoneSlash, FaBrain, FaStar, FaTrophy, FaFire } fr
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import Confetti from 'react-confetti';
-import { useMemorization } from '@/hooks/useMemorization';
+import { useMemorization, type ReviewSubmission } from '@/hooks/useMemorization';
 import { useAudio } from '@/hooks/useAudio';
 import { api } from '@/lib/api';
 
-interface MemorizationPlan {
-  id: number;
-  title: string;
-  surahs: number[];
-  daily_target: number;
-  start_date: string;
-  end_date?: string;
-  status: 'active' | 'completed' | 'paused';
-  completion_percentage: number;
-}
-
-interface DueReview {
-  id: number;
-  plan_title: string;
-  surah_id: number;
-  ayah_id: number;
-  confidence_score: number;
-  repetitions: number;
-  due_at: string;
-  overdue_hours: number;
+interface MemorizationSectionProps {
+  className?: string;
 }
 
 interface AyahData {
@@ -82,10 +64,10 @@ const isTajweedAnalysis = (value: unknown): value is TajweedAnalysis => {
  * MemorizationSection component with interactive memorization tools.
  * Provides hide words, jumble, quiz modes and progress tracking.
  */
-export default function MemorizationSection() {
+export default function MemorizationSection({ className }: MemorizationSectionProps = {}) {
   // Use custom hooks for memorization and audio functionality
   const { plans, dueReviews, isLoading, createPlan, submitReview, refreshData } = useMemorization();
-  const { isRecording, audioBlob, startRecording, stopRecording, clearRecording } = useAudio();
+  const { isRecording, audioBlob, startRecording, stopRecording, clearAudio } = useAudio();
   
   // Component state
   const [currentAyah, setCurrentAyah] = useState<AyahData | null>(null);
@@ -99,6 +81,7 @@ export default function MemorizationSection() {
   const [tajweedAnalysis, setTajweedAnalysis] = useState<TajweedAnalysis | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
 
   // Handle window resize for confetti
   useEffect(() => {
@@ -122,11 +105,12 @@ export default function MemorizationSection() {
   /**
    * Load ayah data for practice.
    */
-  const loadAyah = async (surahId: number, ayahId: number) => {
+  const loadAyah = async (surahId: number, ayahId: number, reviewId?: string) => {
     try {
       const response = await api.get<AyahData>(`/quran/surahs/${surahId}/ayahs/${ayahId}`);
       if (response.data) {
         setCurrentAyah(response.data);
+        setSelectedReviewId(reviewId ?? null);
         resetModes();
       }
     } catch (error) {
@@ -202,7 +186,7 @@ export default function MemorizationSection() {
    * Clear tajweed analysis when recording is cleared.
    */
   const handleClearRecording = () => {
-    clearRecording();
+    clearAudio();
     setTajweedAnalysis(null);
   };
 
@@ -214,7 +198,9 @@ export default function MemorizationSection() {
       const planData = {
         title: 'New Memorization Plan',
         surahs: [1], // Default to Al-Fatiha
-        daily_target: 5
+        daily_target: 5,
+        start_date: new Date().toISOString(),
+        is_teacher_visible: true
       };
       await createPlan(planData);
       refreshData();
@@ -226,18 +212,15 @@ export default function MemorizationSection() {
   /**
    * Handle review submission with confidence score and audio.
    */
-  const handleSubmitReview = async (reviewId: number) => {
+  const handleSubmitReview = async (reviewId: string) => {
     try {
       const review = dueReviews.find(r => r.id === reviewId);
       if (!review) return;
 
-      const reviewData = {
-        plan_id: review.id,
-        surah_id: review.surah_id,
-        ayah_id: review.ayah_id,
+      const reviewData: ReviewSubmission = {
+        srs_id: review.id,
         confidence_score: confidenceScore,
-        time_spent: 120,
-        audio_file: audioBlob
+        audio_file: audioBlob ?? undefined,
       };
 
       const result = await submitReview(reviewData);
@@ -326,8 +309,15 @@ export default function MemorizationSection() {
 
 
 
+  const containerClasses = [
+    'bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-xl shadow-xl p-6 border border-blue-100 space-y-6 relative overflow-hidden',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 rounded-xl shadow-xl p-6 border border-blue-100 space-y-6 relative overflow-hidden">
+    <div className={containerClasses}>
       {showConfetti && (
         <Confetti
           width={windowSize.width}
@@ -380,10 +370,10 @@ export default function MemorizationSection() {
                       Confidence: {Math.round(review.confidence_score * 100)}%
                     </div>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => loadAyah(review.surah_id, review.ayah_id)}
-                  >
+              <Button
+                size="sm"
+                onClick={() => loadAyah(review.surah_id, review.ayah_id, review.id)}
+              >
                     Practice
                   </Button>
                 </div>
@@ -607,11 +597,11 @@ export default function MemorizationSection() {
             <Button
               className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 border-0"
               onClick={() => {
-                const review = dueReviews.find(r => 
-                  r.surah_id === currentAyah?.surah_name && 
-                  r.ayah_id === currentAyah?.ayah_number
-                );
-                if (review) handleSubmitReview(review.id);
+                const fallbackId = dueReviews[0]?.id;
+                const targetId = selectedReviewId || fallbackId;
+                if (targetId) {
+                  handleSubmitReview(targetId);
+                }
               }}
               disabled={isLoading}
             >
@@ -740,9 +730,9 @@ export default function MemorizationSection() {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span>Progress</span>
-                  <span>{Math.round(plan.completion_percentage)}%</span>
+                  <span>{Math.round(plan.progress_percentage ?? 0)}%</span>
                 </div>
-                <Progress value={plan.completion_percentage} className="h-2" />
+                <Progress value={plan.progress_percentage ?? 0} className="h-2" />
                 <div className="text-xs text-gray-600">
                   📖 Daily target: {plan.daily_target} ayahs
                 </div>
