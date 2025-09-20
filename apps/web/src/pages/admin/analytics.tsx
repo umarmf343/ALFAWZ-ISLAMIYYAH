@@ -1,7 +1,7 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import type { ComponentType, SVGProps } from 'react';
 import {
@@ -11,7 +11,6 @@ import {
   AcademicCapIcon,
   ClipboardListIcon,
   BookOpenIcon,
-  CalendarIcon,
   RefreshIcon
 } from '@heroicons/react/outline';
 
@@ -169,7 +168,7 @@ export default function AdminAnalyticsPage() {
   /**
    * Fetch analytics data from the API.
    */
-  const fetchAnalytics = async (forceRefresh: boolean = false) => {
+  const fetchAnalytics = useCallback(async (forceRefresh: boolean = false) => {
     try {
       if (forceRefresh) {
         setRefreshing(true);
@@ -203,7 +202,7 @@ export default function AdminAnalyticsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [period, scope]);
 
   /**
    * Format percentage value.
@@ -228,7 +227,7 @@ export default function AdminAnalyticsPage() {
   // Fetch analytics on component mount and when filters change
   useEffect(() => {
     fetchAnalytics();
-  }, [period, scope]);
+  }, [fetchAnalytics]);
 
   if (loading) {
     return (

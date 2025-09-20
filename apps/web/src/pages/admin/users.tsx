@@ -3,14 +3,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
-import { 
-  SearchIcon, 
-  FilterIcon, 
-  UserAddIcon,
-  PencilIcon,
+import {
+  SearchIcon,
   BanIcon,
-  CheckCircleIcon,
-  XCircleIcon
+  CheckCircleIcon
 } from '@heroicons/react/outline';
 
 interface User {
