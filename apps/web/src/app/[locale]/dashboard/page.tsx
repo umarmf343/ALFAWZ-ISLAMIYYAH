@@ -4,18 +4,15 @@
 import { redirect } from 'next/navigation';
 
 type LocalizedParams = {
-  params?: Promise<{ locale?: string }>;
-  searchParams?: Promise<Record<string, unknown>>;
+  params?: { locale?: string };
+  searchParams?: Record<string, unknown>;
 };
 
 /**
  * Localized dashboard page.
  * Redirects to the main dashboard with proper locale handling.
  */
-export default async function LocalizedDashboard({ params }: LocalizedParams) {
-  if (params) {
-    await params;
-  }
+export default function LocalizedDashboard({}: LocalizedParams) {
   // Redirect to the main dashboard page
   // The middleware will handle locale prefixing
   redirect('/dashboard');
@@ -24,9 +21,8 @@ export default async function LocalizedDashboard({ params }: LocalizedParams) {
 /**
  * Generate metadata for the localized dashboard page.
  */
-export async function generateMetadata({ params }: LocalizedParams) {
-  const resolvedParams = (await params) ?? {};
-  const locale = typeof resolvedParams.locale === 'string' ? resolvedParams.locale : 'en';
+export function generateMetadata({ params }: LocalizedParams) {
+  const locale = typeof params?.locale === 'string' ? params.locale : 'en';
   const titles = {
     en: 'Dashboard - AlFawz Qur\'an Institute',
     ar: 'لوحة التحكم - معهد الفوز للقرآن'
