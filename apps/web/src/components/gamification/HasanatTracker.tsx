@@ -9,19 +9,17 @@ import {
   Star,
   Trophy,
   Crown,
-  Zap,
   Target,
   TrendingUp,
   Calendar,
   Clock,
   BookOpen,
-  Heart,
   Sparkles,
   Gift,
   Medal,
   Flame
 } from 'lucide-react';
-import { useSpiritualTheme, SpiritualCard, SpiritualButton } from '@/components/providers/SpiritualThemeProvider';
+import { useSpiritualTheme, SpiritualCard } from '@/components/providers/SpiritualThemeProvider';
 
 /**
  * Hasanat progress interface for tracking spiritual rewards.
@@ -69,7 +67,6 @@ interface HasanatActivity {
  * Props for HasanatTracker component.
  */
 interface HasanatTrackerProps {
-  userId: string;
   progress?: HasanatProgress;
   onActivityClick?: (activity: HasanatActivity) => void;
   className?: string;
@@ -99,15 +96,13 @@ const ICON_MAP: Record<string, LucideIcon> = {
 };
 
 export const HasanatTracker: React.FC<HasanatTrackerProps> = ({
-  userId,
   progress,
   onActivityClick,
   className = ''
 }) => {
-  const { theme, animations, styles } = useSpiritualTheme();
+  const { theme, animations } = useSpiritualTheme();
   const [selectedTab, setSelectedTab] = useState<TabId>('overview');
   const [showLevelUp, setShowLevelUp] = useState(false);
-  const [newAchievements, setNewAchievements] = useState<Achievement[]>([]);
 
   // Mock data if no progress provided
   const defaultProgress: HasanatProgress = {
