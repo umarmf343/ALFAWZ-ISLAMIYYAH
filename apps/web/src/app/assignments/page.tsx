@@ -3,7 +3,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError, api } from '@/lib/api';
@@ -29,7 +29,7 @@ export default function AssignmentsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const getErrorMessage = (error: unknown, fallback: string) => {
+  const getErrorMessage = useCallback((error: unknown, fallback: string) => {
     if (error instanceof ApiError) {
       return error.message;
     }
@@ -39,12 +39,12 @@ export default function AssignmentsPage() {
     }
 
     return fallback;
-  };
+  }, []);
 
   /**
    * Fetch assignments based on user role
    */
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get<Assignment[]>('/assignments');
@@ -54,19 +54,19 @@ export default function AssignmentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getErrorMessage]);
 
   /**
    * Fetch classes for assignment creation (teachers only)
    */
-  const fetchClasses = async () => {
+  const fetchClasses = useCallback(async () => {
     try {
       const response = await api.get<ClassSummary[]>('/classes');
       setClasses(response.data ?? []);
     } catch (err: unknown) {
       console.error('Failed to fetch classes:', err);
     }
-  };
+  }, []);
 
   /**
    * Create a new assignment (teachers only)
@@ -151,14 +151,16 @@ export default function AssignmentsPage() {
     }
   };
 
+  const userRole = user?.role;
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchAssignments();
-      if (user?.role === 'teacher') {
+      if (userRole === 'teacher') {
         fetchClasses();
       }
     }
-  }, [isAuthenticated, user]);
+  }, [fetchAssignments, fetchClasses, isAuthenticated, userRole]);
 
   if (!isAuthenticated) {
     return (
