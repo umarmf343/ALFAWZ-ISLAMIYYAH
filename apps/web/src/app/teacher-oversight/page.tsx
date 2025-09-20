@@ -3,23 +3,18 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError, api } from '@/lib/api';
-import { 
-  FaUser, 
-  FaChartLine, 
-  FaBell, 
-  FaEye, 
-  FaCalendarAlt, 
-  FaBookOpen, 
-  FaStar, 
-  FaFire, 
-  FaTrophy,
+import {
+  FaChartLine,
+  FaBell,
+  FaBookOpen,
+  FaStar,
+  FaFire,
   FaExclamationTriangle,
   FaCheckCircle,
-  FaClock,
   FaGraduationCap
 } from 'react-icons/fa';
 
@@ -63,6 +58,57 @@ interface OversightNotification {
   read?: boolean;
 }
 
+const getErrorMessage = (caught: unknown, fallback: string) => {
+  if (caught instanceof ApiError) {
+    return caught.message;
+  }
+
+  if (caught instanceof Error) {
+    return caught.message;
+  }
+
+  return fallback;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getStringValue = (record: Record<string, unknown>, keys: string[], fallback = ''): string => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+  }
+
+  return fallback;
+};
+
+const toNotificationArray = (value: unknown): OversightNotification[] => {
+  if (Array.isArray(value)) {
+    return value
+      .filter(isRecord)
+      .map((item) => ({
+        id: getStringValue(item, ['id']),
+        type: getStringValue(item, ['type'], 'info'),
+        title: getStringValue(item, ['title'], 'Notification'),
+        message: getStringValue(item, ['message']),
+        timestamp: getStringValue(item, ['timestamp', 'created_at'], new Date().toISOString()),
+        read: Boolean(item.read ?? item.read_at),
+      }));
+  }
+
+  if (isRecord(value) && Array.isArray(value.notifications)) {
+    return toNotificationArray(value.notifications);
+  }
+
+  return [];
+};
+
 /**
  * Teacher oversight dashboard for tracking student progress and receiving notifications
  */
@@ -75,65 +121,14 @@ export default function TeacherOversightPage() {
   const [notifications, setNotifications] = useState<OversightNotification[]>([]);
   const [error, setError] = useState('');
 
-  const getErrorMessage = (caught: unknown, fallback: string) => {
-    if (caught instanceof ApiError) {
-      return caught.message;
-    }
-
-    if (caught instanceof Error) {
-      return caught.message;
-    }
-
-    return fallback;
-  };
-
-  const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null;
-
-  const getStringValue = (record: Record<string, unknown>, keys: string[], fallback = ''): string => {
-    for (const key of keys) {
-      const value = record[key];
-      if (typeof value === 'string') {
-        return value;
-      }
-
-      if (typeof value === 'number') {
-        return value.toString();
-      }
-    }
-
-    return fallback;
-  };
-
-  const toNotificationArray = (value: unknown): OversightNotification[] => {
-    if (Array.isArray(value)) {
-      return value
-        .filter(isRecord)
-        .map((item) => ({
-          id: getStringValue(item, ['id']),
-          type: getStringValue(item, ['type'], 'info'),
-          title: getStringValue(item, ['title'], 'Notification'),
-          message: getStringValue(item, ['message']),
-          timestamp: getStringValue(item, ['timestamp', 'created_at'], new Date().toISOString()),
-          read: Boolean(item.read ?? item.read_at),
-        }));
-    }
-
-    if (isRecord(value) && Array.isArray(value.notifications)) {
-      return toNotificationArray(value.notifications);
-    }
-
-    return [];
-  };
-
   /**
    * Fetch teacher oversight data including student progress and notifications
    */
-  const fetchOversightData = async () => {
+  const fetchOversightData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      
+
       // Fetch classes overview
       const classesResponse = await api.get<ClassOverview[]>('/teacher/classes-overview');
       setClasses(classesResponse.data ?? []);
@@ -239,7 +234,7 @@ export default function TeacherOversightPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedClass]);
 
   /**
    * Get performance trend icon and color
@@ -284,9 +279,9 @@ export default function TeacherOversightPage() {
 
   useEffect(() => {
     if (isAuthenticated && user?.role === 'teacher') {
-      fetchOversightData();
+      void fetchOversightData();
     }
-  }, [isAuthenticated, user, selectedClass]);
+  }, [fetchOversightData, isAuthenticated, user]);
 
   if (!isAuthenticated || user?.role !== 'teacher') {
     return (
