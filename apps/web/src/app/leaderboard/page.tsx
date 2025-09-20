@@ -3,10 +3,10 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { ApiError, api } from '@/lib/api';
-import { computeHasanat, formatHasanat, getHasanatBadge } from '@/lib/hasanat';
+import { formatHasanat, getHasanatBadge } from '@/lib/hasanat';
 import { LeaderboardEntry } from '@/types';
 
 /**
@@ -37,7 +37,7 @@ export default function LeaderboardPage() {
   /**
    * Fetch leaderboard data based on current filters
    */
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -61,7 +61,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [period, scope, user?.id]);
 
   /**
    * Get rank display with appropriate styling
@@ -99,7 +99,7 @@ export default function LeaderboardPage() {
     if (isAuthenticated) {
       fetchLeaderboard();
     }
-  }, [isAuthenticated, scope, period]);
+  }, [fetchLeaderboard, isAuthenticated]);
 
   if (!isAuthenticated) {
     return (
@@ -291,7 +291,7 @@ export default function LeaderboardPage() {
               </div>
               
               <div className="divide-y divide-gray-200">
-                {leaderboard.map((entry, index) => {
+                {leaderboard.map((entry) => {
                   const rankDisplay = getRankDisplay(entry.rank);
                   const isCurrentUser = entry.user_id === user?.id;
                   
