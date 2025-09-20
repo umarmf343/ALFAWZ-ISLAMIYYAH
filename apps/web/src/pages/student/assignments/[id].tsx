@@ -1,32 +1,25 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
-import { 
-  ArrowLeft, 
-  Play, 
-  Pause, 
-  Square, 
-  Mic, 
-  MicOff, 
-  Upload, 
-  Download,
-  Volume2,
-  VolumeX,
+import {
+  ArrowLeft,
+  Play,
+  Pause,
+  Upload,
   Clock,
   CheckCircle,
   AlertCircle,
-  BookOpen,
   Send
 } from 'lucide-react';
+import Image from 'next/image';
 import Layout from '../../../components/Layout';
 import HotspotComponent from '../../../components/assignment/HotspotComponent';
 import AudioRecorder from '../../../components/assignment/AudioRecorder';
-import { useAuth } from '../../../hooks/useAuth';
 import { useAssignment } from '../../../hooks/useAssignment';
-import { Assignment, Hotspot, Submission } from '../../../types/assignment';
+import { Hotspot } from '../../../types/assignment';
 
 /**
  * Assignment Detail Page - displays assignment with interactive hotspots and audio recording.
@@ -35,9 +28,8 @@ import { Assignment, Hotspot, Submission } from '../../../types/assignment';
 const AssignmentDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
   const { assignment, submission, loading, error, submitAssignment, uploadAudio } = useAssignment(Number(id));
-  
+
   const [selectedHotspot, setSelectedHotspot] = useState<Hotspot | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -45,7 +37,6 @@ const AssignmentDetailPage: React.FC = () => {
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const imageRef = useRef<HTMLImageElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
 
   /**
    * Handle hotspot click interaction.
@@ -247,10 +238,12 @@ const AssignmentDetailPage: React.FC = () => {
                 {/* Assignment Image with Hotspots */}
                 {assignment.image_s3_url && (
                   <div className="relative">
-                    <img
+                    <Image
                       ref={imageRef}
                       src={assignment.image_s3_url}
                       alt={assignment.title}
+                      width={1200}
+                      height={800}
                       className="w-full h-auto"
                     />
                     

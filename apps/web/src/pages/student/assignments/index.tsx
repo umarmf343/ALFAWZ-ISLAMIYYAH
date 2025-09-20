@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, BookOpen, CheckCircle, AlertCircle, Play, Pause } from 'lucide-react';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import Layout from '../../../components/Layout';
 import { useAuth } from '../../../hooks/useAuth';
 import { useAssignments } from '../../../hooks/useAssignments';
@@ -23,7 +24,7 @@ const StudentAssignmentDashboard: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      fetchAssignments();
+      void fetchAssignments();
     }
   }, [user, fetchAssignments]);
 
@@ -182,10 +183,12 @@ const StudentAssignmentDashboard: React.FC = () => {
                   {/* Assignment Image */}
                   {assignment.image_s3_url && (
                     <div className="relative h-48 rounded-t-lg overflow-hidden">
-                      <img
+                      <Image
                         src={assignment.image_s3_url}
                         alt={assignment.title}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                       />
                       <div className="absolute top-4 right-4">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
