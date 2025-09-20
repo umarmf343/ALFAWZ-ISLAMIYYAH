@@ -3,33 +3,25 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import type { IconType } from 'react-icons';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { 
-  getMemorizationStudents, 
-  getMemorizationAnalytics, 
-  getAudioReviews, 
-  reviewAudioSubmission 
+import Image from 'next/image';
+import {
+  getMemorizationStudents,
+  getMemorizationAnalytics,
+  getAudioReviews,
+  reviewAudioSubmission
 } from '@/lib/api';
-import { 
-  FaUser, 
-  FaChartLine, 
-  FaBell, 
-  FaEye, 
-  FaCalendarAlt, 
-  FaBookOpen, 
-  FaStar, 
-  FaFire, 
+import {
+  FaUser,
+  FaChartLine,
+  FaBell,
+  FaBookOpen,
+  FaStar,
   FaTrophy,
   FaExclamationTriangle,
   FaCheckCircle,
-  FaClock,
-  FaGraduationCap,
   FaVolumeUp,
   FaPlay,
   FaPause
@@ -334,7 +326,13 @@ export default function MemorizationOversight() {
                 <div className="flex items-center">
                   <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                     {student.avatar ? (
-                      <img src={student.avatar} alt={student.name} className="w-12 h-12 rounded-full" />
+                      <Image
+                        src={student.avatar}
+                        alt={student.name}
+                        width={48}
+                        height={48}
+                        className="h-12 w-12 rounded-full object-cover"
+                      />
                     ) : (
                       <FaUser className="text-blue-600" />
                     )}

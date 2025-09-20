@@ -262,7 +262,7 @@ export const SpiritualCard: React.FC<SpiritualCardProps> = ({
   glow = false,
   pattern = false
 }) => {
-  const { theme, animations, styles } = useSpiritualTheme();
+  const { animations, styles } = useSpiritualTheme();
 
   return (
     <motion.div
