@@ -6,7 +6,7 @@
  * Provides seamless offline experience for dashboard data.
  */
 
-import { indexedDBService, CACHE_KEYS, cacheDashboardData, getCachedDashboardData } from './indexedDB';
+import { indexedDBService, CACHE_KEYS, cacheDashboardData } from './indexedDB';
 
 const hasWindow = typeof window !== 'undefined';
 const hasNavigator = typeof navigator !== 'undefined';
@@ -161,7 +161,7 @@ class OfflineApiService {
       
       if (queue.length === 0) return;
 
-      console.log(`Syncing ${queue.length} offline requests...`);
+      console.warn(`Syncing ${queue.length} offline requests...`);
 
       const syncPromises = queue.map(async (item) => {
         try {
@@ -179,7 +179,7 @@ class OfflineApiService {
       await Promise.all(syncPromises);
       await indexedDBService.clearOfflineQueue();
       
-      console.log('Offline queue synced successfully');
+      console.warn('Offline queue synced successfully');
     } catch (error) {
       console.error('Failed to sync offline queue:', error);
     }
@@ -288,7 +288,7 @@ class OfflineApiService {
         leaderboard: leaderboard.data
       });
 
-      console.log('Dashboard data preloaded for offline use');
+      console.warn('Dashboard data preloaded for offline use');
     } catch (error) {
       console.error('Failed to preload dashboard data:', error);
     }

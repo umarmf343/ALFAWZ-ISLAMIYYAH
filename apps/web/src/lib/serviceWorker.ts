@@ -12,7 +12,7 @@
  */
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-    console.log('Service Worker not supported');
+    console.warn('Service Worker not supported');
     return null;
   }
 
@@ -21,7 +21,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
       scope: '/'
     });
 
-    console.log('Service Worker registered successfully:', registration);
+    console.warn('Service Worker registered successfully:', registration);
 
     // Handle updates
     registration.addEventListener('updatefound', () => {
@@ -30,7 +30,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // New service worker is available
-            console.log('New service worker available');
+            console.warn('New service worker available');
             notifyUpdate();
           }
         });
@@ -42,7 +42,7 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 
     // Register for background sync if supported
     if ('sync' in window.ServiceWorkerRegistration.prototype) {
-      console.log('Background sync supported');
+      console.warn('Background sync supported');
     }
 
     return registration;
@@ -61,18 +61,18 @@ function handleServiceWorkerMessage(event: MessageEvent) {
 
   switch (type) {
     case 'SYNC_COMPLETE':
-      console.log(`Background sync completed: ${data.synced} synced, ${data.failed} failed`);
+      console.warn(`Background sync completed: ${data.synced} synced, ${data.failed} failed`);
       // Notify UI about sync completion
       window.dispatchEvent(new CustomEvent('sw-sync-complete', { detail: data }));
       break;
 
     case 'CACHE_UPDATED':
-      console.log('Cache updated');
+      console.warn('Cache updated');
       window.dispatchEvent(new CustomEvent('sw-cache-updated'));
       break;
 
     default:
-      console.log('Unknown service worker message:', type);
+      console.warn('Unknown service worker message:', type);
   }
 }
 
@@ -116,7 +116,7 @@ export async function unregisterServiceWorker(): Promise<boolean> {
     const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       const result = await registration.unregister();
-      console.log('Service Worker unregistered:', result);
+      console.warn('Service Worker unregistered:', result);
       return result;
     }
     return false;
@@ -191,14 +191,14 @@ export async function clearServiceWorkerCache(): Promise<boolean> {
  */
 export async function requestBackgroundSync(tag: string = 'background-sync'): Promise<void> {
   if (!('serviceWorker' in navigator) || !('sync' in window.ServiceWorkerRegistration.prototype)) {
-    console.log('Background sync not supported');
+    console.warn('Background sync not supported');
     return;
   }
 
   try {
     const registration = await navigator.serviceWorker.ready;
     await registration.sync.register(tag);
-    console.log('Background sync registered:', tag);
+    console.warn('Background sync registered:', tag);
   } catch (error) {
     console.error('Background sync registration failed:', error);
   }
@@ -237,7 +237,7 @@ export function useServiceWorker() {
     // Listen for service worker events
     const handleUpdateAvailable = () => setUpdateAvailable(true);
     const handleSyncComplete = (event: CustomEvent) => {
-      console.log('Sync completed:', event.detail);
+      console.warn('Sync completed:', event.detail);
       // Refresh data or show notification
     };
 

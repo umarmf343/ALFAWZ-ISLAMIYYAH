@@ -670,12 +670,12 @@ export function initializeOfflineSupport(
   onOffline?: () => void
 ): void {
   window.addEventListener('online', () => {
-    console.log('App is now online');
+    console.warn('App is now online');
     onOnline?.();
   });
 
   window.addEventListener('offline', () => {
-    console.log('App is now offline');
+    console.warn('App is now offline');
     onOffline?.();
   });
 
