@@ -127,7 +127,8 @@ class ApiClient {
             const textBody = await response.text();
             parsedBody = textBody ? textBody : null;
           }
-        } catch (parseError) {
+        } catch (_error) {
+          void _error;
           parsedBody = null;
         }
       }
