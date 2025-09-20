@@ -7,13 +7,12 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { formatHasanat, getHasanatBadge } from '@/lib/hasanat';
 import { Class, Assignment, Submission } from '@/types';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import Confetti from 'react-confetti';
-import { FaShare, FaFire, FaStar, FaBook, FaClock, FaTrophy, FaAward, FaChevronRight, FaBookmark, FaClipboardList, FaCheckCircle } from 'react-icons/fa';
+import { FaShare, FaFire, FaStar, FaBook, FaTrophy, FaAward, FaChevronRight } from 'react-icons/fa';
 import HasanatCounter from '@/components/HasanatCounter';
 import OfflineIndicator, { OfflineBadge } from '@/components/OfflineIndicator';
 import { offlineApi, isDataStale } from '@/lib/offlineApi';
@@ -365,7 +364,6 @@ export default function DashboardPage() {
     );
   }
 
-  const badge = getHasanatBadge(stats.total_hasanat || 0);
   const todaysHasanat = studentData?.daily_progress.hasanat_earned ?? 0;
   const recentSurahs: StudentDashboardData['recent_surahs'] = studentData?.recent_surahs ?? [];
   const hasRecentSurahs = recentSurahs.length > 0;
