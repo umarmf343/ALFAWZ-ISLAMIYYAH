@@ -12,7 +12,7 @@ import { getLocale, getMessages } from 'next-intl/server';
 import { getDirection, getFontClass } from '@/i18n';
 import { SkipLink } from '@/lib/accessibility';
 
-// Local font configuration (using local font files)
+// Local fonts (use local font paths instead of next/font/google)
 const geistSans = localFont({
   src: [
     { path: '../../public/fonts/geist-sans/Geist-100.ttf', weight: '100', style: 'normal' },
