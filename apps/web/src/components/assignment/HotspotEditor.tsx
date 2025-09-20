@@ -2,6 +2,7 @@
 /* Author: Auto-scaffold (review required) */
 
 import React, { useState, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
@@ -9,14 +10,11 @@ import {
   Volume2,
   Info,
   Settings,
-  Play,
-  Square,
-  Move,
   RotateCcw,
   Eye,
   EyeOff
 } from 'lucide-react';
-import { CreateHotspotData, Hotspot, HotspotAnimation } from '../../types/assignment';
+import { CreateHotspotData, HotspotAnimation } from '../../types/assignment';
 
 const HOTSPOT_TYPES = ['text', 'audio', 'interactive', 'quiz'] as const;
 type HotspotType = (typeof HOTSPOT_TYPES)[number];
@@ -73,12 +71,20 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
 }) => {
   const [isCreatingHotspot, setIsCreatingHotspot] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showHotspots, setShowHotspots] = useState(true);
   const [deletedHotspots, setDeletedHotspots] = useState<number[]>([]);
-  
-  const imageRef = useRef<HTMLImageElement>(null);
+
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const [imageDimensions, setImageDimensions] = useState({ width: 1, height: 1 });
+
+  const handleImageLoad = useCallback((event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+
+    if (naturalWidth > 0 && naturalHeight > 0) {
+      setImageDimensions({ width: naturalWidth, height: naturalHeight });
+    }
+  }, []);
 
   /**
    * Handle image click to create new hotspot.
@@ -130,10 +136,9 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
     const offsetX = event.clientX - rect.left;
     const offsetY = event.clientY - rect.top;
     
-    setDragOffset({ x: offsetX, y: offsetY });
     setIsDragging(true);
     onSelectedHotspotChange(hotspotId);
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!imageRef.current) return;
       
@@ -287,13 +292,18 @@ const HotspotEditor: React.FC<HotspotEditorProps> = ({
       <div className="relative bg-gray-50 rounded-lg overflow-hidden">
         {imageUrl ? (
           <div className="relative">
-            <img
+            <Image
               ref={imageRef}
               src={imageUrl}
               alt="Assignment"
               className={`w-full h-auto ${!readOnly ? 'cursor-crosshair' : ''}`}
               onClick={handleImageClick}
+              onLoad={handleImageLoad}
               draggable={false}
+              width={imageDimensions.width}
+              height={imageDimensions.height}
+              sizes="100vw"
+              unoptimized
             />
             
             {/* Render Hotspots */}

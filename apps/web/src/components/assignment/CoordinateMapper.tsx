@@ -2,16 +2,14 @@
 /* Author: Auto-scaffold (review required) */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
 import {
   MousePointer,
-  Move,
   RotateCcw,
   ZoomIn,
   ZoomOut,
-  Grid,
   Crosshair,
-  Save,
   Undo,
   Redo,
   Trash2
@@ -57,7 +55,7 @@ const CoordinateMapper: React.FC<CoordinateMapperProps> = ({
 }) => {
   // Container and image refs
   const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   
   // State management
   const [dragState, setDragState] = useState<DragState>({
@@ -103,7 +101,6 @@ const CoordinateMapper: React.FC<CoordinateMapperProps> = ({
   const screenToImageCoordinates = useCallback((screenX: number, screenY: number) => {
     if (!containerRef.current || !imageRef.current) return { x: 0, y: 0 };
     
-    const containerRect = containerRef.current.getBoundingClientRect();
     const imageRect = imageRef.current.getBoundingClientRect();
     
     // Calculate relative position within the image
@@ -479,18 +476,21 @@ const CoordinateMapper: React.FC<CoordinateMapperProps> = ({
         )}
         
         {/* Image */}
-        <img
+        <Image
           ref={imageRef}
           src={imageUrl}
           alt="Assignment base image"
           className="w-full h-auto block"
           onLoad={handleImageLoad}
           draggable={false}
+          width={Math.max(1, imageDimensions.width)}
+          height={Math.max(1, imageDimensions.height)}
+          sizes="100vw"
+          unoptimized
         />
-        
+
         {/* Hotspots */}
         {imageLoaded && hotspots.map((hotspot) => {
-          const screenCoords = imageToScreenCoordinates(hotspot.x, hotspot.y);
           const isSelected = selectedHotspot === hotspot.id;
           const isDragging = dragState.draggedHotspot?.id === hotspot.id;
           
