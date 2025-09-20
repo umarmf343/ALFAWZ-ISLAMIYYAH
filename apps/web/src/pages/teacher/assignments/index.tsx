@@ -1,7 +1,8 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
 import {
@@ -18,12 +19,10 @@ import {
   CheckCircle,
   AlertCircle,
   FileText,
-  Image as ImageIcon,
-  Volume2
+  Image as ImageIcon
 } from 'lucide-react';
 import Layout from '../../../components/Layout';
-import { useAuth } from '../../../hooks/useAuth';
-import { Assignment, AssignmentStatus, AssignmentFilters } from '../../../types/assignment';
+import { Assignment, AssignmentStatus } from '../../../types/assignment';
 
 interface AssignmentWithStats extends Assignment {
   submissions_count: number;
@@ -37,7 +36,6 @@ interface AssignmentWithStats extends Assignment {
  */
 const TeacherAssignmentsPage: React.FC = () => {
   const router = useRouter();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<AssignmentWithStats[]>([]);
@@ -50,7 +48,7 @@ const TeacherAssignmentsPage: React.FC = () => {
   /**
    * Fetch assignments from API.
    */
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -79,14 +77,14 @@ const TeacherAssignmentsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   /**
    * Filter assignments based on search term and status.
    */
-  const filterAssignments = () => {
+  const filterAssignments = useCallback(() => {
     let filtered = assignments;
-    
+
     // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
@@ -101,9 +99,9 @@ const TeacherAssignmentsPage: React.FC = () => {
     if (statusFilter !== 'all') {
       filtered = filtered.filter(assignment => assignment.status === statusFilter);
     }
-    
+
     setFilteredAssignments(filtered);
-  };
+  }, [assignments, searchTerm, statusFilter]);
 
   /**
    * Delete assignment.
@@ -211,11 +209,11 @@ const TeacherAssignmentsPage: React.FC = () => {
 
   useEffect(() => {
     fetchAssignments();
-  }, []);
+  }, [fetchAssignments]);
 
   useEffect(() => {
     filterAssignments();
-  }, [assignments, searchTerm, statusFilter]);
+  }, [filterAssignments]);
 
   if (loading) {
     return (
@@ -348,10 +346,13 @@ const TeacherAssignmentsPage: React.FC = () => {
                       {/* Assignment Image */}
                       <div className="relative h-48 bg-gradient-to-br from-maroon-100 to-gold-100">
                         {assignment.image_url ? (
-                          <img
+                          <Image
                             src={assignment.image_url}
                             alt={assignment.title}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="(max-width: 1024px) 100vw, 33vw"
+                            className="object-cover"
+                            unoptimized
                           />
                         ) : (
                           <div className="flex items-center justify-center h-full">
