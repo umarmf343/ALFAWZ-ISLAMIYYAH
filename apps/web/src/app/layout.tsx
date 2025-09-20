@@ -3,7 +3,6 @@
 
 import React from 'react';
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -13,14 +12,39 @@ import { getLocale, getMessages } from 'next-intl/server';
 import { getDirection, getFontClass } from '@/i18n';
 import { SkipLink } from '@/lib/accessibility';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Local font configuration (using local font files)
+const geistSans = localFont({
+  src: [
+    { path: '../../public/fonts/geist-sans/Geist-100.ttf', weight: '100', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-200.ttf', weight: '200', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-300.ttf', weight: '300', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-400.ttf', weight: '400', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-500.ttf', weight: '500', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-600.ttf', weight: '600', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-700.ttf', weight: '700', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-800.ttf', weight: '800', style: 'normal' },
+    { path: '../../public/fonts/geist-sans/Geist-900.ttf', weight: '900', style: 'normal' },
+  ],
+  variable: '--font-geist-sans',
+  display: 'swap',
+  preload: true,
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const geistMono = localFont({
+  src: [
+    { path: '../../public/fonts/geist-mono/GeistMono-100.ttf', weight: '100', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-200.ttf', weight: '200', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-300.ttf', weight: '300', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-400.ttf', weight: '400', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-500.ttf', weight: '500', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-600.ttf', weight: '600', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-700.ttf', weight: '700', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-800.ttf', weight: '800', style: 'normal' },
+    { path: '../../public/fonts/geist-mono/GeistMono-900.ttf', weight: '900', style: 'normal' },
+  ],
+  variable: '--font-geist-mono',
+  display: 'swap',
+  preload: true,
 });
 
 export const metadata: Metadata = {
