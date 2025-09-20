@@ -2,6 +2,7 @@
 /* Author: Auto-scaffold (review required) */
 
 import React, { useState, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
 import {
@@ -11,18 +12,12 @@ import {
   Trash2,
   Save,
   Eye,
-  Calendar,
-  Users,
   Image as ImageIcon,
   Volume2,
-  Info,
-  Settings,
-  Play,
-  Square
+  Info
 } from 'lucide-react';
 import Layout from '../../../components/Layout';
-import { useAuth } from '../../../hooks/useAuth';
-import { CreateAssignmentData, CreateHotspotData, ClassInfo } from '../../../types/assignment';
+import { CreateAssignmentData, CreateHotspotData } from '../../../types/assignment';
 
 const HOTSPOT_TYPES = ['text', 'audio', 'interactive', 'quiz'] as const;
 type HotspotType = (typeof HOTSPOT_TYPES)[number];
@@ -43,7 +38,6 @@ interface HotspotDraft extends Omit<CreateHotspotData, 'audio'> {
  */
 const CreateAssignmentPage: React.FC = () => {
   const router = useRouter();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -62,10 +56,9 @@ const CreateAssignmentPage: React.FC = () => {
   const [hotspots, setHotspots] = useState<HotspotDraft[]>([]);
   const [selectedHotspot, setSelectedHotspot] = useState<string | null>(null);
   const [isCreatingHotspot, setIsCreatingHotspot] = useState(false);
-  const [classes, setClasses] = useState<ClassInfo[]>([]);
-  
+
   // Refs
-  const imageRef = useRef<HTMLImageElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
@@ -546,10 +539,13 @@ const CreateAssignmentPage: React.FC = () => {
                 <div className="relative">
                   {imageUrl ? (
                     <div className="relative">
-                      <img
+                      <Image
                         ref={imageRef}
                         src={imageUrl}
                         alt="Assignment"
+                        width={1200}
+                        height={800}
+                        unoptimized
                         className="w-full h-auto cursor-crosshair"
                         onClick={handleImageClick}
                       />

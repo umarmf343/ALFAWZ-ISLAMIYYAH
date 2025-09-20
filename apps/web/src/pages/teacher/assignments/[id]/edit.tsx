@@ -2,6 +2,7 @@
 /* Author: Auto-scaffold (review required) */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
 import {
@@ -11,19 +12,13 @@ import {
   Trash2,
   Save,
   Eye,
-  Calendar,
-  Users,
   Image as ImageIcon,
   Volume2,
   Info,
-  Settings,
-  Play,
-  Square,
   AlertCircle
 } from 'lucide-react';
 import Layout from '../../../../components/Layout';
-import { useAuth } from '../../../../hooks/useAuth';
-import { Assignment, UpdateAssignmentData, CreateHotspotData, ClassInfo, Hotspot } from '../../../../types/assignment';
+import { Assignment, UpdateAssignmentData, CreateHotspotData, Hotspot } from '../../../../types/assignment';
 
 interface HotspotDraft extends Omit<CreateHotspotData, 'audio'> {
   id: string | number;
@@ -43,7 +38,6 @@ interface AssignmentWithHotspots extends Assignment {
 const EditAssignmentPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,18 +58,18 @@ const EditAssignmentPage: React.FC = () => {
   const [hotspots, setHotspots] = useState<HotspotDraft[]>([]);
   const [selectedHotspot, setSelectedHotspot] = useState<string | number | null>(null);
   const [isCreatingHotspot, setIsCreatingHotspot] = useState(false);
-  const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [deletedHotspots, setDeletedHotspots] = useState<number[]>([]);
-  
+
   // Refs
-  const imageRef = useRef<HTMLImageElement>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
   /**
    * Fetch assignment data for editing.
    */
-  const fetchAssignment = async () => {
+  const fetchAssignment = useCallback(async () => {
+    if (!id) return;
     try {
       setLoading(true);
       setError(null);
@@ -142,7 +136,7 @@ const EditAssignmentPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   /**
    * Handle form input changes.
@@ -343,7 +337,7 @@ const EditAssignmentPage: React.FC = () => {
     if (id) {
       fetchAssignment();
     }
-  }, [id]);
+  }, [id, fetchAssignment]);
 
   const selectedHotspotData = hotspots.find(h => h.id === selectedHotspot);
 
@@ -684,10 +678,13 @@ const EditAssignmentPage: React.FC = () => {
                 <div className="relative">
                   {imageUrl ? (
                     <div className="relative">
-                      <img
+                      <Image
                         ref={imageRef}
                         src={imageUrl}
                         alt="Assignment"
+                        width={1200}
+                        height={800}
+                        unoptimized
                         className="w-full h-auto cursor-crosshair"
                         onClick={handleImageClick}
                       />

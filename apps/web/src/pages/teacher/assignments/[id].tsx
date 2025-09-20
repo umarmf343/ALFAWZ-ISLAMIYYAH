@@ -1,7 +1,8 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/router';
 import {
@@ -10,24 +11,14 @@ import {
   Users,
   Calendar,
   Clock,
-  CheckCircle,
   AlertCircle,
   Play,
   Pause,
-  Volume2,
-  Download,
-  Star,
-  MessageSquare,
   Send,
-  Eye,
-  Filter,
   Search,
-  BarChart3,
-  FileText,
-  Mic
+  FileText
 } from 'lucide-react';
 import Layout from '../../../components/Layout';
-import { useAuth } from '../../../hooks/useAuth';
 import { Assignment, Submission, Feedback, SubmissionStatus } from '../../../types/assignment';
 import HotspotComponent from '../../../components/assignment/HotspotComponent';
 
@@ -55,7 +46,6 @@ interface AssignmentWithSubmissions extends Assignment {
 const TeacherAssignmentDetailPage: React.FC = () => {
   const router = useRouter();
   const { id } = router.query;
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assignment, setAssignment] = useState<AssignmentWithSubmissions | null>(null);
@@ -71,7 +61,8 @@ const TeacherAssignmentDetailPage: React.FC = () => {
   /**
    * Fetch assignment details with submissions.
    */
-  const fetchAssignment = async () => {
+  const fetchAssignment = useCallback(async () => {
+    if (!id) return;
     try {
       setLoading(true);
       setError(null);
@@ -100,7 +91,7 @@ const TeacherAssignmentDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
   /**
    * Submit feedback for a submission.
@@ -235,7 +226,7 @@ const TeacherAssignmentDetailPage: React.FC = () => {
     if (id) {
       fetchAssignment();
     }
-  }, [id]);
+  }, [id, fetchAssignment]);
 
   useEffect(() => {
     // Cleanup audio on unmount
@@ -348,10 +339,13 @@ const TeacherAssignmentDetailPage: React.FC = () => {
                 <div className="relative">
                   {assignment.image_url ? (
                     <div className="relative">
-                      <img
+                      <Image
                         src={assignment.image_url}
                         alt={assignment.title}
+                        width={1200}
+                        height={800}
                         className="w-full h-auto"
+                        unoptimized
                       />
                       
                       {/* Render Hotspots */}
