@@ -1,14 +1,15 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
+import type { ReactNode } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { isLocale, locales } from '@/i18n';
 
 type Props = {
-  children: React.ReactNode;
-  params: { locale: string };
+  children: ReactNode;
+  params?: Promise<{ locale?: string }>;
 };
 
 /**
@@ -17,10 +18,12 @@ type Props = {
  */
 export default async function LocaleLayout({
   children,
-  params: { locale }
+  params,
 }: Props) {
+  const resolvedParams = (await params) ?? {};
+  const locale = typeof resolvedParams.locale === 'string' ? resolvedParams.locale : undefined;
   // Validate that the incoming `locale` parameter is valid
-  if (!isLocale(locale)) {
+  if (!locale || !isLocale(locale)) {
     notFound();
   }
 
