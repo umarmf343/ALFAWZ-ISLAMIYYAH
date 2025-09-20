@@ -74,7 +74,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       setHasPermission(true);
       stream.getTracks().forEach(track => track.stop());
-    } catch (err) {
+    } catch (_error) {
       setHasPermission(false);
       setError('Microphone access denied. Please allow microphone access to record audio.');
     }

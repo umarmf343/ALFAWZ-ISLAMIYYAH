@@ -10,14 +10,10 @@ import {
   Pause,
   SkipBack,
   SkipForward,
-  RotateCcw,
   Download,
   Headphones,
-  Waveform,
   Clock,
-  Star,
-  Heart,
-  BookOpen
+  Star
 } from 'lucide-react';
 
 interface AudioTooltipProps {
