@@ -3,14 +3,13 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, EyeOff, Shuffle, Brain, Play, Pause, RotateCcw, Mic, MicOff } from 'lucide-react';
-import { FaMicrophone, FaMicrophoneSlash, FaBrain, FaStar, FaTrophy, FaFire } from 'react-icons/fa';
+import { Eye, EyeOff, Shuffle, Brain, RotateCcw, Mic, MicOff } from 'lucide-react';
+import { FaBrain, FaStar, FaTrophy, FaFire } from 'react-icons/fa';
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import Confetti from 'react-confetti';
@@ -76,7 +75,6 @@ export default function MemorizationSection({ className }: MemorizationSectionPr
   const [jumbledWords, setJumbledWords] = useState<string[]>([]);
   const [quizAnswers, setQuizAnswers] = useState<string[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string>('');
-  const [showResults, setShowResults] = useState(false);
   const [confidenceScore, setConfidenceScore] = useState(0.5);
   const [tajweedAnalysis, setTajweedAnalysis] = useState<TajweedAnalysis | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -127,7 +125,6 @@ export default function MemorizationSection({ className }: MemorizationSectionPr
     setJumbledWords([]);
     setQuizAnswers([]);
     setSelectedAnswer('');
-    setShowResults(false);
   };
 
   /**
@@ -235,8 +232,7 @@ export default function MemorizationSection({ className }: MemorizationSectionPr
       } else {
         setTajweedAnalysis(null);
       }
-      
-      setShowResults(true);
+
       handleClearRecording();
       
       // Trigger celebration
