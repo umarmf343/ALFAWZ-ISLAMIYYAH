@@ -25,7 +25,7 @@ const StudentAssignmentDashboard: React.FC = () => {
     if (user) {
       fetchAssignments();
     }
-  }, [user]);
+  }, [user, fetchAssignments]);
 
   /**
    * Filter assignments based on current filter and search term.

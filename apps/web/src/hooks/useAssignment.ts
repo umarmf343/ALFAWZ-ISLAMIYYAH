@@ -1,7 +1,7 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Assignment, Submission } from '../types/assignment';
 
 interface UseAssignmentReturn {
@@ -28,11 +28,11 @@ export const useAssignment = (assignmentId: number): UseAssignmentReturn => {
   /**
    * Fetch assignment details from API.
    */
-  const fetchAssignment = async () => {
+  const fetchAssignment = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('Authentication token not found');
@@ -58,12 +58,12 @@ export const useAssignment = (assignmentId: number): UseAssignmentReturn => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [assignmentId]);
 
   /**
    * Fetch user's submission for this assignment.
    */
-  const fetchSubmission = async () => {
+  const fetchSubmission = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
@@ -85,7 +85,7 @@ export const useAssignment = (assignmentId: number): UseAssignmentReturn => {
     } catch (err) {
       console.error('Submission fetch error:', err);
     }
-  };
+  }, [assignmentId]);
 
   /**
    * Upload audio file for assignment submission.
@@ -162,12 +162,12 @@ export const useAssignment = (assignmentId: number): UseAssignmentReturn => {
   /**
    * Refresh assignment data.
    */
-  const refreshAssignment = async (): Promise<void> => {
+  const refreshAssignment = useCallback(async (): Promise<void> => {
     await Promise.all([
       fetchAssignment(),
       fetchSubmission()
     ]);
-  };
+  }, [fetchAssignment, fetchSubmission]);
 
   // Initial data fetch
   useEffect(() => {
@@ -175,7 +175,7 @@ export const useAssignment = (assignmentId: number): UseAssignmentReturn => {
       fetchAssignment();
       fetchSubmission();
     }
-  }, [assignmentId]);
+  }, [assignmentId, fetchAssignment, fetchSubmission]);
 
   return {
     assignment,
@@ -211,7 +211,7 @@ export const useAssignments = (filters?: {
   /**
    * Fetch assignments list from API.
    */
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -256,12 +256,17 @@ export const useAssignments = (filters?: {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    filters?.status,
+    filters?.search,
+    filters?.page,
+    filters?.limit
+  ]);
 
   // Fetch assignments when filters change
   useEffect(() => {
     fetchAssignments();
-  }, [filters?.status, filters?.search, filters?.page, filters?.limit]);
+  }, [fetchAssignments]);
 
   return {
     assignments,

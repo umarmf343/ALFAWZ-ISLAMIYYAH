@@ -2,7 +2,6 @@
 /* Author: Auto-scaffold (review required) */
 
 import { useState, useEffect, useCallback } from 'react';
-import { toast } from '@/components/ui/use-toast';
 
 interface MemorizationPlan {
   id: string;
@@ -173,7 +172,7 @@ export function useMemorization() {
         formData.append('audio_file', reviewData.audio_file, 'recitation.wav');
       }
 
-      const token = getAuthToken();
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       if (!token) {
         throw new Error('No authentication token found');
       }
@@ -204,7 +203,7 @@ export function useMemorization() {
     } finally {
       setIsLoading(false);
     }
-  }, [apiRequest, fetchDueReviews, getAuthToken]);
+  }, [fetchDueReviews]);
 
   /**
    * Get plan statistics.

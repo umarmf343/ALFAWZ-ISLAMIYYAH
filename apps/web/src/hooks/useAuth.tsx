@@ -1,7 +1,7 @@
 /* AlFawz Qur'an Institute — generated with TRAE */
 /* Author: Auto-scaffold (review required) */
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 
 interface User {
@@ -19,7 +19,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   register: (userData: RegisterData) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -55,35 +55,6 @@ export const useAuthImplementation = (): AuthContextType => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
-  /**
-   * Initialize authentication state from localStorage.
-   */
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-        
-        if (storedToken && storedUser) {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-          
-          // Verify token is still valid
-          await refreshUser();
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        // Clear invalid data
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-  }, []);
 
   /**
    * Login user with email and password.
@@ -171,7 +142,7 @@ export const useAuthImplementation = (): AuthContextType => {
   /**
    * Logout user and clear authentication data.
    */
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     try {
       // Call logout endpoint if token exists
       if (token) {
@@ -192,12 +163,12 @@ export const useAuthImplementation = (): AuthContextType => {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
     }
-  };
+  }, [token]);
 
   /**
    * Refresh user data from server.
    */
-  const refreshUser = async (): Promise<void> => {
+  const refreshUser = useCallback(async (): Promise<void> => {
     try {
       if (!token) {
         throw new Error('No authentication token');
@@ -219,14 +190,43 @@ export const useAuthImplementation = (): AuthContextType => {
       
       setUser(userData);
       localStorage.setItem('user', JSON.stringify(userData));
-      
+
     } catch (error) {
       console.error('Refresh user error:', error);
       // If refresh fails, logout user
       logout();
       throw error;
     }
-  };
+  }, [token, logout]);
+
+  /**
+   * Initialize authentication state from localStorage.
+   */
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+
+        if (storedToken && storedUser) {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+
+          // Verify token is still valid
+          await refreshUser();
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        // Clear invalid data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+  }, [refreshUser]);
 
   return {
     user,
