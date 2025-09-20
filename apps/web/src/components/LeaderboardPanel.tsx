@@ -3,24 +3,21 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FaTrophy, 
-  FaMedal, 
-  FaCrown, 
-  FaUsers, 
-  FaUserPlus, 
-  FaEye, 
+import {
+  FaTrophy,
+  FaMedal,
+  FaCrown,
+  FaUsers,
+  FaUserPlus,
+  FaEye,
   FaEyeSlash,
   FaCog,
   FaCalendarWeek,
   FaCalendarAlt,
   FaClock,
-  FaFire,
-  FaStar,
-  FaChevronUp,
-  FaChevronDown
+  FaStar
 } from 'react-icons/fa';
 
 interface LeaderboardEntry {
@@ -158,7 +155,7 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
   /**
    * Fetch leaderboard data from API.
    */
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/student/leaderboard?timeframe=${timeframe}`, {
@@ -179,12 +176,12 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeframe]);
 
   /**
    * Fetch user's leaderboard invites.
    */
-  const fetchInvites = async () => {
+  const fetchInvites = useCallback(async () => {
     try {
       const response = await fetch('/api/student/leaderboard/invites', {
         headers: {
@@ -200,12 +197,12 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
     } catch (error) {
       console.error('Failed to fetch invites:', error);
     }
-  };
+  }, []);
 
   /**
    * Fetch community statistics.
    */
-  const fetchCommunityStats = async () => {
+  const fetchCommunityStats = useCallback(async () => {
     try {
       const response = await fetch('/api/student/leaderboard/community', {
         headers: {
@@ -221,7 +218,7 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
     } catch (error) {
       console.error('Failed to fetch community stats:', error);
     }
-  };
+  }, []);
 
   /**
    * Send leaderboard invite to another user.
@@ -339,7 +336,7 @@ export default function LeaderboardPanel({ className = '' }: LeaderboardPanelPro
     fetchLeaderboard();
     fetchInvites();
     fetchCommunityStats();
-  }, [timeframe]);
+  }, [fetchLeaderboard, fetchInvites, fetchCommunityStats]);
 
   return (
     <div className={`bg-white rounded-2xl shadow-lg overflow-hidden ${className}`}>
